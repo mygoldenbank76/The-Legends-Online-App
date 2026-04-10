@@ -3,13 +3,25 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: TeleChat messaging PWA API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: users
+    description: User operations
+  - name: conversations
+    description: Conversation operations
+  - name: messages
+    description: Message operations
+  - name: reactions
+    description: Message reaction operations
+  - name: uploads
+    description: File upload operations
 paths:
   /healthz:
     get:
@@ -24,6 +36,321 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterBody"
+      responses:
+        "201":
+          description: User registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Username taken
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/search:
+    get:
+      operationId: searchUsers
+      tags: [users]
+      summary: Search users by username
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+  /users/{userId}/status:
+    patch:
+      operationId: updateUserStatus
+      tags: [users]
+      summary: Update user online status
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStatusBody"
+      responses:
+        "200":
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /conversations:
+    get:
+      operationId: listConversations
+      tags: [conversations]
+      summary: List all conversations for current user
+      responses:
+        "200":
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConversationSummary"
+    post:
+      operationId: createConversation
+      tags: [conversations]
+      summary: Create or find a direct conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateConversationBody"
+      responses:
+        "200":
+          description: Conversation found or created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+
+  /conversations/{conversationId}:
+    get:
+      operationId: getConversation
+      tags: [conversations]
+      summary: Get a conversation by ID
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Conversation details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /conversations/{conversationId}/messages:
+    get:
+      operationId: listMessages
+      tags: [messages]
+      summary: List messages in a conversation
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: before
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+    post:
+      operationId: sendMessage
+      tags: [messages]
+      summary: Send a message in a conversation
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageBody"
+      responses:
+        "201":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /conversations/{conversationId}/read:
+    post:
+      operationId: markConversationRead
+      tags: [messages]
+      summary: Mark a conversation as read
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Marked as read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /messages/{messageId}/reactions:
+    post:
+      operationId: addReaction
+      tags: [reactions]
+      summary: Add a reaction to a message
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddReactionBody"
+      responses:
+        "200":
+          description: Reaction added or removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /uploads/image:
+    post:
+      operationId: uploadImage
+      tags: [uploads]
+      summary: Upload an image
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+                - file
+      responses:
+        "200":
+          description: Image uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +361,233 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
+
+    RegisterBody:
+      type: object
+      properties:
+        username:
+          type: string
+        displayName:
+          type: string
+        password:
+          type: string
+        avatar:
+          type: ["string", "null"]
+      required:
+        - username
+        - displayName
+        - password
+
+    LoginBody:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required:
+        - username
+        - password
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        token:
+          type: string
+      required:
+        - user
+        - token
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: string
+        avatar:
+          type: ["string", "null"]
+        isOnline:
+          type: boolean
+        lastSeen:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - username
+        - displayName
+        - isOnline
+        - createdAt
+
+    UpdateStatusBody:
+      type: object
+      properties:
+        isOnline:
+          type: boolean
+      required:
+        - isOnline
+
+    Conversation:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [direct, group]
+        name:
+          type: ["string", "null"]
+        participants:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        createdAt:
+          type: string
+      required:
+        - id
+        - type
+        - participants
+        - createdAt
+
+    ConversationSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [direct, group]
+        name:
+          type: ["string", "null"]
+        otherUser:
+          $ref: "#/components/schemas/User"
+        lastMessage:
+          $ref: "#/components/schemas/Message"
+        unreadCount:
+          type: integer
+        updatedAt:
+          type: string
+      required:
+        - id
+        - type
+        - unreadCount
+        - updatedAt
+
+    CreateConversationBody:
+      type: object
+      properties:
+        userId:
+          type: integer
+      required:
+        - userId
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: integer
+        conversationId:
+          type: integer
+        senderId:
+          type: integer
+        sender:
+          $ref: "#/components/schemas/User"
+        content:
+          type: ["string", "null"]
+        imageUrl:
+          type: ["string", "null"]
+        linkPreview:
+          $ref: "#/components/schemas/LinkPreview"
+        reactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Reaction"
+        createdAt:
+          type: string
+      required:
+        - id
+        - conversationId
+        - senderId
+        - reactions
+        - createdAt
+
+    SendMessageBody:
+      type: object
+      properties:
+        content:
+          type: ["string", "null"]
+        imageUrl:
+          type: ["string", "null"]
+      required: []
+
+    LinkPreview:
+      type: object
+      properties:
+        url:
+          type: string
+        title:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        image:
+          type: ["string", "null"]
+      required:
+        - url
+
+    Reaction:
+      type: object
+      properties:
+        id:
+          type: integer
+        messageId:
+          type: integer
+        userId:
+          type: integer
+        emoji:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+        createdAt:
+          type: string
+      required:
+        - id
+        - messageId
+        - userId
+        - emoji
+        - createdAt
+
+    AddReactionBody:
+      type: object
+      properties:
+        emoji:
+          type: string
+      required:
+        - emoji
+
+    UploadResponse:
+      type: object
+      properties:
+        url:
+          type: string
+      required:
+        - url
