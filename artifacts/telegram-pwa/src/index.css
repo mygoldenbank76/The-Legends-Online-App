@@ -61,72 +61,73 @@
 }
 
 :root {
-  --background: 210 30% 11%;
-  --foreground: 210 20% 92%;
-  --card: 210 25% 16%;
-  --card-foreground: 210 20% 92%;
-  --card-border: 210 20% 22%;
-  --sidebar: 210 28% 13%;
-  --sidebar-foreground: 210 20% 92%;
-  --sidebar-border: 210 20% 22%;
-  --sidebar-primary: 200 80% 55%;
+  /* Base44 "The Legends Online" dark purple theme */
+  --background: 230 25% 5%;
+  --foreground: 210 40% 96%;
+  --card: 230 20% 9%;
+  --card-foreground: 210 40% 96%;
+  --card-border: 230 15% 15%;
+  --sidebar: 230 22% 7%;
+  --sidebar-foreground: 210 40% 96%;
+  --sidebar-border: 230 15% 13%;
+  --sidebar-primary: 263 90% 65%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 210 22% 20%;
-  --sidebar-accent-foreground: 210 20% 92%;
-  --sidebar-ring: 200 80% 55%;
-  --popover: 210 25% 16%;
-  --popover-foreground: 210 20% 92%;
-  --popover-border: 210 20% 22%;
-  --primary: 200 80% 55%;
+  --sidebar-accent: 230 18% 13%;
+  --sidebar-accent-foreground: 210 40% 96%;
+  --sidebar-ring: 263 90% 65%;
+  --popover: 230 20% 9%;
+  --popover-foreground: 210 40% 96%;
+  --popover-border: 230 15% 15%;
+  --primary: 263 90% 65%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 210 22% 20%;
-  --secondary-foreground: 210 20% 92%;
-  --muted: 210 20% 22%;
-  --muted-foreground: 210 15% 60%;
-  --accent: 200 80% 55%;
-  --accent-foreground: 0 0% 100%;
-  --destructive: 0 84% 60%;
+  --secondary: 230 18% 13%;
+  --secondary-foreground: 210 40% 90%;
+  --muted: 230 15% 13%;
+  --muted-foreground: 215 20% 55%;
+  --accent: 190 100% 50%;
+  --accent-foreground: 230 25% 5%;
+  --destructive: 0 75% 60%;
   --destructive-foreground: 0 0% 100%;
-  --border: 210 20% 22%;
-  --input: 210 22% 25%;
-  --ring: 200 80% 55%;
+  --border: 230 15% 15%;
+  --input: 230 18% 13%;
+  --ring: 263 90% 65%;
 
   --app-font-sans: 'Inter', sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: Menlo, monospace;
-  --radius: .5rem;
+  --radius: .75rem;
 }
 
 .dark {
-  --background: 210 30% 11%;
-  --foreground: 210 20% 92%;
-  --card: 210 25% 16%;
-  --card-foreground: 210 20% 92%;
-  --card-border: 210 20% 22%;
-  --sidebar: 210 28% 13%;
-  --sidebar-foreground: 210 20% 92%;
-  --sidebar-border: 210 20% 22%;
-  --sidebar-primary: 200 80% 55%;
+  --background: 230 25% 5%;
+  --foreground: 210 40% 96%;
+  --card: 230 20% 9%;
+  --card-foreground: 210 40% 96%;
+  --card-border: 230 15% 15%;
+  --sidebar: 230 22% 7%;
+  --sidebar-foreground: 210 40% 96%;
+  --sidebar-border: 230 15% 13%;
+  --sidebar-primary: 263 90% 65%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 210 22% 20%;
-  --sidebar-accent-foreground: 210 20% 92%;
-  --sidebar-ring: 200 80% 55%;
-  --popover: 210 25% 16%;
-  --popover-foreground: 210 20% 92%;
-  --popover-border: 210 20% 22%;
-  --primary: 200 80% 55%;
+  --sidebar-accent: 230 18% 13%;
+  --sidebar-accent-foreground: 210 40% 96%;
+  --sidebar-ring: 263 90% 65%;
+  --popover: 230 20% 9%;
+  --popover-foreground: 210 40% 96%;
+  --popover-border: 230 15% 15%;
+  --primary: 263 90% 65%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 210 22% 20%;
-  --secondary-foreground: 210 20% 92%;
-  --muted: 210 20% 22%;
-  --muted-foreground: 210 15% 60%;
-  --accent: 200 80% 55%;
-  --accent-foreground: 0 0% 100%;
-  --destructive: 0 84% 60%;
+  --secondary: 230 18% 13%;
+  --secondary-foreground: 210 40% 90%;
+  --muted: 230 15% 13%;
+  --muted-foreground: 215 20% 55%;
+  --accent: 190 100% 50%;
+  --accent-foreground: 230 25% 5%;
+  --destructive: 0 75% 60%;
   --destructive-foreground: 0 0% 100%;
-  --border: 210 20% 22%;
-  --input: 210 22% 25%;
-  --ring: 200 80% 55%;
+  --border: 230 15% 15%;
+  --input: 230 18% 13%;
+  --ring: 263 90% 65%;
 }
 
 /* ── Glassmorphism (Base44 style) ── */

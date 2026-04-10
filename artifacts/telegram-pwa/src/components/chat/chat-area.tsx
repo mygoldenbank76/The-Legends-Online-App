@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   ArrowLeft, Loader2, Send, Paperclip, Smile,
-  Reply, Pin, Pencil, Trash2, Languages, X, Check, PinOff,
+  Reply, Pin, Pencil, Trash2, Languages, X, Check, PinOff, Mic, MoreVertical,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -301,22 +301,31 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
     <div className="flex flex-col h-full w-full overflow-hidden">
 
       {/* ── Header (sticky) ── */}
-      <div className="flex-shrink-0 h-14 border-b border-border bg-sidebar flex items-center px-4 z-10 shadow-sm">
+      <div className="flex-shrink-0 h-14 glass border-b border-border/50 flex items-center px-3 z-10 gap-3">
         {onBack && (
-          <Button variant="ghost" size="icon" onClick={onBack} className="mr-2 -ml-2 text-muted-foreground hover:text-foreground">
+          <button onClick={onBack} className="text-muted-foreground hover:text-foreground transition-colors p-1 flex-shrink-0">
             <ArrowLeft className="w-5 h-5" />
-          </Button>
+          </button>
         )}
-        <Avatar className="w-9 h-9 mr-3">
-          <AvatarImage src={avatarUrl || ''} />
-          <AvatarFallback className="bg-primary/20 text-primary">{title.substring(0, 2).toUpperCase()}</AvatarFallback>
-        </Avatar>
+        {/* Square avatar with initial — Base44 style */}
+        <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
+          {avatarUrl ? (
+            <img src={avatarUrl} alt={title} className="w-full h-full rounded-xl object-cover" />
+          ) : (
+            <span className="text-sm font-bold text-primary">{title.substring(0, 1).toUpperCase()}</span>
+          )}
+        </div>
         <div className="flex flex-col flex-1 min-w-0">
-          <span className="font-medium text-sm leading-tight text-foreground truncate">{title}</span>
-          <span className={`text-xs leading-tight ${isOnline ? 'text-primary' : 'text-muted-foreground'}`}>
-            {isOnline ? 'en ligne' : lastSeen}
+          <span className="font-semibold text-sm leading-tight text-foreground truncate">{title}</span>
+          <span className={`text-xs leading-tight ${isOnline ? 'text-green-400' : 'text-muted-foreground'}`}>
+            {isOnline ? 'en ligne' : (conversation?.type === 'group'
+              ? `${conversation?.participants?.length ?? 0} membres`
+              : lastSeen)}
           </span>
         </div>
+        <button className="text-muted-foreground hover:text-foreground transition-colors p-1 flex-shrink-0">
+          <MoreVertical className="w-5 h-5" />
+        </button>
       </div>
 
       {/* ── Pinned message banner (sticky) ── */}
@@ -527,53 +536,76 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
         </div>
       )}
 
-      {/* ── Input bar (sticky) ── */}
-      <div className="flex-shrink-0 px-3 py-2.5 bg-sidebar border-t border-border">
-        <div className="flex items-end gap-2 max-w-4xl mx-auto">
-          <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
-
-          <Button variant="ghost" size="icon"
-            onClick={() => fileInputRef.current?.click()} disabled={uploadingImg}
-            className="flex-shrink-0 text-muted-foreground hover:text-foreground mb-0.5"
+      {/* ── Input bar (sticky) — Base44 style ── */}
+      <div className="flex-shrink-0 px-3 py-3 glass border-t border-border/50">
+        <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
+        <div className="flex items-end gap-2">
+          {/* Attachment button — purple rounded square */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingImg}
+            className="flex-shrink-0 w-10 h-10 rounded-xl bg-primary/20 border border-primary/30 hover:bg-primary/30 text-primary transition-colors flex items-center justify-center mb-0.5"
           >
             {uploadingImg ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}
-          </Button>
+          </button>
 
-          <div className="flex-1 bg-input rounded-2xl border border-border focus-within:border-primary/50 flex items-end transition-colors">
+          {/* Input field */}
+          <div className="flex-1 glass rounded-2xl border border-border/50 focus-within:border-primary/40 transition-colors flex items-end">
             <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
               <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon" className="flex-shrink-0 mb-0.5 text-muted-foreground hover:text-foreground">
+                <button className="flex-shrink-0 p-2.5 mb-0.5 text-muted-foreground hover:text-foreground transition-colors">
                   <Smile className="w-5 h-5" />
-                </Button>
+                </button>
               </PopoverTrigger>
-              <PopoverContent className="w-72 p-2" align="start" side="top">
-                <div className="grid grid-cols-8 gap-1">
+              <PopoverContent className="w-72 p-2 glass-strong border-border/50" align="start" side="top">
+                <div className="grid grid-cols-8 gap-0.5">
                   {PICKER_EMOJIS.map(e => (
                     <button key={e} onClick={() => { setContent(p => p + e); setEmojiOpen(false); }}
-                      className="text-xl hover:bg-muted rounded p-1 transition-colors leading-none">{e}</button>
+                      className="text-xl hover:bg-white/10 rounded p-1 transition-colors leading-none">{e}</button>
                   ))}
                 </div>
               </PopoverContent>
             </Popover>
-
             <Textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={editState ? 'Modifier…' : 'Message'}
-              className="min-h-[40px] max-h-[120px] border-0 focus-visible:ring-0 resize-none py-2.5 px-1 bg-transparent shadow-none text-sm"
+              placeholder={editState ? 'Modifier…' : 'Écrire un message...'}
+              className="min-h-[40px] max-h-[120px] border-0 focus-visible:ring-0 resize-none py-2.5 px-0 bg-transparent shadow-none text-sm"
               rows={1}
             />
           </div>
 
-          <Button size="icon" onClick={handleSend}
-            disabled={(!content.trim() && !uploadingImg) || sending}
-            className="flex-shrink-0 rounded-full w-10 h-10 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md mb-0.5 active:scale-95 transition-all"
-          >
-            {sending
-              ? <Loader2 className="w-4 h-4 animate-spin" />
-              : editState ? <Check className="w-4 h-4" /> : <Send className="w-4 h-4 ml-0.5" />}
-          </Button>
+          {/* Send / Mic button — animated like Base44 */}
+          <AnimatePresence mode="wait">
+            {content.trim() || editState ? (
+              <motion.button
+                key="send"
+                onClick={handleSend}
+                disabled={sending}
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.5, opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="flex-shrink-0 w-10 h-10 rounded-xl bg-primary/20 border border-primary/30 hover:bg-primary/30 text-primary transition-colors flex items-center justify-center mb-0.5 active:scale-95"
+              >
+                {sending
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : editState ? <Check className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+              </motion.button>
+            ) : (
+              <motion.button
+                key="mic"
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.5, opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="flex-shrink-0 w-10 h-10 rounded-xl bg-primary/20 border border-primary/30 hover:bg-primary/30 text-primary transition-colors flex items-center justify-center mb-0.5"
+              >
+                <Mic className="w-4 h-4" />
+              </motion.button>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
