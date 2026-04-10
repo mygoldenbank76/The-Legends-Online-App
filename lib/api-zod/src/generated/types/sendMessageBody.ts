@@ -11,4 +11,6 @@ export interface SendMessageBody {
   content?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /** @nullable */
+  replyToId?: number | null;
 }

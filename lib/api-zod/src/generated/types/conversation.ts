@@ -13,6 +13,8 @@ export interface Conversation {
   type: ConversationType;
   /** @nullable */
   name?: string | null;
+  /** @nullable */
+  pinnedMessageId?: number | null;
   participants: User[];
   createdAt: string;
 }

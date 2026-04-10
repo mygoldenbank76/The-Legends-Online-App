@@ -64,6 +64,8 @@ export interface Conversation {
   type: ConversationType;
   /** @nullable */
   name?: string | null;
+  /** @nullable */
+  pinnedMessageId?: number | null;
   participants: User[];
   createdAt: string;
 }
@@ -105,6 +107,10 @@ export interface Message {
   /** @nullable */
   imageUrl?: string | null;
   linkPreview?: LinkPreview;
+  replyTo?: Message;
+  /** @nullable */
+  editedAt?: string | null;
+  isDeleted: boolean;
   reactions: Reaction[];
   createdAt: string;
 }
@@ -114,6 +120,8 @@ export interface ConversationSummary {
   type: ConversationSummaryType;
   /** @nullable */
   name?: string | null;
+  /** @nullable */
+  pinnedMessageId?: number | null;
   otherUser?: User;
   lastMessage?: Message;
   unreadCount: number;
@@ -129,6 +137,12 @@ export interface SendMessageBody {
   content?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /** @nullable */
+  replyToId?: number | null;
+}
+
+export interface EditMessageBody {
+  content: string;
 }
 
 export interface AddReactionBody {

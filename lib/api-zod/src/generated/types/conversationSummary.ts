@@ -14,6 +14,8 @@ export interface ConversationSummary {
   type: ConversationSummaryType;
   /** @nullable */
   name?: string | null;
+  /** @nullable */
+  pinnedMessageId?: number | null;
   otherUser?: User;
   lastMessage?: Message;
   unreadCount: number;

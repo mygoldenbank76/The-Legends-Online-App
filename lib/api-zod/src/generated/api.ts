@@ -67,7 +67,7 @@ export const GetMeResponse = zod.object({
 });
 
 /**
- * @summary Search users by username
+ * @summary Search users
  */
 export const SearchUsersQueryParams = zod.object({
   q: zod.coerce.string(),
@@ -87,31 +87,22 @@ export const SearchUsersResponse = zod.array(SearchUsersResponseItem);
 /**
  * @summary Update user online status
  */
-export const UpdateUserStatusParams = zod.object({
-  userId: zod.coerce.number(),
-});
-
-export const UpdateUserStatusBody = zod.object({
+export const UpdateStatusBody = zod.object({
   isOnline: zod.boolean(),
 });
 
-export const UpdateUserStatusResponse = zod.object({
-  id: zod.number(),
-  username: zod.string(),
-  displayName: zod.string(),
-  avatar: zod.string().nullish(),
-  isOnline: zod.boolean(),
-  lastSeen: zod.string().nullish(),
-  createdAt: zod.string(),
+export const UpdateStatusResponse = zod.object({
+  success: zod.boolean(),
 });
 
 /**
- * @summary List all conversations for current user
+ * @summary List user conversations
  */
 export const ListConversationsResponseItem = zod.object({
   id: zod.number(),
   type: zod.enum(["direct", "group"]),
   name: zod.string().nullish(),
+  pinnedMessageId: zod.number().nullish(),
   otherUser: zod
     .object({
       id: zod.number(),
@@ -149,6 +140,9 @@ export const ListConversationsResponseItem = zod.object({
           image: zod.string().nullish(),
         })
         .optional(),
+      replyTo: zod.unknown().optional(),
+      editedAt: zod.string().nullish(),
+      isDeleted: zod.boolean(),
       reactions: zod.array(
         zod.object({
           id: zod.number(),
@@ -180,32 +174,14 @@ export const ListConversationsResponse = zod.array(
 );
 
 /**
- * @summary Create or find a direct conversation
+ * @summary Create a conversation
  */
 export const CreateConversationBody = zod.object({
   userId: zod.number(),
 });
 
-export const CreateConversationResponse = zod.object({
-  id: zod.number(),
-  type: zod.enum(["direct", "group"]),
-  name: zod.string().nullish(),
-  participants: zod.array(
-    zod.object({
-      id: zod.number(),
-      username: zod.string(),
-      displayName: zod.string(),
-      avatar: zod.string().nullish(),
-      isOnline: zod.boolean(),
-      lastSeen: zod.string().nullish(),
-      createdAt: zod.string(),
-    }),
-  ),
-  createdAt: zod.string(),
-});
-
 /**
- * @summary Get a conversation by ID
+ * @summary Get a conversation
  */
 export const GetConversationParams = zod.object({
   conversationId: zod.coerce.number(),
@@ -215,6 +191,7 @@ export const GetConversationResponse = zod.object({
   id: zod.number(),
   type: zod.enum(["direct", "group"]),
   name: zod.string().nullish(),
+  pinnedMessageId: zod.number().nullish(),
   participants: zod.array(
     zod.object({
       id: zod.number(),
@@ -266,6 +243,9 @@ export const ListMessagesResponseItem = zod.object({
       image: zod.string().nullish(),
     })
     .optional(),
+  replyTo: zod.unknown().optional(),
+  editedAt: zod.string().nullish(),
+  isDeleted: zod.boolean(),
   reactions: zod.array(
     zod.object({
       id: zod.number(),
@@ -291,7 +271,7 @@ export const ListMessagesResponseItem = zod.object({
 export const ListMessagesResponse = zod.array(ListMessagesResponseItem);
 
 /**
- * @summary Send a message in a conversation
+ * @summary Send a message
  */
 export const SendMessageParams = zod.object({
   conversationId: zod.coerce.number(),
@@ -300,16 +280,101 @@ export const SendMessageParams = zod.object({
 export const SendMessageBody = zod.object({
   content: zod.string().nullish(),
   imageUrl: zod.string().nullish(),
+  replyToId: zod.number().nullish(),
 });
 
 /**
- * @summary Mark a conversation as read
+ * @summary Mark conversation as read
  */
 export const MarkConversationReadParams = zod.object({
   conversationId: zod.coerce.number(),
 });
 
 export const MarkConversationReadResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary Edit a message
+ */
+export const EditMessageParams = zod.object({
+  messageId: zod.coerce.number(),
+});
+
+export const EditMessageBody = zod.object({
+  content: zod.string(),
+});
+
+export const EditMessageResponse = zod.object({
+  id: zod.number(),
+  conversationId: zod.number(),
+  senderId: zod.number(),
+  sender: zod
+    .object({
+      id: zod.number(),
+      username: zod.string(),
+      displayName: zod.string(),
+      avatar: zod.string().nullish(),
+      isOnline: zod.boolean(),
+      lastSeen: zod.string().nullish(),
+      createdAt: zod.string(),
+    })
+    .optional(),
+  content: zod.string().nullish(),
+  imageUrl: zod.string().nullish(),
+  linkPreview: zod
+    .object({
+      url: zod.string(),
+      title: zod.string().nullish(),
+      description: zod.string().nullish(),
+      image: zod.string().nullish(),
+    })
+    .optional(),
+  replyTo: zod.unknown().optional(),
+  editedAt: zod.string().nullish(),
+  isDeleted: zod.boolean(),
+  reactions: zod.array(
+    zod.object({
+      id: zod.number(),
+      messageId: zod.number(),
+      userId: zod.number(),
+      emoji: zod.string(),
+      user: zod
+        .object({
+          id: zod.number(),
+          username: zod.string(),
+          displayName: zod.string(),
+          avatar: zod.string().nullish(),
+          isOnline: zod.boolean(),
+          lastSeen: zod.string().nullish(),
+          createdAt: zod.string(),
+        })
+        .optional(),
+      createdAt: zod.string(),
+    }),
+  ),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Delete a message
+ */
+export const DeleteMessageParams = zod.object({
+  messageId: zod.coerce.number(),
+});
+
+export const DeleteMessageResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary Pin or unpin a message in its conversation
+ */
+export const PinMessageParams = zod.object({
+  messageId: zod.coerce.number(),
+});
+
+export const PinMessageResponse = zod.object({
   success: zod.boolean(),
 });
 
@@ -349,6 +414,9 @@ export const AddReactionResponse = zod.object({
       image: zod.string().nullish(),
     })
     .optional(),
+  replyTo: zod.unknown().optional(),
+  editedAt: zod.string().nullish(),
+  isDeleted: zod.boolean(),
   reactions: zod.array(
     zod.object({
       id: zod.number(),

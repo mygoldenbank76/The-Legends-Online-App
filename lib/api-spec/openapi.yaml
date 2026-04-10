@@ -1,6 +1,5 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
   description: TeleChat messaging PWA API
@@ -81,7 +80,7 @@ paths:
               $ref: "#/components/schemas/LoginBody"
       responses:
         "200":
-          description: Logged in
+          description: Login successful
           content:
             application/json:
               schema:
@@ -119,7 +118,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
         "401":
-          description: Not authenticated
+          description: Unauthorized
           content:
             application/json:
               schema:
@@ -129,7 +128,7 @@ paths:
     get:
       operationId: searchUsers
       tags: [users]
-      summary: Search users by username
+      summary: Search users
       parameters:
         - name: q
           in: query
@@ -138,7 +137,7 @@ paths:
             type: string
       responses:
         "200":
-          description: List of users
+          description: Users found
           content:
             application/json:
               schema:
@@ -146,17 +145,11 @@ paths:
                 items:
                   $ref: "#/components/schemas/User"
 
-  /users/{userId}/status:
-    patch:
-      operationId: updateUserStatus
+  /users/status:
+    put:
+      operationId: updateStatus
       tags: [users]
       summary: Update user online status
-      parameters:
-        - name: userId
-          in: path
-          required: true
-          schema:
-            type: integer
       requestBody:
         required: true
         content:
@@ -169,13 +162,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: "#/components/schemas/SuccessResponse"
 
   /conversations:
     get:
       operationId: listConversations
       tags: [conversations]
-      summary: List all conversations for current user
+      summary: List user conversations
       responses:
         "200":
           description: List of conversations
@@ -188,7 +181,7 @@ paths:
     post:
       operationId: createConversation
       tags: [conversations]
-      summary: Create or find a direct conversation
+      summary: Create a conversation
       requestBody:
         required: true
         content:
@@ -196,8 +189,8 @@ paths:
             schema:
               $ref: "#/components/schemas/CreateConversationBody"
       responses:
-        "200":
-          description: Conversation found or created
+        "201":
+          description: Conversation created
           content:
             application/json:
               schema:
@@ -207,7 +200,7 @@ paths:
     get:
       operationId: getConversation
       tags: [conversations]
-      summary: Get a conversation by ID
+      summary: Get a conversation
       parameters:
         - name: conversationId
           in: path
@@ -216,17 +209,11 @@ paths:
             type: integer
       responses:
         "200":
-          description: Conversation details
+          description: Conversation found
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Conversation"
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
 
   /conversations/{conversationId}/messages:
     get:
@@ -241,12 +228,10 @@ paths:
             type: integer
         - name: limit
           in: query
-          required: false
           schema:
             type: integer
         - name: before
           in: query
-          required: false
           schema:
             type: integer
       responses:
@@ -261,7 +246,7 @@ paths:
     post:
       operationId: sendMessage
       tags: [messages]
-      summary: Send a message in a conversation
+      summary: Send a message
       parameters:
         - name: conversationId
           in: path
@@ -285,8 +270,8 @@ paths:
   /conversations/{conversationId}/read:
     post:
       operationId: markConversationRead
-      tags: [messages]
-      summary: Mark a conversation as read
+      tags: [conversations]
+      summary: Mark conversation as read
       parameters:
         - name: conversationId
           in: path
@@ -296,6 +281,85 @@ paths:
       responses:
         "200":
           description: Marked as read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /messages/{messageId}:
+    patch:
+      operationId: editMessage
+      tags: [messages]
+      summary: Edit a message
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditMessageBody"
+      responses:
+        "200":
+          description: Message edited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "403":
+          description: Not authorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteMessage
+      tags: [messages]
+      summary: Delete a message
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Message deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "403":
+          description: Not authorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /messages/{messageId}/pin:
+    post:
+      operationId: pinMessage
+      tags: [messages]
+      summary: Pin or unpin a message in its conversation
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Pin toggled
           content:
             application/json:
               schema:
@@ -457,6 +521,8 @@ components:
           enum: [direct, group]
         name:
           type: ["string", "null"]
+        pinnedMessageId:
+          type: ["integer", "null"]
         participants:
           type: array
           items:
@@ -479,6 +545,8 @@ components:
           enum: [direct, group]
         name:
           type: ["string", "null"]
+        pinnedMessageId:
+          type: ["integer", "null"]
         otherUser:
           $ref: "#/components/schemas/User"
         lastMessage:
@@ -518,6 +586,12 @@ components:
           type: ["string", "null"]
         linkPreview:
           $ref: "#/components/schemas/LinkPreview"
+        replyTo:
+          $ref: "#/components/schemas/Message"
+        editedAt:
+          type: ["string", "null"]
+        isDeleted:
+          type: boolean
         reactions:
           type: array
           items:
@@ -530,6 +604,7 @@ components:
         - senderId
         - reactions
         - createdAt
+        - isDeleted
 
     SendMessageBody:
       type: object
@@ -538,7 +613,17 @@ components:
           type: ["string", "null"]
         imageUrl:
           type: ["string", "null"]
+        replyToId:
+          type: ["integer", "null"]
       required: []
+
+    EditMessageBody:
+      type: object
+      properties:
+        content:
+          type: string
+      required:
+        - content
 
     LinkPreview:
       type: object

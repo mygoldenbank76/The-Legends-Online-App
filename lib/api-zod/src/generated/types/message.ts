@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { LinkPreview } from "./linkPreview";
+import type { Message as __Message } from "./message";
 import type { Reaction } from "./reaction";
 import type { User } from "./user";
 
@@ -19,6 +20,10 @@ export interface Message {
   /** @nullable */
   imageUrl?: string | null;
   linkPreview?: LinkPreview;
+  replyTo?: __Message;
+  /** @nullable */
+  editedAt?: string | null;
+  isDeleted: boolean;
   reactions: Reaction[];
   createdAt: string;
 }

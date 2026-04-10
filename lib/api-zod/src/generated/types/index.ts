@@ -13,6 +13,7 @@ export * from "./conversationSummary";
 export * from "./conversationSummaryType";
 export * from "./conversationType";
 export * from "./createConversationBody";
+export * from "./editMessageBody";
 export * from "./errorResponse";
 export * from "./healthStatus";
 export * from "./linkPreview";

@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './auth-context';
 import { useQueryClient } from '@tanstack/react-query';
-import { getListMessagesQueryKey, getListConversationsQueryKey } from '@workspace/api-client-react';
+import { getListMessagesQueryKey, getListConversationsQueryKey, getGetConversationQueryKey } from '@workspace/api-client-react';
 
 type SocketContextType = {
   socket: Socket | null;
@@ -19,10 +19,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) {
-      if (socket) {
-        socket.disconnect();
-        setSocket(null);
-      }
+      if (socket) { socket.disconnect(); setSocket(null); }
       return;
     }
 
@@ -34,33 +31,37 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       path: '/socket.io',
     });
 
-    newSocket.on('connect', () => {
-      console.log('Socket connected:', newSocket.id);
-    });
-
-    newSocket.on('connect_error', (err) => {
-      console.warn('Socket connection error:', err.message);
-    });
-
-    newSocket.on('new_message', (message: { conversationId: number }) => {
-      queryClient.invalidateQueries({ queryKey: getListMessagesQueryKey(message.conversationId) });
+    const invalidateMessages = (conversationId: number) => {
+      queryClient.invalidateQueries({ queryKey: getListMessagesQueryKey(conversationId) });
       queryClient.invalidateQueries({ queryKey: getListConversationsQueryKey() });
-    });
+    };
 
-    newSocket.on('message_reaction', (message: { conversationId: number }) => {
-      queryClient.invalidateQueries({ queryKey: getListMessagesQueryKey(message.conversationId) });
+    newSocket.on('connect', () => console.log('Socket connected:', newSocket.id));
+    newSocket.on('connect_error', (err) => console.warn('Socket error:', err.message));
+
+    newSocket.on('new_message', (msg: { conversationId: number }) => {
+      invalidateMessages(msg.conversationId);
+    });
+    newSocket.on('message_reaction', (msg: { conversationId: number }) => {
+      invalidateMessages(msg.conversationId);
+    });
+    newSocket.on('message_edited', (msg: { conversationId: number }) => {
+      invalidateMessages(msg.conversationId);
+    });
+    newSocket.on('message_deleted', (msg: { conversationId: number }) => {
+      invalidateMessages(msg.conversationId);
+    });
+    newSocket.on('message_pinned', (data: { conversationId: number }) => {
+      queryClient.invalidateQueries({ queryKey: getGetConversationQueryKey(data.conversationId) });
       queryClient.invalidateQueries({ queryKey: getListConversationsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListMessagesQueryKey(data.conversationId) });
     });
-
     newSocket.on('user_status', () => {
       queryClient.invalidateQueries({ queryKey: getListConversationsQueryKey() });
     });
 
     setSocket(newSocket);
-
-    return () => {
-      newSocket.disconnect();
-    };
+    return () => { newSocket.disconnect(); };
   }, [user, queryClient]);
 
   const joinConversation = (conversationId: number) => {
@@ -80,8 +81,6 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
 export function useSocket() {
   const context = useContext(SocketContext);
-  if (context === undefined) {
-    throw new Error('useSocket must be used within a SocketProvider');
-  }
+  if (!context) throw new Error('useSocket must be used within a SocketProvider');
   return context;
 }
