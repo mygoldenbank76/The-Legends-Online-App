@@ -129,6 +129,30 @@
   --ring: 200 80% 55%;
 }
 
+/* ── Glassmorphism (Base44 style) ── */
+.glass {
+  background: rgba(15, 21, 35, 0.60);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.glass-strong {
+  background: rgba(18, 24, 40, 0.88);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+/* Hide scrollbar */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Thin scrollbar */
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(42, 171, 238, 0.3); border-radius: 2px; }
+
 @layer base {
   * {
     @apply border-border;

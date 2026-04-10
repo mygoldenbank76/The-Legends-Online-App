@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   useListMessages, useGetConversation, useSendMessage,
   useMarkConversationRead, useAddReaction, useUploadImage,
@@ -21,9 +22,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡', '🔥'];
 const PICKER_EMOJIS = ['😀','😂','🤣','😊','😍','🥰','😘','😋','😎','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😣','😥','😮','🤐','😯','😪','😫','🥱','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','☹️','🙁','😖','😞','😟','😤','😢','😭','😦','😧','😨','😩','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','😡','😠','🤬','😷','🤒','🤕','🤢','🤮','🤧','😇','🥳','🥺','🤠','🤡','🤥','🤫','🤭','🧐','🤓','😈','👿','👹','👺','💀','👻','👽','👾','🤖'];
 
-const MENU_W = 220;
-const MENU_H = 290; // approximate menu height
-
 type Msg = {
   id: number;
   conversationId: number;
@@ -40,7 +38,7 @@ type Msg = {
 };
 
 type ChatAreaProps = { conversationId: number; onBack?: () => void };
-type CtxMenu = { msgId: number; x: number; y: number } | null;
+type CtxMenu = { msgId: number } | null;
 type TranslateEntry = { msgId: number; text: string };
 
 async function translateText(text: string): Promise<string> {
@@ -73,7 +71,6 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
   const swipeStartX = useRef(0);
   const swipeStartY = useRef(0);
   const isSwiping = useRef(false);
-  const ctxMenuRef = useRef<HTMLDivElement>(null);
 
   const [content, setContent] = useState('');
   const [sending, setSending] = useState(false);
@@ -131,17 +128,6 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
     }
   }, [conversationId, messages?.length]);
 
-  // Close context menu on outside click
-  useEffect(() => {
-    const fn = (e: MouseEvent) => {
-      if (ctxMenuRef.current && !ctxMenuRef.current.contains(e.target as Node)) {
-        setCtxMenu(null);
-        setDeleteConfirm(null);
-      }
-    };
-    document.addEventListener('mousedown', fn);
-    return () => document.removeEventListener('mousedown', fn);
-  }, []);
 
   // ── Cache invalidation ────────────────────────────────────────
   const invalidate = useCallback(() => {
@@ -200,15 +186,7 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
   // ── Context menu ──────────────────────────────────────────────
   const openCtxMenu = (e: React.MouseEvent | { clientX: number; clientY: number }, msg: Msg) => {
     if ('preventDefault' in e) (e as React.MouseEvent).preventDefault();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    let x = e.clientX;
-    let y = e.clientY;
-    // Keep within screen bounds
-    if (x + MENU_W > vw) x = vw - MENU_W - 8;
-    if (x < 8) x = 8;
-    if (y + MENU_H > vh) y = Math.max(8, y - MENU_H);
-    setCtxMenu({ msgId: msg.id, x, y });
+    setCtxMenu({ msgId: msg.id });
     setDeleteConfirm(null);
   };
 
@@ -599,96 +577,126 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
         </div>
       </div>
 
-      {/* ── Context Menu (Telegram Dark style) ── */}
-      {ctxMenu && ctxMsg && (
-        <div className="fixed inset-0 z-50" onClick={closeCtx}>
-          <div
-            ref={ctxMenuRef}
-            className="fixed z-50 rounded-2xl shadow-2xl overflow-hidden bg-[#1c2733] border border-white/10 min-w-[200px]"
-            style={{ left: ctxMenu.x, top: ctxMenu.y }}
-            onClick={(e) => e.stopPropagation()}
+      {/* ── Context Menu — Base44 bottom-sheet style ── */}
+      <AnimatePresence>
+        {ctxMenu && ctxMsg && (
+          <motion.div
+            key="ctx-overlay"
+            className="fixed inset-0 z-[500] flex items-end justify-center pb-4 px-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            onClick={closeCtx}
           >
-            {/* Emoji reactions strip */}
-            <div className="flex items-center gap-0.5 px-3 py-2.5 border-b border-white/10 bg-[#17212b]">
-              {REACTION_EMOJIS.map(emoji => (
-                <button
-                  key={emoji}
-                  onClick={() => handleReaction(ctxMenu.msgId, emoji)}
-                  className="text-xl hover:scale-125 active:scale-110 transition-transform p-0.5 rounded"
-                >{emoji}</button>
-              ))}
-            </div>
+            {/* Blur overlay */}
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
-            {/* Menu items */}
-            <div className="py-1">
-              <CtxItem icon={<Reply className="w-4 h-4" />} label="Répondre" onClick={() => ctxMsg && handleReply(ctxMsg)} />
+            {/* Menu card — slides up from bottom */}
+            <motion.div
+              className="relative w-full max-w-sm"
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Emoji reactions row */}
+              <div className="glass-strong rounded-2xl mb-2 flex justify-around items-center p-3">
+                {REACTION_EMOJIS.map(emoji => (
+                  <button
+                    key={emoji}
+                    onClick={() => handleReaction(ctxMenu.msgId, emoji)}
+                    className="text-2xl hover:scale-125 active:scale-110 transition-transform"
+                  >{emoji}</button>
+                ))}
+              </div>
 
-              {ctxMsg.content && (
-                <CtxItem
-                  icon={translatingId === ctxMenu.msgId
-                    ? <Loader2 className="w-4 h-4 animate-spin" />
-                    : <Languages className="w-4 h-4" />}
-                  label={translations.find(t => t.msgId === ctxMenu.msgId) ? 'Masquer trad.' : 'Traduire'}
-                  onClick={() => ctxMsg && handleTranslate(ctxMsg)}
+              {/* Actions */}
+              <div className="glass-strong rounded-2xl overflow-hidden">
+                <SheetItem
+                  icon={<Reply size={18} />}
+                  label="Répondre"
+                  onClick={() => ctxMsg && handleReply(ctxMsg)}
                 />
-              )}
 
-              <CtxItem
-                icon={pinnedMsgId === ctxMenu.msgId
-                  ? <PinOff className="w-4 h-4" />
-                  : <Pin className="w-4 h-4" />}
-                label={pinnedMsgId === ctxMenu.msgId ? 'Désépingler' : 'Épingler'}
-                onClick={() => ctxMsg && handlePin(ctxMsg)}
-              />
-
-              {isMineCtx && ctxMsg.content && (
-                <CtxItem icon={<Pencil className="w-4 h-4" />} label="Modifier" onClick={() => ctxMsg && handleEdit(ctxMsg)} />
-              )}
-
-              {isMineCtx && (
-                deleteConfirm === ctxMenu.msgId ? (
-                  <div className="flex items-center gap-2 px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
-                    <span className="text-sm text-red-400 flex-1">Confirmer ?</span>
-                    <button onClick={() => handleDeleteConfirm(ctxMenu.msgId)}
-                      className="text-xs bg-red-500 hover:bg-red-600 text-white px-2.5 py-1 rounded-lg transition-colors">
-                      Oui
-                    </button>
-                    <button onClick={() => setDeleteConfirm(null)}
-                      className="text-xs text-[#8b9bb4] hover:text-white transition-colors">
-                      Non
-                    </button>
-                  </div>
-                ) : (
-                  <CtxItem
-                    icon={<Trash2 className="w-4 h-4 text-red-400" />}
-                    label="Supprimer"
-                    labelCls="text-red-400"
-                    onClick={() => setDeleteConfirm(ctxMenu.msgId)}
+                {ctxMsg.content && (
+                  <SheetItem
+                    icon={translatingId === ctxMenu.msgId
+                      ? <Loader2 size={18} className="animate-spin" />
+                      : <Languages size={18} />}
+                    label={translations.find(t => t.msgId === ctxMenu.msgId) ? 'Masquer traduction' : 'Traduire'}
+                    onClick={() => ctxMsg && handleTranslate(ctxMsg)}
+                    divider
                   />
-                )
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+                )}
+
+                <SheetItem
+                  icon={pinnedMsgId === ctxMenu.msgId ? <PinOff size={18} /> : <Pin size={18} />}
+                  label={pinnedMsgId === ctxMenu.msgId ? 'Désépingler' : 'Épingler'}
+                  onClick={() => ctxMsg && handlePin(ctxMsg)}
+                  divider
+                />
+
+                {isMineCtx && ctxMsg.content && (
+                  <SheetItem
+                    icon={<Pencil size={18} />}
+                    label="Modifier"
+                    onClick={() => ctxMsg && handleEdit(ctxMsg)}
+                    divider
+                  />
+                )}
+
+                {isMineCtx && (
+                  deleteConfirm === ctxMenu.msgId ? (
+                    <div
+                      className="flex items-center gap-3 px-4 py-3.5 border-t border-white/5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <span className="text-sm text-red-400 flex-1">Confirmer la suppression ?</span>
+                      <button
+                        onClick={() => handleDeleteConfirm(ctxMenu.msgId)}
+                        className="text-xs font-semibold bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg transition-colors"
+                      >Oui</button>
+                      <button
+                        onClick={() => setDeleteConfirm(null)}
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >Non</button>
+                    </div>
+                  ) : (
+                    <SheetItem
+                      icon={<Trash2 size={18} className="text-red-400" />}
+                      label="Supprimer"
+                      labelCls="text-red-400"
+                      onClick={() => setDeleteConfirm(ctxMenu.msgId)}
+                      divider
+                    />
+                  )
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-function CtxItem({
-  icon, label, onClick, labelCls = 'text-[#e8eaed]',
+function SheetItem({
+  icon, label, onClick, labelCls = '', divider = false,
 }: {
   icon: React.ReactNode;
   label: string;
   onClick: () => void;
   labelCls?: string;
+  divider?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 active:bg-white/10 transition-colors text-left"
+      className={`flex items-center gap-3 w-full px-4 py-3.5 hover:bg-white/8 active:bg-white/10 transition-all text-left ${divider ? 'border-t border-white/5' : ''}`}
     >
-      <span className="text-[#8b9bb4] flex-shrink-0">{icon}</span>
+      <span className="text-muted-foreground flex-shrink-0">{icon}</span>
       <span className={`text-sm font-medium ${labelCls}`}>{label}</span>
     </button>
   );
