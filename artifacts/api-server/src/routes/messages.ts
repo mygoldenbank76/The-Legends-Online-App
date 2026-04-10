@@ -233,7 +233,7 @@ router.patch("/messages/:messageId", requireAuth, async (req, res): Promise<void
   res.json(fullMessage);
 });
 
-// DELETE message
+// DELETE message — hard delete, removes the row entirely
 router.delete("/messages/:messageId", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as typeof req & { userId: number }).userId;
   const rawId = Array.isArray(req.params.messageId) ? req.params.messageId[0] : req.params.messageId;
@@ -244,10 +244,14 @@ router.delete("/messages/:messageId", requireAuth, async (req, res): Promise<voi
   if (!msg) { res.status(404).json({ error: "Message not found" }); return; }
   if (msg.senderId !== userId) { res.status(403).json({ error: "Not authorized" }); return; }
 
-  await db.update(messagesTable).set({ isDeleted: true }).where(eq(messagesTable.id, messageId));
+  const conversationId = msg.conversationId;
 
-  const fullMessage = await buildMessage(messageId);
-  io.to(`conversation:${msg.conversationId}`).emit("message_deleted", fullMessage);
+  // Delete reactions first, then the message
+  await db.delete(reactionsTable).where(eq(reactionsTable.messageId, messageId));
+  await db.delete(messagesTable).where(eq(messagesTable.id, messageId));
+
+  // Notify all participants: message is gone
+  io.to(`conversation:${conversationId}`).emit("message_deleted", { messageId, conversationId });
   res.json({ success: true });
 });
 
