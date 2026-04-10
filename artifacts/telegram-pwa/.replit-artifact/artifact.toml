@@ -18,9 +18,16 @@ localPort = 22768
 run = "pnpm --filter @workspace/telegram-pwa run dev"
 
 [services.production]
-build = [ "pnpm", "--filter", "@workspace/telegram-pwa", "run", "build" ]
 publicDir = "artifacts/telegram-pwa/dist/public"
 serve = "static"
+
+[services.production.build]
+args = ["pnpm", "--filter", "@workspace/telegram-pwa", "run", "build"]
+
+[services.production.build.env]
+PORT = "22768"
+BASE_PATH = "/"
+NODE_ENV = "production"
 
 [[services.production.rewrites]]
 from = "/*"
