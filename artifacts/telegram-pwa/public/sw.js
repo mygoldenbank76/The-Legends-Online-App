@@ -1,5 +1,5 @@
-const CACHE_NAME = 'legends-v1';
-const STATIC_CACHE = 'legends-static-v1';
+const CACHE_NAME = 'legends-v2';
+const STATIC_CACHE = 'legends-static-v2';
 
 // On install: skip waiting to activate immediately
 self.addEventListener('install', (event) => {
@@ -88,11 +88,19 @@ self.addEventListener('push', (event) => {
 
   const { title, body, icon, badge, tag, data } = payload;
 
+  // Always use absolute URLs so Android can load the icon correctly
+  const origin = self.location.origin;
+  const toAbsolute = (path) => {
+    if (!path) return origin + '/icon-192.png';
+    if (path.startsWith('http')) return path;
+    return origin + path;
+  };
+
   event.waitUntil(
     self.registration.showNotification(title || 'The Legends Online', {
       body: body || '',
-      icon: icon || '/icon-192.png',
-      badge: badge || '/icon-192.png',
+      icon: toAbsolute(icon),
+      badge: toAbsolute(badge),
       tag: tag || 'legends-notification',
       data: data || {},
       vibrate: [200, 100, 200],
@@ -105,24 +113,27 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const conversationId = event.notification.data?.conversationId;
-  const url = conversationId ? `/?conv=${conversationId}` : '/';
+  const notifData = event.notification.data || {};
+  const conversationId = notifData.conversationId;
+  const isGroup = notifData.isGroup;
+  const type = isGroup ? 'group' : 'direct';
+  const fallbackUrl = conversationId ? `/?conv=${conversationId}&type=${type}` : '/';
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // If app is already open, focus it
+      // If app is already open, send a message so React handles it without reloading
       for (const client of clientList) {
         if ('focus' in client) {
           client.focus();
-          if (conversationId && 'navigate' in client) {
-            client.navigate(url);
+          if (conversationId) {
+            client.postMessage({ type: 'OPEN_CONVERSATION', conversationId, isGroup });
           }
           return;
         }
       }
-      // Otherwise open a new window
+      // App is not open — open a new window with query params
       if (clients.openWindow) {
-        return clients.openWindow(url);
+        return clients.openWindow(fallbackUrl);
       }
     })
   );

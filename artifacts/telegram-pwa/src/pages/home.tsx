@@ -41,6 +41,37 @@ export default function Home() {
   const [activeConvId, setActiveConvId] = useState<number | undefined>();
   const [swipeDir, setSwipeDir] = useState<1 | -1>(1);
 
+  // ── Open conversation from push notification ──────────────────────────────
+  const openConversation = (convId: number, isGroup: boolean) => {
+    setActiveTab(isGroup ? 'groups' : 'messages');
+    setActiveConvId(convId);
+  };
+
+  // Handle SW postMessage (app already open)
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'OPEN_CONVERSATION') {
+        openConversation(event.data.conversationId, event.data.isGroup);
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', handler);
+    return () => navigator.serviceWorker.removeEventListener('message', handler);
+  }, []);
+
+  // Handle URL params (app opened fresh from notification)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const convId = params.get('conv');
+    const type = params.get('type');
+    if (convId) {
+      openConversation(Number(convId), type !== 'direct');
+      // Clean the URL without reloading
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+  // ─────────────────────────────────────────────────────────────────────────
+
   // ── Swipe between tabs ───────────────────────────────────────
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);

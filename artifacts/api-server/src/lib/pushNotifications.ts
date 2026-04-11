@@ -87,7 +87,7 @@ export async function notifyNewMessage(opts: {
     icon: "/icon-192.png",
     badge: "/icon-192.png",
     tag: `conversation-${conversationId}`,
-    data: { conversationId },
+    data: { conversationId, isGroup },
   };
 
   await Promise.all(participants.map((p) => pushToUser(p.userId, payload)));
