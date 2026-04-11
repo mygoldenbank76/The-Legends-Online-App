@@ -99,11 +99,17 @@ export function PollMessage({ poll: initialPoll, isMine, onVote, onViewVotes }: 
     if (translated) { setTranslated(null); return; }
     setIsTranslating(true);
     try {
-      const [question, ...optionTexts] = await Promise.all([
-        translateText(poll.question, translateLanguage),
-        ...poll.options.map(o => translateText(o.text, translateLanguage)),
-      ]);
-      setTranslated({ question, options: optionTexts });
+      // Send all texts in one request separated by a unique delimiter.
+      // This gives autodetect enough French context (Oui/Non/etc.)
+      // so mixed-language titles like "Test traduction" are also correctly identified.
+      const DELIM = ' ||| ';
+      const allTexts = [poll.question, ...poll.options.map(o => o.text)];
+      const combined = allTexts.join(DELIM);
+      const translatedCombined = await translateText(combined, translateLanguage);
+      const parts = translatedCombined.split(DELIM);
+      const question = parts[0] ?? poll.question;
+      const options = poll.options.map((_, i) => parts[i + 1] ?? poll.options[i].text);
+      setTranslated({ question, options });
     } catch {
       // ignore
     } finally {
