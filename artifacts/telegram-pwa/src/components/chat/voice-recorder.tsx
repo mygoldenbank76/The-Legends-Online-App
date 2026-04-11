@@ -59,17 +59,26 @@ export function VoiceRecorder({ onSend, onCancel }: Props) {
         : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4'
         : '';
 
-      // Build options — don't force audioBitsPerSecond, let the browser pick
-      // (some Android Chrome versions reject explicit bitrates and throw)
-      const options: MediaRecorderOptions = mimeType ? { mimeType } : {};
-
+      // Try progressively simpler options until one works:
+      // 1) Best quality: preferred codec + 128kbps
+      // 2) Codec only (browser picks bitrate)
+      // 3) Browser defaults (widest compatibility)
       let mr: MediaRecorder;
-      try {
-        mr = new MediaRecorder(stream, options);
-      } catch {
-        // Fallback: no options at all
-        mr = new MediaRecorder(stream);
+      const optionSets: MediaRecorderOptions[] = [
+        ...(mimeType ? [{ mimeType, audioBitsPerSecond: 128_000 }] : []),
+        ...(mimeType ? [{ mimeType }] : []),
+        {},
+      ];
+      let created = false;
+      mr = new MediaRecorder(stream); // fallback assignment to satisfy TS
+      for (const opts of optionSets) {
+        try {
+          mr = new MediaRecorder(stream, opts);
+          created = true;
+          break;
+        } catch { /* try next */ }
       }
+      if (!created) mr = new MediaRecorder(stream);
       chunksRef.current = [];
 
       mr.ondataavailable = e => {
