@@ -60,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Ignore
     } finally {
       localStorage.removeItem('telechat_token');
+      localStorage.removeItem('telechat-query-cache'); // clear any stale query cache
       setHasToken(false);
       setLocation('/login');
     }

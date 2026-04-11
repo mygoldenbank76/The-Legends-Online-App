@@ -109,10 +109,13 @@ export default function Login() {
     try {
       setIsLoading(true);
       const result = await login({ data: values });
+      // Clear any stale query cache before redirecting to avoid loops
+      localStorage.removeItem('telechat-query-cache');
       localStorage.setItem('telechat_token', result.token);
       localStorage.setItem('telechat_app_lang', lang);
       toast({ title: t.welcome });
-      window.location.href = '/';
+      // Use BASE_URL so this works correctly on both dev and deployed environments
+      window.location.href = import.meta.env.BASE_URL || '/';
     } catch (error: any) {
       toast({ variant: 'destructive', title: t.errFailed, description: error.message || t.errDesc });
     } finally {
