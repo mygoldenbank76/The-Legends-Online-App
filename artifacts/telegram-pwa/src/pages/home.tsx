@@ -5,7 +5,7 @@ import { ConversationList } from '@/components/chat/conversation-list';
 import { useAuth } from '@/lib/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AnimatedBackground } from '@/components/animated-background';
-import { Users, MessageSquare, ShoppingBag, Settings, Zap, LogOut, Globe, Languages, ChevronDown, Shield } from 'lucide-react';
+import { Users, MessageSquare, ShoppingBag, Settings, Zap, LogOut, Globe, Languages, ChevronDown, Shield, X, ChevronRight } from 'lucide-react';
 import { AdminPanel } from '@/components/admin/admin-panel';
 import { usePreferences } from '@/lib/preferences-context';
 import { SUPPORTED_APP_LANGUAGES, SUPPORTED_TRANSLATE_LANGUAGES } from '@/lib/i18n';
@@ -509,22 +509,80 @@ function SettingsPage({
 
       {/* Admin panel (only visible to admins) */}
       {user.isAdmin && (
-        <div>
-          <button
-            onClick={() => setShowAdmin(v => !v)}
-            className="w-full flex items-center gap-3 px-4 py-3 glass rounded-2xl hover:bg-primary/10 transition-colors text-left mb-3"
-          >
-            <div className="w-8 h-8 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
-              <Shield className="w-4 h-4 text-primary" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-primary">Panel Administrateur</p>
-              <p className="text-xs text-muted-foreground">Gérer les utilisateurs</p>
-            </div>
-            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showAdmin ? 'rotate-180' : ''}`} />
-          </button>
-          {showAdmin && <AdminPanel />}
-        </div>
+        <>
+          <div className="glass rounded-2xl overflow-hidden">
+            <button
+              onClick={() => setShowAdmin(true)}
+              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-primary/10 transition-colors text-left"
+            >
+              <div className="w-8 h-8 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
+                <Shield className="w-4 h-4 text-primary" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-primary">Panel Administrateur</p>
+                <p className="text-xs text-muted-foreground">Gérer les utilisateurs et surveiller</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </div>
+
+          {/* Bottom sheet */}
+          <AnimatePresence>
+            {showAdmin && (
+              <>
+                {/* Backdrop */}
+                <motion.div
+                  key="admin-backdrop"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+                  onClick={() => setShowAdmin(false)}
+                />
+                {/* Sheet */}
+                <motion.div
+                  key="admin-sheet"
+                  initial={{ y: '100%' }}
+                  animate={{ y: 0 }}
+                  exit={{ y: '100%' }}
+                  transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+                  className="fixed inset-x-0 bottom-0 z-50 flex flex-col"
+                  style={{ maxHeight: '92vh' }}
+                >
+                  <div className="glass-strong rounded-t-3xl flex flex-col overflow-hidden" style={{ maxHeight: '92vh' }}>
+                    {/* Drag handle */}
+                    <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+                      <div className="w-10 h-1 rounded-full bg-white/20" />
+                    </div>
+                    {/* Sheet header */}
+                    <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 flex-shrink-0">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-primary/20 flex items-center justify-center">
+                          <Shield className="w-4 h-4 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-sm">Panel Administrateur</p>
+                          <p className="text-xs text-muted-foreground">The Legends Online</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowAdmin(false)}
+                        className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/15 flex items-center justify-center transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {/* Scrollable content */}
+                    <div className="flex-1 overflow-y-auto p-4">
+                      <AdminPanel />
+                    </div>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        </>
       )}
 
       {/* Logout */}
