@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X, Link2, Image as ImageIcon, FileText, Mic } from 'lucide-react';
+import { usePreferences } from '@/lib/preferences-context';
 
 type Participant = {
   id: number;
@@ -28,10 +29,17 @@ type Props = {
   messages: Msg[];
 };
 
-type Tab = 'Médias' | 'Fichiers' | 'Voix';
-
 export function GroupInfoSheet({ open, onClose, conversation, messages }: Props) {
-  const [tab, setTab] = useState<Tab>('Médias');
+  const { t } = usePreferences();
+
+  type Tab = 'media' | 'files' | 'voice';
+  const [tab, setTab] = useState<Tab>('media');
+
+  const tabs: { key: Tab; label: string }[] = [
+    { key: 'media', label: t.groupInfo.media },
+    { key: 'files', label: t.groupInfo.files },
+    { key: 'voice', label: t.groupInfo.voice },
+  ];
 
   const title = conversation?.name || 'Conversation';
   const initial = title.substring(0, 1).toUpperCase();
@@ -75,7 +83,7 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
                   <span className="text-3xl font-bold text-primary">{initial}</span>
                 </div>
                 <h2 className="text-lg font-bold text-foreground">{title}</h2>
-                <p className="text-sm text-muted-foreground">{memberCount} membres</p>
+                <p className="text-sm text-muted-foreground">{memberCount} {t.groupInfo.members}</p>
               </div>
 
               {/* Group link */}
@@ -84,7 +92,7 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
                   <Link2 className="w-4 h-4 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] text-muted-foreground">Lien du groupe</p>
+                  <p className="text-[10px] text-muted-foreground">{t.groupInfo.groupLink}</p>
                   <p className="text-xs text-foreground truncate font-mono">{groupLink.substring(0, 35)}...</p>
                 </div>
                 <button
@@ -100,24 +108,24 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
 
               {/* Tabs */}
               <div className="flex border-b border-border/50 mx-4">
-                {(['Médias', 'Fichiers', 'Voix'] as Tab[]).map(t => (
+                {tabs.map(tabItem => (
                   <button
-                    key={t}
-                    onClick={() => setTab(t)}
+                    key={tabItem.key}
+                    onClick={() => setTab(tabItem.key)}
                     className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                      tab === t
+                      tab === tabItem.key
                         ? 'text-primary border-b-2 border-primary -mb-px'
                         : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
-                    {t}
+                    {tabItem.label}
                   </button>
                 ))}
               </div>
 
               {/* Tab content */}
               <div className="flex-1 overflow-y-auto p-4 min-h-[120px]">
-                {tab === 'Médias' && (
+                {tab === 'media' && (
                   mediaMessages.length > 0 ? (
                     <div className="grid grid-cols-3 gap-1">
                       {mediaMessages.map((m, i) => (
@@ -127,25 +135,25 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
                       ))}
                     </div>
                   ) : (
-                    <EmptyState icon={<ImageIcon className="w-8 h-8" />} label="Aucun média partagé" />
+                    <EmptyState icon={<ImageIcon className="w-8 h-8" />} label={t.groupInfo.noMedia} />
                   )
                 )}
-                {tab === 'Fichiers' && (
-                  <EmptyState icon={<FileText className="w-8 h-8" />} label="Aucun fichier partagé" />
+                {tab === 'files' && (
+                  <EmptyState icon={<FileText className="w-8 h-8" />} label={t.groupInfo.noFiles} />
                 )}
-                {tab === 'Voix' && (
+                {tab === 'voice' && (
                   voiceMessages.length > 0 ? (
                     <div className="space-y-2">
                       {voiceMessages.map((m, i) => (
                         <div key={i} className="glass rounded-xl px-3 py-2 flex items-center gap-2">
                           <Mic className="w-4 h-4 text-primary flex-shrink-0" />
-                          <span className="text-xs text-muted-foreground">Message vocal {i + 1}</span>
+                          <span className="text-xs text-muted-foreground">{t.groupInfo.voiceMessage} {i + 1}</span>
                           <audio controls src={m.audioUrl!} className="flex-1 h-6" />
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <EmptyState icon={<Mic className="w-8 h-8" />} label="Aucun message vocal" />
+                    <EmptyState icon={<Mic className="w-8 h-8" />} label={t.groupInfo.noVoice} />
                   )
                 )}
               </div>

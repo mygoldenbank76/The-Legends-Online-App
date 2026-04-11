@@ -8,6 +8,8 @@ import { Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { UserSearch } from './user-search';
 import { getAuthHeaders } from '@/lib/auth-fetch';
+import { usePreferences } from '@/lib/preferences-context';
+import { translateGroupName } from '@/lib/i18n';
 
 const SWIPE_REVEAL_PX = -72;
 const LONG_PRESS_MS = 450;
@@ -22,6 +24,7 @@ type Props = {
 export function ConversationList({ filterType, activeConvId, onSelectConv, user }: Props) {
   const { data: allConvs = [] } = useListConversations();
   const queryClient = useQueryClient();
+  const { t, appLanguage } = usePreferences();
   const [openId, setOpenId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
@@ -107,14 +110,15 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
       <div className="flex-1 overflow-y-auto py-1 px-2 no-scrollbar">
         {conversations.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground gap-2">
-            <p className="text-sm">Aucune conversation</p>
-            <p className="text-xs">Utilise la recherche pour démarrer</p>
+            <p className="text-sm">{t.conversations.noConversation}</p>
+            <p className="text-xs">{t.conversations.noConversationDesc}</p>
           </div>
         )}
 
         {conversations.map((conv, i) => {
           const isGroup = conv.type === 'group';
-          const title = conv.name || conv.otherUser?.displayName || 'Unknown';
+          const rawTitle = conv.name || conv.otherUser?.displayName || 'Unknown';
+          const title = isGroup ? translateGroupName(rawTitle, appLanguage) : rawTitle;
           const initials = title.substring(0, 1).toUpperCase();
           const avatarUrl = isGroup ? undefined : conv.otherUser?.avatar;
           const lastMsg = conv.lastMessage;
@@ -210,20 +214,20 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
                         {lastMsg ? (
                           <>
                             {lastMsg.senderId === user.id && (
-                              <span className="text-primary/70 mr-1">Vous:</span>
+                              <span className="text-primary/70 mr-1">{t.conversations.you}:</span>
                             )}
                             {lastMsg.content
                               ? lastMsg.content
                               : (lastMsg as any).audioUrl
-                              ? '🎤 Message vocal'
+                              ? t.conversations.voiceMessage
                               : (lastMsg as any).pollId
-                              ? '📊 Sondage'
+                              ? t.conversations.poll
                               : lastMsg.imageUrl
-                              ? '📷 Image'
+                              ? t.conversations.image
                               : ''}
                           </>
                         ) : (
-                          <span className="italic">Aucun message</span>
+                          <span className="italic">{t.conversations.noMessage}</span>
                         )}
                       </p>
                       {conv.unreadCount > 0 && (

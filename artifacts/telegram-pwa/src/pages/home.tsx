@@ -604,7 +604,7 @@ function SettingsPage({
       {user.isAdmin && (
         <>
           <div>
-            <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider px-1 mb-2">Administration</p>
+            <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider px-1 mb-2">{t.settings.administration}</p>
             <div className="glass rounded-2xl overflow-hidden">
               <button
                 onClick={() => setShowAdmin(true)}
@@ -614,8 +614,8 @@ function SettingsPage({
                   <Shield className="w-4 h-4 text-primary" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-primary">Panel Administrateur</p>
-                  <p className="text-xs text-muted-foreground">Gérer les utilisateurs et surveiller</p>
+                  <p className="text-sm font-semibold text-primary">{t.settings.adminPanel}</p>
+                  <p className="text-xs text-muted-foreground">{t.settings.adminPanelDesc}</p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground" />
               </button>
@@ -659,7 +659,7 @@ function SettingsPage({
                             <Shield className="w-4 h-4 text-primary" />
                           </div>
                           <div>
-                            <p className="font-bold text-sm">Panel Administrateur</p>
+                            <p className="font-bold text-sm">{t.settings.adminPanel}</p>
                             <p className="text-xs text-muted-foreground">The Legends Online</p>
                           </div>
                         </div>
@@ -685,7 +685,7 @@ function SettingsPage({
 
       {/* Application section — PWA install */}
       <div>
-        <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider px-1 mb-2">Application</p>
+        <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider px-1 mb-2">{t.settings.application}</p>
         <div className="glass rounded-2xl overflow-hidden">
           {isStandalone ? (
             <div className="flex items-center gap-3 px-4 py-3.5">
@@ -693,8 +693,8 @@ function SettingsPage({
                 <CheckCircle2 className="w-4 h-4 text-green-400" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-green-400">Application installée</p>
-                <p className="text-xs text-muted-foreground">Vous utilisez déjà la version native</p>
+                <p className="text-sm font-medium text-green-400">{t.settings.appInstalled}</p>
+                <p className="text-xs text-muted-foreground">{t.settings.appInstalledDesc}</p>
               </div>
             </div>
           ) : (
@@ -707,10 +707,10 @@ function SettingsPage({
               </div>
               <div className="flex-1">
                 <p className="text-sm font-semibold text-primary">
-                  {isIos ? 'Installer sur iPhone / iPad' : 'Télécharger l\'application'}
+                  {isIos ? t.settings.installAppIos : t.settings.installApp}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {isIos ? 'Ajouter à l\'écran d\'accueil via Safari' : (canInstall ? 'Installer en application native' : 'Ouvrir dans le navigateur pour installer')}
+                  {isIos ? t.settings.installAppIosDesc : (canInstall ? t.settings.installAppDesc : t.settings.installAppDesc)}
                 </p>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
@@ -722,7 +722,7 @@ function SettingsPage({
       {/* Notifications section */}
       {pushSupported && (
         <div>
-          <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider px-1 mb-2">Notifications</p>
+          <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider px-1 mb-2">{t.settings.notifications}</p>
           <div className="glass rounded-2xl overflow-hidden">
             <button
               onClick={pushSubscribed ? disablePush : enablePush}
@@ -741,18 +741,18 @@ function SettingsPage({
               <div className="flex-1">
                 {pushPermission === 'denied' ? (
                   <>
-                    <p className="text-sm font-medium text-red-400">Notifications bloquées</p>
-                    <p className="text-xs text-muted-foreground">Autorise-les dans les réglages du navigateur</p>
+                    <p className="text-sm font-medium text-red-400">{t.settings.notifBlocked}</p>
+                    <p className="text-xs text-muted-foreground">{t.settings.notifBlockedDesc}</p>
                   </>
                 ) : pushSubscribed ? (
                   <>
-                    <p className="text-sm font-medium text-green-400">Notifications activées</p>
-                    <p className="text-xs text-muted-foreground">Appuie pour désactiver</p>
+                    <p className="text-sm font-medium text-green-400">{t.settings.notifEnabled}</p>
+                    <p className="text-xs text-muted-foreground">{t.settings.notifEnabledDesc}</p>
                   </>
                 ) : (
                   <>
-                    <p className="text-sm font-semibold text-primary">Activer les notifications</p>
-                    <p className="text-xs text-muted-foreground">Reçois une alerte pour chaque nouveau message</p>
+                    <p className="text-sm font-semibold text-primary">{t.settings.notifEnable}</p>
+                    <p className="text-xs text-muted-foreground">{t.settings.notifEnableDesc}</p>
                   </>
                 )}
               </div>
