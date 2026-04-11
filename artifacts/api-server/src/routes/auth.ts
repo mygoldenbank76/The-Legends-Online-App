@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, usersTable, conversationsTable, conversationParticipantsTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 import { hashPassword, verifyPassword, signToken, requireAuth } from "../lib/auth";
 import { RegisterBody, LoginBody } from "@workspace/api-zod";
 
@@ -41,6 +41,17 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     avatar: avatar ?? null,
     isOnline: true,
   }).returning();
+
+  // Auto-join all group conversations
+  try {
+    const groups = await db.select().from(conversationsTable).where(eq(conversationsTable.type, "group"));
+    for (const group of groups) {
+      await db.insert(conversationParticipantsTable).values({
+        conversationId: group.id,
+        userId: user.id,
+      }).onConflictDoNothing();
+    }
+  } catch (_) { /* non-blocking */ }
 
   const token = signToken(user.id);
   res.status(201).json({ user: formatUser(user), token });

@@ -405,14 +405,15 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
   const isMineCtx = ctxMsg?.senderId === user?.id;
 
   return (
-    <div className="flex flex-col h-full w-full overflow-hidden">
+    <div className="relative w-full h-full overflow-hidden">
       {/* Hidden file inputs */}
       <input type="file" ref={galleryInputRef} className="hidden" accept="image/*,video/*" onChange={handleFileChange} />
-      <input type="file" ref={cameraInputRef} className="hidden" accept="image/*,video/*" capture="environment" onChange={handleFileChange} />
+      <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleFileChange} />
       <input type="file" ref={documentInputRef} className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar,.7z,application/*,text/plain" onChange={handleDocumentChange} />
+    <div className="absolute inset-0 flex flex-col">
 
       {/* ── Header ── */}
-      <div className="flex-shrink-0 h-14 glass border-b border-border/50 flex items-center px-3 z-10 gap-3">
+      <div className="flex-none h-14 glass border-b border-border/50 flex items-center px-3 z-10 gap-3">
         {onBack && (
           <button onClick={onBack} className="text-muted-foreground hover:text-foreground transition-colors p-1 flex-shrink-0">
             <ArrowLeft className="w-5 h-5" />
@@ -910,6 +911,7 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
           messages={(messages || []) as any}
         />
       )}
+    </div>
     </div>
   );
 }

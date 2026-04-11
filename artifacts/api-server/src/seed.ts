@@ -38,7 +38,6 @@ export async function runSeed() {
 
     // 2. Ensure all 7 groups exist (idempotent)
     for (const groupName of GROUPS) {
-      // Check if group already exists
       const existing = await db.select().from(conversationsTable)
         .where(and(
           eq(conversationsTable.type, "group"),
@@ -57,19 +56,13 @@ export async function runSeed() {
         groupId = existing[0].id;
       }
 
-      // Add all seed users as participants (idempotent)
-      for (const userId of userIds) {
-        const [alreadyIn] = await db.select().from(conversationParticipantsTable)
-          .where(and(
-            eq(conversationParticipantsTable.conversationId, groupId),
-            eq(conversationParticipantsTable.userId, userId)
-          ));
-        if (!alreadyIn) {
-          await db.insert(conversationParticipantsTable).values({
-            conversationId: groupId,
-            userId,
-          });
-        }
+      // Add ALL existing users as participants (idempotent — covers new registrations too)
+      const allUsers = await db.select({ id: usersTable.id }).from(usersTable);
+      for (const { id: userId } of allUsers) {
+        await db.insert(conversationParticipantsTable).values({
+          conversationId: groupId,
+          userId,
+        }).onConflictDoNothing();
       }
     }
 
