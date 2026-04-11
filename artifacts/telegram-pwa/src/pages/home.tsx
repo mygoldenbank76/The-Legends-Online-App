@@ -54,6 +54,10 @@ export default function Home() {
       if (event.data?.type === 'OPEN_CONVERSATION') {
         openConversation(event.data.conversationId, event.data.isGroup);
       }
+      if (event.data?.type === 'MESSAGE_SENT') {
+        // A reply was sent from the notification — open the conversation to show it
+        openConversation(event.data.conversationId, event.data.isGroup ?? false);
+      }
     };
     navigator.serviceWorker.addEventListener('message', handler);
     return () => navigator.serviceWorker.removeEventListener('message', handler);

@@ -1,5 +1,5 @@
-const CACHE_NAME = 'legends-v2';
-const STATIC_CACHE = 'legends-static-v2';
+const CACHE_NAME = 'legends-v3';
+const STATIC_CACHE = 'legends-static-v3';
 
 // On install: skip waiting to activate immediately
 self.addEventListener('install', (event) => {
@@ -105,9 +105,28 @@ self.addEventListener('push', (event) => {
       data: data || {},
       vibrate: [200, 100, 200],
       requireInteraction: false,
+      actions: [
+        { action: 'reply', title: 'Répondre', type: 'text', placeholder: 'Écrire un message…' },
+      ],
     })
   );
 });
+
+// ── IndexedDB helper (SW context) ─────────────────────────────────────────
+function getTokenFromIDB() {
+  return new Promise((resolve) => {
+    const req = indexedDB.open('legends-auth', 1);
+    req.onsuccess = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains('keyval')) { resolve(null); return; }
+      const tx = db.transaction('keyval', 'readonly');
+      const get = tx.objectStore('keyval').get('token');
+      get.onsuccess = () => resolve(get.result || null);
+      get.onerror = () => resolve(null);
+    };
+    req.onerror = () => resolve(null);
+  });
+}
 
 // ── Notification click handler ─────────────────────────────────────────────
 self.addEventListener('notificationclick', (event) => {
@@ -119,9 +138,37 @@ self.addEventListener('notificationclick', (event) => {
   const type = isGroup ? 'group' : 'direct';
   const fallbackUrl = conversationId ? `/?conv=${conversationId}&type=${type}` : '/';
 
+  // ── Inline reply action ────────────────────────────────────────────────
+  if (event.action === 'reply' && event.reply && conversationId) {
+    const replyText = event.reply.trim();
+
+    event.waitUntil(
+      getTokenFromIDB().then((token) => {
+        if (!token || !replyText) return;
+
+        return fetch(`/api/conversations/${conversationId}/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ content: replyText }),
+        }).then(() => {
+          // Notify open app to refresh the conversation
+          return clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+            for (const client of clientList) {
+              client.postMessage({ type: 'MESSAGE_SENT', conversationId });
+            }
+          });
+        });
+      })
+    );
+    return;
+  }
+
+  // ── Normal tap: open conversation ─────────────────────────────────────
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // If app is already open, send a message so React handles it without reloading
       for (const client of clientList) {
         if ('focus' in client) {
           client.focus();
@@ -131,7 +178,6 @@ self.addEventListener('notificationclick', (event) => {
           return;
         }
       }
-      // App is not open — open a new window with query params
       if (clients.openWindow) {
         return clients.openWindow(fallbackUrl);
       }

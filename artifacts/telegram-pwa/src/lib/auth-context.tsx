@@ -3,6 +3,7 @@ import { User } from '@workspace/api-client-react';
 import { useGetMe, useLogin, useRegister, useLogout } from '@workspace/api-client-react';
 import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
+import { saveTokenToIDB, removeTokenFromIDB } from './auth-idb';
 
 type AuthContextType = {
   user: User | null;
@@ -63,6 +64,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLocation('/login');
     }
   };
+
+  // Sync token to IndexedDB so the service worker can access it for inline reply
+  useEffect(() => {
+    const token = localStorage.getItem('telechat_token');
+    if (token) {
+      saveTokenToIDB(token);
+    } else {
+      removeTokenFromIDB();
+    }
+  }, [hasToken]);
 
   useEffect(() => {
     if (!isLoading && !user && hasToken) {
