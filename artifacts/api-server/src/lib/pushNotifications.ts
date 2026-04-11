@@ -30,7 +30,8 @@ async function pushToUser(userId: number, payload: object): Promise<void> {
       try {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          payloadStr
+          payloadStr,
+          { urgency: 'high', TTL: 60 }
         );
       } catch (err: any) {
         if (err.statusCode === 404 || err.statusCode === 410) {
