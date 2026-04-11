@@ -495,9 +495,24 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
                 onTouchMove={(e) => onTouchMove(e, msg.id)}
                 onTouchEnd={(e) => onTouchEnd(e, msg)}
               >
-                {/* Avatar */}
+                {/* Avatar column — arrow stacked above avatar for received messages */}
                 {!isMine && (
-                  <div className="w-7 flex-shrink-0 self-end mb-1">
+                  <div className="flex-shrink-0 self-end flex flex-col items-center mb-1" style={{ width: 28 }}>
+                    {/* Swipe reply arrow — above avatar */}
+                    <div
+                      style={{
+                        opacity: Math.max(0, Math.min((swipeOffset - 20) / 40, 1)),
+                        height: swipeOffset > 0 ? 18 : 0,
+                        transition: swipingId === msg.id ? 'none' : 'all 0.2s ease-out',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Reply className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                    </div>
+                    {/* Avatar */}
                     {!isSameAuthor ? (
                       <Avatar className="w-7 h-7">
                         <AvatarImage src={msg.sender?.avatar || ''} />
@@ -505,22 +520,24 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
                           {(msg.sender?.displayName || '?').substring(0, 2).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-                    ) : <div className="w-7" />}
+                    ) : <div className="w-7 h-7" />}
                   </div>
                 )}
 
-                {/* Swipe reply arrow */}
-                <div
-                  className="flex items-center self-center"
-                  style={{
-                    opacity: Math.max(0, Math.min((swipeOffset - 20) / 40, 1)),
-                    width: swipeOffset > 0 ? 24 : 0,
-                    transition: swipingId === msg.id ? 'none' : 'all 0.2s ease-out',
-                    overflow: 'hidden',
-                  }}
-                >
-                  <Reply className="w-4 h-4 text-primary flex-shrink-0" />
-                </div>
+                {/* Swipe reply arrow for OWN messages (appears left of bubble) */}
+                {isMine && (
+                  <div
+                    className="flex items-center self-center"
+                    style={{
+                      opacity: Math.max(0, Math.min((swipeOffset - 20) / 40, 1)),
+                      width: swipeOffset > 0 ? 22 : 0,
+                      transition: swipingId === msg.id ? 'none' : 'all 0.2s ease-out',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <Reply className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                  </div>
+                )}
 
                 {/* Bubble wrapper — only handles the slide animation */}
                 <div
