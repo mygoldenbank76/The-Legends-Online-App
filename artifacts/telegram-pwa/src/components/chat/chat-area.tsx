@@ -403,17 +403,15 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       const data = await res.json();
       if (!Array.isArray(data)) return;
 
-      // Translate option labels to the current app language in one combined call
-      // (combining gives autodetect enough context to identify source language)
+      // Translate option labels to the current app language (one call per option)
       if (data.length > 0 && appLanguage !== 'fr') {
         try {
-          const DELIM = ' ||| ';
-          const combined = data.map((o: any) => o.optionText).join(DELIM);
-          const translatedCombined = await translateText(combined, appLanguage);
-          const parts = translatedCombined.split(DELIM);
+          const translatedTexts = await Promise.all(
+            data.map((o: any) => translateText(o.optionText, appLanguage))
+          );
           setPollVotes(data.map((o: any, i: number) => ({
             ...o,
-            optionText: parts[i] ?? o.optionText,
+            optionText: translatedTexts[i] ?? o.optionText,
           })));
         } catch {
           setPollVotes(data);
