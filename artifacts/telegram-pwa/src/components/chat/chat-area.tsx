@@ -425,6 +425,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // ── Context menu ──────────────────────────────────────────
   const openCtxMenu = (e: React.MouseEvent | { clientX: number; clientY: number }, msg: Msg) => {
     if ('preventDefault' in e) (e as React.MouseEvent).preventDefault();
+    // Ignore any context-menu/long-press events that arrive within 900ms of opening
+    // the conversation — they are ghost events from the navigation tap.
+    if (Date.now() - conversationOpenedAt.current < 900) return;
     setCtxMenu({ msgId: msg.id });
     setDeleteConfirm(null);
   };
