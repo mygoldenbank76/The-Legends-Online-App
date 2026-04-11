@@ -39,78 +39,81 @@ export function FormattingToolbar({
   if (!visible) return null;
 
   return (
-    <div className="border-b border-border/30 bg-card/40 backdrop-blur-sm">
-      <AnimatePresence mode="wait">
-        {linkMode ? (
-          <motion.div
-            key="link"
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.12 }}
-            className="flex items-center gap-2 px-3 py-2"
-          >
-            <Link className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-            <input
-              ref={inputRef}
-              value={linkUrl}
-              onChange={e => onLinkUrlChange(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') { e.preventDefault(); onLinkConfirm(); }
-                if (e.key === 'Escape') { onLinkCancel(); }
-              }}
-              placeholder="https://..."
-              type="url"
-              inputMode="url"
-              className="flex-1 bg-transparent text-sm outline-none text-foreground placeholder:text-muted-foreground/50 min-w-0"
-            />
-            <button
-              onMouseDown={e => { e.preventDefault(); onLinkConfirm(); }}
-              className="text-xs px-3 py-1 rounded-full bg-primary text-primary-foreground font-semibold hover:bg-primary/90 active:scale-95 transition-all flex-shrink-0"
-            >
-              OK
-            </button>
-            <button
-              onMouseDown={e => { e.preventDefault(); onLinkCancel(); }}
-              className="text-xs px-2 py-1 rounded-full bg-white/8 text-muted-foreground hover:bg-white/15 transition-colors flex-shrink-0"
-            >
-              ✕
-            </button>
-          </motion.div>
-        ) : (
-          <motion.div
-            key="tools"
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.12 }}
-            className="flex items-center px-2 py-1"
-          >
-            {TOOLS.map(({ fmt, icon, label }) => {
-              const active = hasSelection;
-              return (
-                <button
-                  key={fmt}
-                  onMouseDown={e => {
-                    e.preventDefault();
-                    if (fmt === 'link') { onLinkRequest(); }
-                    else { onFormat(fmt); }
+    <AnimatePresence>
+      {(hasSelection || linkMode) && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+          transition={{ duration: 0.15 }}
+          className="overflow-hidden border-b border-border/30 bg-card/50 backdrop-blur-sm"
+        >
+          <AnimatePresence mode="wait">
+            {linkMode ? (
+              <motion.div
+                key="link"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.1 }}
+                className="flex items-center gap-2 px-3 py-2"
+              >
+                <Link className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                <input
+                  ref={inputRef}
+                  value={linkUrl}
+                  onChange={e => onLinkUrlChange(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { e.preventDefault(); onLinkConfirm(); }
+                    if (e.key === 'Escape') { onLinkCancel(); }
                   }}
-                  title={label}
-                  className={`flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-lg transition-all duration-150 min-w-[38px]
-                    ${active
-                      ? 'text-foreground hover:bg-primary/20 hover:text-primary active:bg-primary/30 active:scale-95'
-                      : 'text-foreground/35 hover:text-foreground/60 hover:bg-white/5'
-                    }`}
+                  placeholder="https://..."
+                  type="url"
+                  inputMode="url"
+                  className="flex-1 bg-transparent text-sm outline-none text-foreground placeholder:text-muted-foreground/50 min-w-0"
+                />
+                <button
+                  onMouseDown={e => { e.preventDefault(); onLinkConfirm(); }}
+                  className="text-xs px-3 py-1 rounded-full bg-primary text-primary-foreground font-semibold hover:bg-primary/90 active:scale-95 transition-all flex-shrink-0"
                 >
-                  {icon}
-                  <span className="text-[8.5px] leading-none font-medium">{label}</span>
+                  OK
                 </button>
-              );
-            })}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+                <button
+                  onMouseDown={e => { e.preventDefault(); onLinkCancel(); }}
+                  className="text-xs px-2 py-1 rounded-full bg-white/8 text-muted-foreground hover:bg-white/15 transition-colors flex-shrink-0"
+                >
+                  ✕
+                </button>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="tools"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.1 }}
+                className="flex items-center px-2 py-1"
+              >
+                {TOOLS.map(({ fmt, icon, label }) => (
+                  <button
+                    key={fmt}
+                    onMouseDown={e => {
+                      e.preventDefault();
+                      if (fmt === 'link') { onLinkRequest(); }
+                      else { onFormat(fmt); }
+                    }}
+                    title={label}
+                    className="flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-lg transition-all duration-150 min-w-[38px] text-foreground hover:bg-primary/20 hover:text-primary active:bg-primary/30 active:scale-95"
+                  >
+                    {icon}
+                    <span className="text-[8.5px] leading-none font-medium">{label}</span>
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
