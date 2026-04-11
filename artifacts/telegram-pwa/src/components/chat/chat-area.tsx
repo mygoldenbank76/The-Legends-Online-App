@@ -11,12 +11,13 @@ import { useAuth } from '@/lib/auth-context';
 import { useSocket } from '@/lib/socket-context';
 import { usePreferences } from '@/lib/preferences-context';
 import { translateGroupName } from '@/lib/i18n';
+import { getAuthHeaders } from '@/lib/auth-fetch';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   ArrowLeft, Loader2, Send, Plus, Smile,
   Reply, Pin, Pencil, Trash2, Languages, X, Check, PinOff, MoreVertical,
-  Mic, Copy,
+  Mic, Copy, Heart, CheckCheck,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -166,6 +167,12 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
   // User profile sheet (click on avatar/name in group)
   const [profileUser, setProfileUser] = useState<{ id: number; displayName: string; username?: string; avatar?: string | null; bio?: string | null; isOnline?: boolean } | null>(null);
+
+  // Context menu: reactions/views sub-panels
+  type Reader = { id: number; displayName: string; username: string; avatar: string | null; readAt: string | null };
+  const [ctxPanel, setCtxPanel] = useState<'reactions' | 'views' | null>(null);
+  const [ctxReaders, setCtxReaders] = useState<Reader[]>([]);
+  const [ctxReadersLoading, setCtxReadersLoading] = useState(false);
 
   // @mention state
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
@@ -431,7 +438,19 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     setDeleteConfirm(null);
   };
 
-  const closeCtx = () => { setCtxMenu(null); setDeleteConfirm(null); };
+  const closeCtx = () => { setCtxMenu(null); setDeleteConfirm(null); setCtxPanel(null); setCtxReaders([]); };
+
+  // Fetch reads when context menu opens
+  useEffect(() => {
+    if (!ctxMenu) { setCtxReaders([]); setCtxPanel(null); return; }
+    setCtxReadersLoading(true);
+    const token = localStorage.getItem('telechat_token') || '';
+    fetch(`/api/messages/${ctxMenu.msgId}/reads`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : { readers: [] })
+      .then(data => setCtxReaders(data.readers ?? []))
+      .catch(() => setCtxReaders([]))
+      .finally(() => setCtxReadersLoading(false));
+  }, [ctxMenu?.msgId]);
 
   const handleReply = (msg: Msg) => { setReplyTo(msg); setEditState(null); setContent(''); closeCtx(); };
   const handleEdit = (msg: Msg) => { setEditState({ id: msg.id, orig: msg.content || '' }); setContent(msg.content || ''); setReplyTo(null); closeCtx(); };
@@ -1120,73 +1139,190 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
               transition={{ type: 'spring', damping: 28, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Reactions */}
-              <div className="glass-strong rounded-2xl mb-2 flex justify-around items-center p-3">
-                {REACTION_EMOJIS.map(emoji => (
-                  <button key={emoji} onClick={() => handleReaction(ctxMenu.msgId, emoji)}
-                    className="text-2xl hover:scale-125 active:scale-110 transition-transform">{emoji}</button>
-                ))}
-              </div>
+              {ctxPanel ? (
+                /* ── Sub-panel: Reactions or Views ── */
+                <div className="glass-strong rounded-2xl overflow-hidden">
+                  {/* Back header */}
+                  <button
+                    onClick={() => setCtxPanel(null)}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 border-b border-white/5 text-foreground"
+                  >
+                    <ArrowLeft size={18} className="text-muted-foreground" />
+                    <span className="text-sm font-medium">{uiT.chat.back}</span>
+                  </button>
 
-              <div className="glass-strong rounded-2xl overflow-hidden">
-                <SheetItem icon={<Reply size={18} />} label={uiT.chat.reply} onClick={() => ctxMsg && handleReply(ctxMsg)} />
+                  {/* List */}
+                  <div className="max-h-64 overflow-y-auto">
+                    {ctxPanel === 'reactions' && (
+                      ctxMsg.reactions.length === 0 ? (
+                        <p className="text-center text-muted-foreground text-sm py-6">—</p>
+                      ) : (
+                        /* Group by unique user, show all emoji they reacted with */
+                        Object.values(
+                          ctxMsg.reactions.reduce<Record<number, { userId: number; emojis: string[] }>>((acc, r) => {
+                            if (!acc[r.userId]) acc[r.userId] = { userId: r.userId, emojis: [] };
+                            acc[r.userId].emojis.push(r.emoji);
+                            return acc;
+                          }, {})
+                        ).map(({ userId, emojis }) => {
+                          const reactorUser = (conversation as any)?.participants?.find((p: any) => p.id === userId);
+                          const name = reactorUser?.displayName ?? `User ${userId}`;
+                          const avatar = reactorUser?.avatar ?? null;
+                          const initials = name.substring(0, 2).toUpperCase();
+                          return (
+                            <div key={userId} className="flex items-center gap-3 px-4 py-3 border-t border-white/5 first:border-0">
+                              <Avatar className="w-9 h-9 flex-shrink-0">
+                                <AvatarImage src={avatar || ''} />
+                                <AvatarFallback className="bg-primary/20 text-primary text-xs">{initials}</AvatarFallback>
+                              </Avatar>
+                              <span className="flex-1 text-sm font-medium text-foreground truncate">{name}</span>
+                              <span className="text-base">{emojis.join('')}</span>
+                            </div>
+                          );
+                        })
+                      )
+                    )}
 
-                {ctxMsg.content && (
-                  <SheetItem
-                    icon={<Copy size={18} />}
-                    label={uiT.chat.copy}
-                    onClick={() => {
-                      if (ctxMsg?.content) {
-                        navigator.clipboard.writeText(ctxMsg.content).catch(() => {});
-                      }
-                      closeCtx();
-                    }}
-                    divider
-                  />
-                )}
+                    {ctxPanel === 'views' && (
+                      ctxReadersLoading ? (
+                        <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+                      ) : ctxReaders.length === 0 ? (
+                        <p className="text-center text-muted-foreground text-sm py-6">—</p>
+                      ) : (
+                        ctxReaders.map(reader => {
+                          const initials = reader.displayName.substring(0, 2).toUpperCase();
+                          return (
+                            <div key={reader.id} className="flex items-center gap-3 px-4 py-3 border-t border-white/5 first:border-0">
+                              <Avatar className="w-9 h-9 flex-shrink-0">
+                                <AvatarImage src={reader.avatar || ''} />
+                                <AvatarFallback className="bg-primary/20 text-primary text-xs">{initials}</AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-foreground truncate">{reader.displayName}</p>
+                                {reader.readAt && (
+                                  <p className="text-[11px] text-muted-foreground">{format(new Date(reader.readAt), 'HH:mm')}</p>
+                                )}
+                              </div>
+                              <CheckCheck size={16} className="text-primary flex-shrink-0" />
+                            </div>
+                          );
+                        })
+                      )
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* ── Main menu ── */
+                <>
+                  {/* Emoji reaction picker */}
+                  <div className="glass-strong rounded-2xl mb-2 flex justify-around items-center p-3">
+                    {REACTION_EMOJIS.map(emoji => (
+                      <button key={emoji} onClick={() => handleReaction(ctxMenu.msgId, emoji)}
+                        className="text-2xl hover:scale-125 active:scale-110 transition-transform">{emoji}</button>
+                    ))}
+                  </div>
 
-                {ctxMsg.content && (
-                  <SheetItem
-                    icon={translatingId === ctxMenu.msgId ? <Loader2 size={18} className="animate-spin" /> : <Languages size={18} />}
-                    label={translations.find(t => t.msgId === ctxMenu.msgId) ? uiT.chat.hideTranslation : uiT.chat.translate}
-                    onClick={() => ctxMsg && handleTranslate(ctxMsg)}
-                    divider
-                  />
-                )}
+                  {/* Reactions + Views summary row */}
+                  <div className="glass-strong rounded-2xl mb-2 flex divide-x divide-white/10 overflow-hidden">
+                    <button
+                      onClick={() => setCtxPanel('reactions')}
+                      className="flex-1 flex items-center gap-2 px-4 py-3 hover:bg-white/5 transition-colors"
+                    >
+                      <Heart size={15} className="text-red-400 flex-shrink-0" />
+                      <span className="text-sm font-medium text-foreground">{ctxMsg.reactions.length}</span>
+                      <span className="text-xs text-muted-foreground truncate">{uiT.chat.reactions}</span>
+                      {ctxMsg.reactions.slice(0, 3).map((r, i) => {
+                        const p = (conversation as any)?.participants?.find((pp: any) => pp.id === r.userId);
+                        const ini = (p?.displayName ?? '?').substring(0, 2).toUpperCase();
+                        return (
+                          <Avatar key={i} className="w-5 h-5 flex-shrink-0 -ml-1">
+                            <AvatarImage src={p?.avatar || ''} />
+                            <AvatarFallback className="bg-primary/20 text-primary text-[8px]">{ini}</AvatarFallback>
+                          </Avatar>
+                        );
+                      })}
+                    </button>
+                    <button
+                      onClick={() => setCtxPanel('views')}
+                      className="flex-1 flex items-center gap-2 px-4 py-3 hover:bg-white/5 transition-colors"
+                    >
+                      <CheckCheck size={15} className="text-primary flex-shrink-0" />
+                      <span className="text-sm font-medium text-foreground">{ctxReadersLoading ? '…' : ctxReaders.length}</span>
+                      <span className="text-xs text-muted-foreground truncate">{uiT.chat.views}</span>
+                      {ctxReaders.slice(0, 3).map((r, i) => {
+                        const ini = r.displayName.substring(0, 2).toUpperCase();
+                        return (
+                          <Avatar key={i} className="w-5 h-5 flex-shrink-0 -ml-1">
+                            <AvatarImage src={r.avatar || ''} />
+                            <AvatarFallback className="bg-primary/20 text-primary text-[8px]">{ini}</AvatarFallback>
+                          </Avatar>
+                        );
+                      })}
+                    </button>
+                  </div>
 
-                <SheetItem
-                  icon={pinnedMessageIds.includes(ctxMenu.msgId) ? <PinOff size={18} /> : <Pin size={18} />}
-                  label={pinnedMessageIds.includes(ctxMenu.msgId) ? uiT.chat.unpin : uiT.chat.pin}
-                  onClick={() => ctxMsg && handlePin(ctxMsg)}
-                  divider
-                />
+                  {/* Actions */}
+                  <div className="glass-strong rounded-2xl overflow-hidden">
+                    <SheetItem icon={<Reply size={18} />} label={uiT.chat.reply} onClick={() => ctxMsg && handleReply(ctxMsg)} />
 
-                {isMineCtx && ctxMsg.content && !ctxMsg.poll && (
-                  <SheetItem icon={<Pencil size={18} />} label={uiT.chat.edit} onClick={() => ctxMsg && handleEdit(ctxMsg)} divider />
-                )}
+                    {ctxMsg.content && (
+                      <SheetItem
+                        icon={<Copy size={18} />}
+                        label={uiT.chat.copy}
+                        onClick={() => {
+                          if (ctxMsg?.content) {
+                            navigator.clipboard.writeText(ctxMsg.content).catch(() => {});
+                          }
+                          closeCtx();
+                        }}
+                        divider
+                      />
+                    )}
 
-                {canDeleteCtx && (
-                  deleteConfirm === ctxMenu.msgId ? (
-                    <div className="flex items-center gap-3 px-4 py-3.5 border-t border-white/5" onClick={(e) => e.stopPropagation()}>
-                      <span className="text-sm text-red-400 flex-1">{uiT.chat.confirmDelete}</span>
-                      <button onClick={() => handleDeleteConfirm(ctxMenu.msgId)} className="text-xs text-red-400 font-semibold hover:text-red-300 px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20">
-                        {uiT.chat.delete}
-                      </button>
-                      <button onClick={() => setDeleteConfirm(null)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1">
-                        {uiT.chat.cancelDelete}
-                      </button>
-                    </div>
-                  ) : (
+                    {ctxMsg.content && (
+                      <SheetItem
+                        icon={translatingId === ctxMenu.msgId ? <Loader2 size={18} className="animate-spin" /> : <Languages size={18} />}
+                        label={translations.find(t => t.msgId === ctxMenu.msgId) ? uiT.chat.hideTranslation : uiT.chat.translate}
+                        onClick={() => ctxMsg && handleTranslate(ctxMsg)}
+                        divider
+                      />
+                    )}
+
                     <SheetItem
-                      icon={<Trash2 size={18} />}
-                      label={uiT.chat.delete}
-                      onClick={() => setDeleteConfirm(ctxMenu.msgId)}
+                      icon={pinnedMessageIds.includes(ctxMenu.msgId) ? <PinOff size={18} /> : <Pin size={18} />}
+                      label={pinnedMessageIds.includes(ctxMenu.msgId) ? uiT.chat.unpin : uiT.chat.pin}
+                      onClick={() => ctxMsg && handlePin(ctxMsg)}
                       divider
-                      danger
                     />
-                  )
-                )}
-              </div>
+
+                    {isMineCtx && ctxMsg.content && !ctxMsg.poll && (
+                      <SheetItem icon={<Pencil size={18} />} label={uiT.chat.edit} onClick={() => ctxMsg && handleEdit(ctxMsg)} divider />
+                    )}
+
+                    {canDeleteCtx && (
+                      deleteConfirm === ctxMenu.msgId ? (
+                        <div className="flex items-center gap-3 px-4 py-3.5 border-t border-white/5" onClick={(e) => e.stopPropagation()}>
+                          <span className="text-sm text-red-400 flex-1">{uiT.chat.confirmDelete}</span>
+                          <button onClick={() => handleDeleteConfirm(ctxMenu.msgId)} className="text-xs text-red-400 font-semibold hover:text-red-300 px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20">
+                            {uiT.chat.delete}
+                          </button>
+                          <button onClick={() => setDeleteConfirm(null)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1">
+                            {uiT.chat.cancelDelete}
+                          </button>
+                        </div>
+                      ) : (
+                        <SheetItem
+                          icon={<Trash2 size={18} />}
+                          label={uiT.chat.delete}
+                          onClick={() => setDeleteConfirm(ctxMenu.msgId)}
+                          divider
+                          danger
+                        />
+                      )
+                    )}
+                  </div>
+                </>
+              )}
             </motion.div>
           </motion.div>
         )}

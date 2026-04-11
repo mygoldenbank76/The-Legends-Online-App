@@ -74,6 +74,9 @@ type Dict = {
     lastSeen: string;
     offline: string;
     online: string;
+    reactions: string;
+    views: string;
+    back: string;
   };
   groupInfo: {
     members: string;
@@ -193,6 +196,9 @@ export const i18n: Record<AppLang, Dict> = {
       lastSeen: 'vu à {time}',
       offline: 'hors ligne',
       online: 'en ligne',
+      reactions: 'Réactions',
+      views: 'Vues',
+      back: 'Retour',
     },
     groupInfo: {
       members: 'membres',
@@ -311,6 +317,9 @@ export const i18n: Record<AppLang, Dict> = {
       lastSeen: 'seen at {time}',
       offline: 'offline',
       online: 'online',
+      reactions: 'Reactions',
+      views: 'Views',
+      back: 'Back',
     },
     groupInfo: {
       members: 'members',
@@ -432,6 +441,9 @@ export const i18n: Record<AppLang, Dict> = {
       lastSeen: 'visto a las {time}',
       offline: 'desconectado',
       online: 'en línea',
+      reactions: 'Reacciones',
+      views: 'Vistas',
+      back: 'Volver',
     },
     groupInfo: {
       members: 'miembros',
@@ -553,6 +565,9 @@ export const i18n: Record<AppLang, Dict> = {
       lastSeen: 'شوهد في {time}',
       offline: 'غير متصل',
       online: 'متصل',
+      reactions: 'التفاعلات',
+      views: 'المشاهدات',
+      back: 'رجوع',
     },
     groupInfo: {
       members: 'أعضاء',
@@ -674,6 +689,9 @@ export const i18n: Record<AppLang, Dict> = {
       lastSeen: 'visto às {time}',
       offline: 'offline',
       online: 'online',
+      reactions: 'Reações',
+      views: 'Visualizações',
+      back: 'Voltar',
     },
     groupInfo: {
       members: 'membros',
@@ -795,6 +813,9 @@ export const i18n: Record<AppLang, Dict> = {
       lastSeen: 'gesehen um {time}',
       offline: 'offline',
       online: 'online',
+      reactions: 'Reaktionen',
+      views: 'Aufrufe',
+      back: 'Zurück',
     },
     groupInfo: {
       members: 'Mitglieder',

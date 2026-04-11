@@ -4,7 +4,7 @@ import {
   conversationParticipantsTable, conversationsTable,
   pollsTable, pollOptionsTable, conversationPinsTable,
 } from "@workspace/db";
-import { eq, and, lt, desc, inArray, ne, gt } from "drizzle-orm";
+import { eq, and, lt, desc, inArray, ne, gt, gte } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 import { formatUser } from "./users";
 import { extractFirstUrl, fetchLinkPreview } from "../lib/linkPreview";
@@ -434,6 +434,48 @@ router.post("/messages/:messageId/pin", requireAuth, async (req, res): Promise<v
   });
 
   res.json({ success: true, pinnedMessageIds });
+});
+
+// GET reads — who has read a message
+router.get("/messages/:messageId/reads", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as typeof req & { userId: number }).userId;
+  const rawId = Array.isArray(req.params.messageId) ? req.params.messageId[0] : req.params.messageId;
+  const messageId = parseInt(rawId, 10);
+  if (isNaN(messageId)) { res.status(400).json({ error: "Invalid message ID" }); return; }
+
+  const [msg] = await db.select().from(messagesTable).where(eq(messagesTable.id, messageId));
+  if (!msg) { res.status(404).json({ error: "Message not found" }); return; }
+
+  const [participation] = await db.select().from(conversationParticipantsTable).where(and(
+    eq(conversationParticipantsTable.conversationId, msg.conversationId),
+    eq(conversationParticipantsTable.userId, userId),
+  ));
+  if (!participation) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const readers = await db.select({
+    userId: conversationParticipantsTable.userId,
+    lastReadAt: conversationParticipantsTable.lastReadAt,
+  }).from(conversationParticipantsTable).where(and(
+    eq(conversationParticipantsTable.conversationId, msg.conversationId),
+    ne(conversationParticipantsTable.userId, msg.senderId),
+    gte(conversationParticipantsTable.lastReadAt, msg.createdAt),
+  ));
+
+  const readerUserIds = readers.map(r => r.userId);
+  const readerUsers = readerUserIds.length > 0
+    ? await db.select().from(usersTable).where(inArray(usersTable.id, readerUserIds))
+    : [];
+  const userMap = Object.fromEntries(readerUsers.map(u => [u.id, u]));
+
+  const result = readers.map(r => ({
+    id: r.userId,
+    displayName: userMap[r.userId]?.displayName ?? 'User',
+    username: userMap[r.userId]?.username ?? '',
+    avatar: userMap[r.userId]?.avatar ?? null,
+    readAt: r.lastReadAt?.toISOString() ?? null,
+  }));
+
+  res.json({ count: result.length, readers: result });
 });
 
 // POST reactions
