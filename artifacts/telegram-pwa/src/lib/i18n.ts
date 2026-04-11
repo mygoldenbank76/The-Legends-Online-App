@@ -106,6 +106,11 @@ type Dict = {
     anonymousVote: string;
     multipleChoice: string;
     create: string;
+    anonymous: string;
+    public: string;
+    viewVotes: string;
+    votesTitle: string;
+    noVotes: string;
   };
   groupNames: Record<string, string>;
 };
@@ -192,6 +197,11 @@ export const i18n: Record<AppLang, Dict> = {
       anonymousVote: 'Vote anonyme',
       multipleChoice: 'Réponses multiples',
       create: 'Créer le sondage',
+      anonymous: 'Anonyme',
+      public: 'Public',
+      viewVotes: 'Voir les votes',
+      votesTitle: 'Résultats du vote',
+      noVotes: 'Aucun vote',
     },
     groupNames: {},
   },
@@ -277,6 +287,11 @@ export const i18n: Record<AppLang, Dict> = {
       anonymousVote: 'Anonymous vote',
       multipleChoice: 'Multiple answers',
       create: 'Create poll',
+      anonymous: 'Anonymous',
+      public: 'Public',
+      viewVotes: 'View votes',
+      votesTitle: 'Vote results',
+      noVotes: 'No votes',
     },
     groupNames: {
       'Discussion générale': 'General Discussion',
@@ -365,6 +380,11 @@ export const i18n: Record<AppLang, Dict> = {
       anonymousVote: 'Voto anónimo',
       multipleChoice: 'Respuestas múltiples',
       create: 'Crear encuesta',
+      anonymous: 'Anónimo',
+      public: 'Público',
+      viewVotes: 'Ver votos',
+      votesTitle: 'Resultados del voto',
+      noVotes: 'Sin votos',
     },
     groupNames: {
       'Discussion générale': 'Discusión general',
@@ -453,6 +473,11 @@ export const i18n: Record<AppLang, Dict> = {
       anonymousVote: 'تصويت مجهول',
       multipleChoice: 'إجابات متعددة',
       create: 'إنشاء استطلاع',
+      anonymous: 'مجهول',
+      public: 'عام',
+      viewVotes: 'عرض الأصوات',
+      votesTitle: 'نتائج التصويت',
+      noVotes: 'لا توجد أصوات',
     },
     groupNames: {
       'Discussion générale': 'نقاش عام',
@@ -541,6 +566,11 @@ export const i18n: Record<AppLang, Dict> = {
       anonymousVote: 'Voto anônimo',
       multipleChoice: 'Respostas múltiplas',
       create: 'Criar enquete',
+      anonymous: 'Anônimo',
+      public: 'Público',
+      viewVotes: 'Ver votos',
+      votesTitle: 'Resultados da votação',
+      noVotes: 'Nenhum voto',
     },
     groupNames: {
       'Discussion générale': 'Discussão geral',
@@ -629,6 +659,11 @@ export const i18n: Record<AppLang, Dict> = {
       anonymousVote: 'Anonyme Abstimmung',
       multipleChoice: 'Mehrfachantworten',
       create: 'Umfrage erstellen',
+      anonymous: 'Anonym',
+      public: 'Öffentlich',
+      viewVotes: 'Stimmen anzeigen',
+      votesTitle: 'Abstimmungsergebnisse',
+      noVotes: 'Keine Stimmen',
     },
     groupNames: {
       'Discussion générale': 'Allgemeine Diskussion',

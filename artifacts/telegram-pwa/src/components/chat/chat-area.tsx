@@ -1182,7 +1182,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             >
               <div className="glass-strong rounded-t-3xl sm:rounded-3xl max-h-[70dvh] overflow-y-auto">
                 <div className="flex items-center justify-between p-4 sticky top-0 glass-strong">
-                  <h3 className="font-bold text-foreground">Résultats du vote</h3>
+                  <h3 className="font-bold text-foreground">{uiT.poll.votesTitle}</h3>
                   <button onClick={() => setPollVotes(null)} className="text-muted-foreground hover:text-foreground p-1">
                     <X className="w-5 h-5" />
                   </button>
@@ -1192,7 +1192,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     <div key={i}>
                       <p className="text-sm font-semibold text-foreground mb-2">{opt.optionText}</p>
                       {opt.voters.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">Aucun vote</p>
+                        <p className="text-xs text-muted-foreground">{uiT.poll.noVotes}</p>
                       ) : (
                         <div className="space-y-1">
                           {opt.voters.map((v: any) => (

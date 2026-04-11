@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BarChart2, Loader2 } from 'lucide-react';
+import { usePreferences } from '@/lib/preferences-context';
 
 type PollOption = {
   id: number;
@@ -28,6 +29,7 @@ type Props = {
 };
 
 export function PollMessage({ poll: initialPoll, isMine, onVote, onViewVotes }: Props) {
+  const { t } = usePreferences();
   const [poll, setPoll] = useState<Poll>(initialPoll);
   const [voting, setVoting] = useState(false);
 
@@ -163,7 +165,7 @@ export function PollMessage({ poll: initialPoll, isMine, onVote, onViewVotes }: 
       <div className="flex items-center justify-between mt-2.5">
         <div className={`text-[11px] flex items-center gap-1 ${subTextClass}`}>
           {voting && <Loader2 className="w-3 h-3 animate-spin" />}
-          <span>{poll.totalVotes} vote{poll.totalVotes !== 1 ? 's' : ''} · {poll.isAnonymous ? 'Anonyme' : 'Public'}</span>
+          <span>{poll.totalVotes} vote{poll.totalVotes !== 1 ? 's' : ''} · {poll.isAnonymous ? t.poll.anonymous : t.poll.public}</span>
         </div>
         {!poll.isAnonymous && onViewVotes && (
           <button
@@ -172,7 +174,7 @@ export function PollMessage({ poll: initialPoll, isMine, onVote, onViewVotes }: 
               isMine ? 'text-white/80 hover:text-white' : 'text-primary hover:text-primary/80'
             }`}
           >
-            Voir les votes
+            {t.poll.viewVotes}
           </button>
         )}
       </div>
