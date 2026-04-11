@@ -26,6 +26,7 @@ import { PollMessage } from './poll-message';
 import { AudioPlayer } from './audio-player';
 import { VoiceRecorder } from './voice-recorder';
 import { GroupInfoSheet } from './group-info-sheet';
+import { UserProfileSheet } from './user-profile-sheet';
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡', '🔥'];
 const PICKER_EMOJIS = ['😀','😂','🤣','😊','😍','🥰','😘','😋','😎','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😣','😥','😮','🤐','😯','😪','😫','🥱','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','☹️','🙁','😖','😞','😟','😤','😢','😭','😦','😧','😨','😩','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','😡','😠','🤬','😷','🤒','🤕','🤢','🤮','🤧','😇','🥳','🥺','🤠','🤡','🤥','🤫','🤭','🧐','🤓','😈','👿','👹','👺','💀','👻','👽','👾','🤖'];
@@ -53,7 +54,7 @@ type Msg = {
   id: number;
   conversationId: number;
   senderId: number;
-  sender?: { id: number; displayName: string; avatar?: string | null };
+  sender?: { id: number; displayName: string; username?: string; avatar?: string | null; bio?: string | null };
   content?: string | null;
   imageUrl?: string | null;
   audioUrl?: string | null;
@@ -67,7 +68,7 @@ type Msg = {
   createdAt: string;
 };
 
-type ChatAreaProps = { conversationId: number; onBack?: () => void };
+type ChatAreaProps = { conversationId: number; onBack?: () => void; onOpenConversation?: (convId: number) => void };
 type CtxMenu = { msgId: number } | null;
 type TranslateEntry = { msgId: number; text: string };
 
@@ -103,7 +104,7 @@ function SheetItem({
   );
 }
 
-export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
+export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAreaProps) {
   const { user } = useAuth();
   const { socket, joinConversation } = useSocket();
   const queryClient = useQueryClient();
@@ -154,6 +155,9 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
 
   // Poll votes viewer state
   const [pollVotes, setPollVotes] = useState<{ optionText: string; voters: { id: number; displayName: string }[] }[] | null>(null);
+
+  // User profile sheet (click on avatar/name in group)
+  const [profileUser, setProfileUser] = useState<{ id: number; displayName: string; username?: string; avatar?: string | null; bio?: string | null } | null>(null);
 
   // ── Socket ──────────────────────────────────────────────────
   useEffect(() => {
@@ -549,12 +553,20 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
                     </div>
                     {/* Avatar */}
                     {!isSameAuthor ? (
-                      <Avatar className="w-7 h-7">
-                        <AvatarImage src={msg.sender?.avatar || ''} />
-                        <AvatarFallback className="bg-primary/20 text-primary text-[10px]">
-                          {(msg.sender?.displayName || '?').substring(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
+                      <button
+                        className="focus:outline-none"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (conversation?.type === 'group' && msg.sender) setProfileUser(msg.sender);
+                        }}
+                      >
+                        <Avatar className="w-7 h-7">
+                          <AvatarImage src={msg.sender?.avatar || ''} />
+                          <AvatarFallback className="bg-primary/20 text-primary text-[10px]">
+                            {(msg.sender?.displayName || '?').substring(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                      </button>
                     ) : <div className="w-7 h-7" />}
                   </div>
                 )}
@@ -589,11 +601,17 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
                     </div>
                   )}
 
-                  {/* Sender name (group) */}
+                  {/* Sender name (group) — clickable to view profile */}
                   {showSenderName && (
-                    <p className="text-[11px] text-primary font-semibold mb-0.5 ml-1">
+                    <button
+                      className="text-[11px] text-primary font-semibold mb-0.5 ml-1 text-left hover:underline focus:outline-none"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (msg.sender) setProfileUser(msg.sender);
+                      }}
+                    >
                       {msg.sender?.displayName}
-                    </p>
+                    </button>
                   )}
 
                   {/* ── Bubble ── */}
@@ -1020,6 +1038,19 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
           onClose={() => setGroupInfoOpen(false)}
           conversation={conversation as any}
           messages={(messages || []) as any}
+        />
+      )}
+
+      {/* ── User profile sheet (click on avatar/name in group) ── */}
+      {profileUser && user && (
+        <UserProfileSheet
+          user={profileUser}
+          currentUserId={user.id}
+          onClose={() => setProfileUser(null)}
+          onOpenConversation={(convId) => {
+            setProfileUser(null);
+            onOpenConversation?.(convId);
+          }}
         />
       )}
     </div>

@@ -212,14 +212,22 @@ export default function Home() {
             </div>
           )}
           {showChat && activeConvId && (
-            <ChatArea conversationId={activeConvId} onBack={handleBack} />
+            <ChatArea
+              conversationId={activeConvId}
+              onBack={handleBack}
+              onOpenConversation={(convId) => openConversation(convId, false)}
+            />
           )}
         </div>
       ) : (
         /* Desktop: chat panel */
         <div className="relative z-10 flex-1 h-full min-w-0 flex flex-col">
           {activeConvId ? (
-            <ChatArea conversationId={activeConvId} onBack={undefined} />
+            <ChatArea
+              conversationId={activeConvId}
+              onBack={undefined}
+              onOpenConversation={(convId) => openConversation(convId, false)}
+            />
           ) : (
             <div className="flex h-full items-center justify-center flex-col gap-4 text-muted-foreground">
               <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
@@ -493,7 +501,8 @@ function SettingsPage({
   const currentTranslateLang = SUPPORTED_TRANSLATE_LANGUAGES.find(l => l.code === translateLanguage);
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto p-4 gap-4">
+    <div className="h-full overflow-y-auto overscroll-contain">
+    <div className="flex flex-col p-4 gap-4 pb-8">
       {/* Profile card — clickable to edit */}
       <button
         onClick={() => setShowProfileEditor(true)}
@@ -902,6 +911,7 @@ function SettingsPage({
           <span className="font-medium">{t.settings.logout}</span>
         </button>
       </div>
+    </div>
     </div>
   );
 }
