@@ -97,10 +97,10 @@ router.delete("/admin/users/:id", requireAuth, requireAdmin, async (req, res): P
     await db.delete(reactionsTable).where(eq(reactionsTable.userId, targetId));
     await db.delete(pollVotesTable).where(eq(pollVotesTable.userId, targetId));
     await db.delete(conversationParticipantsTable).where(eq(conversationParticipantsTable.userId, targetId));
-    // Anonymize messages instead of deleting (preserve conversation history)
+    // Soft-delete messages (preserve conversation history)
     await db.update(messagesTable)
-      .set({ content: "[Message supprimé]" })
-      .where(eq(messagesTable.userId, targetId));
+      .set({ isDeleted: true, content: null })
+      .where(eq(messagesTable.senderId, targetId));
     await db.delete(usersTable).where(eq(usersTable.id, targetId));
     res.json({ success: true });
   } catch (err: any) {
