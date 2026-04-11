@@ -8,6 +8,9 @@ export const messagesTable = pgTable("messages", {
   senderId: integer("sender_id").notNull(),
   content: text("content"),
   imageUrl: text("image_url"),
+  audioUrl: text("audio_url"),
+  audioDuration: integer("audio_duration"),
+  pollId: integer("poll_id"),
   linkPreview: jsonb("link_preview"),
   replyToId: integer("reply_to_id"),
   editedAt: timestamp("edited_at", { withTimezone: true }),
@@ -21,6 +24,30 @@ export const reactionsTable = pgTable("reactions", {
   messageId: integer("message_id").notNull(),
   userId: integer("user_id").notNull(),
   emoji: text("emoji").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pollsTable = pgTable("polls", {
+  id: serial("id").primaryKey(),
+  question: text("question").notNull(),
+  isAnonymous: boolean("is_anonymous").notNull().default(true),
+  isMultipleChoice: boolean("is_multiple_choice").notNull().default(false),
+  isQuiz: boolean("is_quiz").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pollOptionsTable = pgTable("poll_options", {
+  id: serial("id").primaryKey(),
+  pollId: integer("poll_id").notNull(),
+  text: text("text").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+export const pollVotesTable = pgTable("poll_votes", {
+  id: serial("id").primaryKey(),
+  pollId: integer("poll_id").notNull(),
+  optionId: integer("option_id").notNull(),
+  userId: integer("user_id").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -39,3 +66,6 @@ export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Message = typeof messagesTable.$inferSelect;
 export type InsertReaction = z.infer<typeof insertReactionSchema>;
 export type Reaction = typeof reactionsTable.$inferSelect;
+export type Poll = typeof pollsTable.$inferSelect;
+export type PollOption = typeof pollOptionsTable.$inferSelect;
+export type PollVote = typeof pollVotesTable.$inferSelect;

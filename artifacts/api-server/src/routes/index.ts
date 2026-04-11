@@ -5,6 +5,7 @@ import usersRouter from "./users";
 import conversationsRouter from "./conversations";
 import messagesRouter from "./messages";
 import uploadsRouter from "./uploads";
+import pollsRouter from "./polls";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(usersRouter);
 router.use(conversationsRouter);
 router.use(messagesRouter);
 router.use(uploadsRouter);
+router.use(pollsRouter);
 
 export default router;

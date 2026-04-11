@@ -9,18 +9,44 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth-context';
 import { useSocket } from '@/lib/socket-context';
-import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
-  ArrowLeft, Loader2, Send, Paperclip, Smile,
-  Reply, Pin, Pencil, Trash2, Languages, X, Check, PinOff, Mic, MoreVertical,
+  ArrowLeft, Loader2, Send, Plus, Smile,
+  Reply, Pin, Pencil, Trash2, Languages, X, Check, PinOff, MoreVertical,
+  Mic,
 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { AttachmentSheet } from './attachment-sheet';
+import { PollCreator } from './poll-creator';
+import { PollMessage } from './poll-message';
+import { AudioPlayer } from './audio-player';
+import { VoiceRecorder } from './voice-recorder';
+import { GroupInfoSheet } from './group-info-sheet';
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡', '🔥'];
 const PICKER_EMOJIS = ['😀','😂','🤣','😊','😍','🥰','😘','😋','😎','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😣','😥','😮','🤐','😯','😪','😫','🥱','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','☹️','🙁','😖','😞','😟','😤','😢','😭','😦','😧','😨','😩','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','😡','😠','🤬','😷','🤒','🤕','🤢','🤮','🤧','😇','🥳','🥺','🤠','🤡','🤥','🤫','🤭','🧐','🤓','😈','👿','👹','👺','💀','👻','👽','👾','🤖'];
+
+type PollOption = {
+  id: number;
+  text: string;
+  voteCount: number;
+  percentage: number;
+  voters: number[];
+};
+
+type Poll = {
+  id: number;
+  question: string;
+  isAnonymous: boolean;
+  isMultipleChoice: boolean;
+  isQuiz: boolean;
+  totalVotes: number;
+  userVotedOptionIds: number[];
+  options: PollOption[];
+};
 
 type Msg = {
   id: number;
@@ -29,6 +55,9 @@ type Msg = {
   sender?: { id: number; displayName: string; avatar?: string | null };
   content?: string | null;
   imageUrl?: string | null;
+  audioUrl?: string | null;
+  audioDuration?: number | null;
+  poll?: Poll | null;
   linkPreview?: { url: string; title?: string | null; description?: string | null; image?: string | null } | null;
   replyTo?: Msg | null;
   editedAt?: string | null;
@@ -47,6 +76,28 @@ async function translateText(text: string): Promise<string> {
   return d.responseData?.translatedText ?? text;
 }
 
+function SheetItem({
+  icon, label, onClick, divider = false, danger = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  divider?: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      className={`w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 transition-colors text-left
+        ${divider ? 'border-t border-white/5' : ''}
+        ${danger ? 'text-red-400' : 'text-foreground'}`}
+      onClick={onClick}
+    >
+      <span className={danger ? 'text-red-400' : 'text-muted-foreground'}>{icon}</span>
+      <span className="text-sm">{label}</span>
+    </button>
+  );
+}
+
 export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
   const { user } = useAuth();
   const { socket, joinConversation } = useSocket();
@@ -62,11 +113,13 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
   const deleteMsg = useDeleteMessage();
   const pinMsg = usePinMessage();
 
-  // Filter out deleted messages from view
   const messages = (rawMessages as Msg[] | undefined)?.filter(m => !m.isDeleted);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const documentInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const swipeStartX = useRef(0);
   const swipeStartY = useRef(0);
@@ -86,6 +139,15 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
   const [prevMsgCount, setPrevMsgCount] = useState(0);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
 
+  // New UI states
+  const [attachmentSheetOpen, setAttachmentSheetOpen] = useState(false);
+  const [pollCreatorOpen, setPollCreatorOpen] = useState(false);
+  const [groupInfoOpen, setGroupInfoOpen] = useState(false);
+  const [voiceActive, setVoiceActive] = useState(false);
+
+  // Poll votes viewer state
+  const [pollVotes, setPollVotes] = useState<{ optionText: string; voters: { id: number; displayName: string }[] }[] | null>(null);
+
   // ── Socket ──────────────────────────────────────────────────
   useEffect(() => {
     if (socket && conversationId) joinConversation(conversationId);
@@ -98,56 +160,39 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
     return () => { socket.off('connect', fn); };
   }, [socket, conversationId, joinConversation]);
 
-  // ── Scroll to bottom ─────────────────────────────────────────
+  // ── Scroll ─────────────────────────────────────────────────
   const scrollBottom = useCallback((delay = 0) => {
     setTimeout(() => {
-      if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }
+      if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }, delay);
   }, []);
 
-  // Scroll when new messages arrive
   useEffect(() => {
     const count = messages?.length ?? 0;
-    if (count !== prevMsgCount) {
-      setPrevMsgCount(count);
-      scrollBottom(50);
-    }
+    if (count !== prevMsgCount) { setPrevMsgCount(count); scrollBottom(50); }
   }, [messages, prevMsgCount, scrollBottom]);
 
-  // Scroll on conversation switch
-  useEffect(() => {
-    scrollBottom(120);
-  }, [conversationId, scrollBottom]);
+  useEffect(() => { scrollBottom(120); }, [conversationId, scrollBottom]);
 
-  // Mark read
   useEffect(() => {
-    if (conversationId && messages && messages.length > 0) {
-      markRead.mutate({ conversationId });
-    }
+    if (conversationId && messages && messages.length > 0) markRead.mutate({ conversationId });
   }, [conversationId, messages?.length]);
 
-
-  // ── Cache invalidation ────────────────────────────────────────
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: getListMessagesQueryKey(conversationId) });
     queryClient.invalidateQueries({ queryKey: getListConversationsQueryKey() });
   }, [queryClient, conversationId]);
 
-  // ── Send / Edit ───────────────────────────────────────────────
+  // ── Send text ─────────────────────────────────────────────
   const handleSend = useCallback(async () => {
-    // Edit mode
     if (editState) {
       const trimmed = content.trim();
       if (!trimmed) return;
       setContent('');
       const id = editState.id;
       setEditState(null);
-      try {
-        await editMsg.mutateAsync({ messageId: id, data: { content: trimmed } });
-        invalidate();
-      } catch (e) { console.error(e); }
+      try { await editMsg.mutateAsync({ messageId: id, data: { content: trimmed } }); invalidate(); }
+      catch (e) { console.error(e); }
       return;
     }
     const trimmed = content.trim();
@@ -158,8 +203,7 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
     setSending(true);
     try {
       await sendMsg.mutateAsync({ conversationId, data: { content: trimmed, replyToId: replyId } });
-      invalidate();
-      scrollBottom(80);
+      invalidate(); scrollBottom(80);
     } catch { setContent(trimmed); }
     finally { setSending(false); }
   }, [content, sending, editState, replyTo, conversationId, sendMsg, editMsg, invalidate, scrollBottom]);
@@ -169,6 +213,7 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
     if (e.key === 'Escape') { setEditState(null); setReplyTo(null); setContent(''); }
   };
 
+  // ── File handlers ──────────────────────────────────────────
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -176,14 +221,77 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
       setUploadingImg(true);
       const res = await uploadImage.mutateAsync({ data: { file } });
       await sendMsg.mutateAsync({ conversationId, data: { imageUrl: res.url, replyToId: replyTo?.id } });
-      setReplyTo(null);
-      invalidate();
-      scrollBottom(80);
+      setReplyTo(null); invalidate(); scrollBottom(80);
     } catch (err) { console.error(err); }
-    finally { setUploadingImg(false); if (fileInputRef.current) fileInputRef.current.value = ''; }
+    finally { setUploadingImg(false); if (e.target) e.target.value = ''; }
   };
 
-  // ── Context menu ──────────────────────────────────────────────
+  const handleDocumentChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploadingImg(true);
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/uploads/document', { method: 'POST', credentials: 'include', body: formData });
+      const { url, name } = await res.json();
+      await sendMsg.mutateAsync({ conversationId, data: { content: `📎 ${name || 'Document'}`, imageUrl: url, replyToId: replyTo?.id } });
+      setReplyTo(null); invalidate(); scrollBottom(80);
+    } catch (err) { console.error(err); }
+    finally { setUploadingImg(false); if (e.target) e.target.value = ''; }
+  };
+
+  // ── Voice message ──────────────────────────────────────────
+  const handleVoiceSend = useCallback(async (audioBlob: Blob, duration: number) => {
+    try {
+      const formData = new FormData();
+      const ext = audioBlob.type.includes('webm') ? '.webm' : audioBlob.type.includes('mp4') ? '.mp4' : '.ogg';
+      formData.append('file', audioBlob, `voice${ext}`);
+      const res = await fetch('/api/uploads/audio', { method: 'POST', credentials: 'include', body: formData });
+      const { url } = await res.json();
+      await sendMsg.mutateAsync({ conversationId, data: { audioUrl: url, audioDuration: Math.round(duration), replyToId: replyTo?.id } as any });
+      setReplyTo(null);
+      setVoiceActive(false);
+      invalidate(); scrollBottom(80);
+    } catch (err) { console.error('Voice send error:', err); throw err; }
+  }, [conversationId, sendMsg, replyTo, invalidate, scrollBottom]);
+
+  // ── Poll creation ──────────────────────────────────────────
+  const handlePollCreate = useCallback(async (poll: {
+    question: string;
+    options: string[];
+    isAnonymous: boolean;
+    isMultipleChoice: boolean;
+    isQuiz: boolean;
+  }) => {
+    try {
+      await sendMsg.mutateAsync({ conversationId, data: { poll } as any });
+      invalidate(); scrollBottom(80);
+    } catch (err) { console.error(err); }
+  }, [conversationId, sendMsg, invalidate, scrollBottom]);
+
+  // ── Poll vote ──────────────────────────────────────────────
+  const handlePollVote = useCallback(async (pollId: number, optionIds: number[]) => {
+    try {
+      await fetch(`/api/polls/${pollId}/vote`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ optionIds }),
+      });
+      invalidate();
+    } catch (err) { console.error(err); throw err; }
+  }, [invalidate]);
+
+  const handleViewVotes = useCallback(async (pollId: number) => {
+    try {
+      const res = await fetch(`/api/polls/${pollId}/votes`, { credentials: 'include' });
+      const data = await res.json();
+      setPollVotes(data);
+    } catch (err) { console.error(err); }
+  }, []);
+
+  // ── Context menu ──────────────────────────────────────────
   const openCtxMenu = (e: React.MouseEvent | { clientX: number; clientY: number }, msg: Msg) => {
     if ('preventDefault' in e) (e as React.MouseEvent).preventDefault();
     setCtxMenu({ msgId: msg.id });
@@ -197,10 +305,8 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
 
   const handleDeleteConfirm = async (msgId: number) => {
     closeCtx();
-    try {
-      await deleteMsg.mutateAsync({ messageId: msgId });
-      invalidate();
-    } catch (e) { console.error(e); }
+    try { await deleteMsg.mutateAsync({ messageId: msgId }); invalidate(); }
+    catch (e) { console.error(e); }
   };
 
   const handlePin = async (msg: Msg) => {
@@ -215,120 +321,106 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
   const handleTranslate = async (msg: Msg) => {
     closeCtx();
     if (!msg.content) return;
-    // Toggle off
     if (translations.find(t => t.msgId === msg.id)) {
-      setTranslations(p => p.filter(t => t.msgId !== msg.id));
-      return;
+      setTranslations(p => p.filter(t => t.msgId !== msg.id)); return;
     }
     setTranslatingId(msg.id);
-    try {
-      const text = await translateText(msg.content);
-      setTranslations(p => [...p, { msgId: msg.id, text }]);
-    } catch { /* silent */ }
+    try { const text = await translateText(msg.content); setTranslations(p => [...p, { msgId: msg.id, text }]); }
+    catch { }
     finally { setTranslatingId(null); }
   };
 
   const handleReaction = async (msgId: number, emoji: string) => {
     closeCtx();
-    try {
-      await addReaction.mutateAsync({ messageId: msgId, data: { emoji } });
-      invalidate();
-    } catch (e) { console.error(e); }
+    try { await addReaction.mutateAsync({ messageId: msgId, data: { emoji } }); invalidate(); }
+    catch (e) { console.error(e); }
   };
 
-  // ── Swipe to reply (right swipe = reply, for ALL messages) ────
+  // ── Swipe to reply ────────────────────────────────────────
   const onTouchStart = (e: React.TouchEvent, msg: Msg) => {
     swipeStartX.current = e.touches[0].clientX;
     swipeStartY.current = e.touches[0].clientY;
     isSwiping.current = false;
-    // Long press for context menu
     longPressTimer.current = setTimeout(() => {
-      if (!isSwiping.current) {
-        openCtxMenu({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY }, msg);
-      }
+      if (!isSwiping.current) openCtxMenu({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY }, msg);
     }, 500);
   };
 
   const onTouchMove = (e: React.TouchEvent, msgId: number) => {
     const dx = e.touches[0].clientX - swipeStartX.current;
     const dy = Math.abs(e.touches[0].clientY - swipeStartY.current);
-
-    // If primarily vertical, let native scroll handle it
     if (dy > 15 && dy > Math.abs(dx)) {
       if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
       return;
     }
-
-    // Rightward swipe only
     if (dx > 8) {
       isSwiping.current = true;
       if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
-      const clamped = Math.min(dx, 80);
       setSwipingId(msgId);
-      setSwipeOffsets(p => ({ ...p, [msgId]: clamped }));
+      setSwipeOffsets(p => ({ ...p, [msgId]: Math.min(dx, 80) }));
     }
   };
 
   const onTouchEnd = (e: React.TouchEvent, msg: Msg) => {
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
     const dx = e.changedTouches[0].clientX - swipeStartX.current;
-    if (dx > 60 && isSwiping.current) {
-      setReplyTo(msg);
-      setEditState(null);
-    }
+    if (dx > 60 && isSwiping.current) { setReplyTo(msg); setEditState(null); }
     isSwiping.current = false;
     setSwipingId(null);
     setSwipeOffsets(p => ({ ...p, [msg.id]: 0 }));
   };
 
-  // ── Derived ───────────────────────────────────────────────────
+  // ── Derived ───────────────────────────────────────────────
   const pinnedMsgId = (conversation as { pinnedMessageId?: number | null } | undefined)?.pinnedMessageId;
   const pinnedMsg = rawMessages?.find(m => m.id === pinnedMsgId) as Msg | undefined;
-  const title = conversation?.name || conversation?.participants?.find(p => p.id !== user?.id)?.displayName || 'Chat';
-  const avatarUrl = conversation?.type === 'direct' ? conversation?.participants?.find(p => p.id !== user?.id)?.avatar : undefined;
-  const otherUser = conversation?.participants?.find(p => p.id !== user?.id);
+  const title = conversation?.name || conversation?.participants?.find((p: any) => p.id !== user?.id)?.displayName || 'Chat';
+  const avatarUrl = conversation?.type === 'direct' ? conversation?.participants?.find((p: any) => p.id !== user?.id)?.avatar : undefined;
+  const otherUser = conversation?.participants?.find((p: any) => p.id !== user?.id) as any;
   const isOnline = otherUser?.isOnline;
   const lastSeen = otherUser?.lastSeen
-    ? `vu ${formatDistanceToNow(new Date(otherUser.lastSeen), { addSuffix: true })}`
+    ? `vu ${format(new Date(otherUser.lastSeen), 'HH:mm', { locale: fr })}`
     : 'hors ligne';
 
   const ctxMsg = messages?.find(m => m.id === ctxMenu?.msgId);
   const isMineCtx = ctxMsg?.senderId === user?.id;
 
-  // ── Render ────────────────────────────────────────────────────
   return (
-    // FIX 1: Strict flex-col, header & input flex-shrink-0, messages flex-1 min-h-0
     <div className="flex flex-col h-full w-full overflow-hidden">
+      {/* Hidden file inputs */}
+      <input type="file" ref={galleryInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
+      <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleFileChange} />
+      <input type="file" ref={documentInputRef} className="hidden" onChange={handleDocumentChange} />
 
-      {/* ── Header (sticky) ── */}
+      {/* ── Header ── */}
       <div className="flex-shrink-0 h-14 glass border-b border-border/50 flex items-center px-3 z-10 gap-3">
         {onBack && (
           <button onClick={onBack} className="text-muted-foreground hover:text-foreground transition-colors p-1 flex-shrink-0">
             <ArrowLeft className="w-5 h-5" />
           </button>
         )}
-        {/* Square avatar with initial — Base44 style */}
         <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
-          {avatarUrl ? (
-            <img src={avatarUrl} alt={title} className="w-full h-full rounded-xl object-cover" />
-          ) : (
-            <span className="text-sm font-bold text-primary">{title.substring(0, 1).toUpperCase()}</span>
-          )}
+          {avatarUrl
+            ? <img src={avatarUrl} alt={title} className="w-full h-full rounded-xl object-cover" />
+            : <span className="text-sm font-bold text-primary">{title.substring(0, 1).toUpperCase()}</span>
+          }
         </div>
         <div className="flex flex-col flex-1 min-w-0">
           <span className="font-semibold text-sm leading-tight text-foreground truncate">{title}</span>
           <span className={`text-xs leading-tight ${isOnline ? 'text-green-400' : 'text-muted-foreground'}`}>
             {isOnline ? 'en ligne' : (conversation?.type === 'group'
-              ? `${conversation?.participants?.length ?? 0} membres`
+              ? `${(conversation as any)?.participants?.length ?? 0} membres`
               : lastSeen)}
           </span>
         </div>
-        <button className="text-muted-foreground hover:text-foreground transition-colors p-1 flex-shrink-0">
+        <button
+          onClick={() => setGroupInfoOpen(true)}
+          className="text-muted-foreground hover:text-foreground transition-colors p-1 flex-shrink-0"
+        >
           <MoreVertical className="w-5 h-5" />
         </button>
       </div>
 
-      {/* ── Pinned message banner (sticky) ── */}
+      {/* ── Pinned message ── */}
       {pinnedMsg && !pinnedMsg.isDeleted && (
         <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-primary/10 border-b border-primary/20 text-xs">
           <Pin className="w-3 h-3 text-primary flex-shrink-0" />
@@ -342,18 +434,11 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
         </div>
       )}
 
-      {/* ── Messages (scrollable zone) ── */}
-      {/* FIX 1: min-h-0 is critical for flex-1 to actually shrink inside a flex container */}
-      <div
-        ref={scrollRef}
-        className="flex-1 min-h-0 overflow-y-auto px-3 pt-4 pb-2 bg-background"
-      >
+      {/* ── Messages ── */}
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 pt-4 pb-2 bg-background">
         {isLoading && (
-          <div className="flex justify-center py-8">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-          </div>
+          <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
         )}
-
         <div className="flex flex-col gap-0.5 pb-2">
           {messages?.map((msg, index) => {
             const isMine = msg.senderId === user?.id;
@@ -368,13 +453,19 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
             const translation = translations.find(t => t.msgId === msg.id)?.text ?? null;
             const isTranslating = translatingId === msg.id;
             const isPinned = pinnedMsgId === msg.id;
+            const msgTime = format(new Date(msg.createdAt), 'HH:mm', { locale: fr });
+            const isPoll = !!msg.poll;
+            const isAudio = !!msg.audioUrl;
+
+            // Show sender name for group conversations (non-mine messages)
+            const showSenderName = conversation?.type === 'group' && !isMine && !isSameAuthor;
 
             return (
               <div
                 key={msg.id}
                 className={`flex items-end gap-2 ${isMine ? 'justify-end' : 'justify-start'} ${isSameAuthor ? 'mt-0.5' : 'mt-3'}`}
               >
-                {/* Avatar (others only) */}
+                {/* Avatar */}
                 {!isMine && (
                   <div className="w-7 flex-shrink-0 self-end mb-1">
                     {!isSameAuthor ? (
@@ -388,7 +479,7 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
                   </div>
                 )}
 
-                {/* Swipe reply arrow — appears to the left of the bubble always */}
+                {/* Swipe reply arrow */}
                 <div
                   className="flex items-center self-center"
                   style={{
@@ -401,9 +492,9 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
                   <Reply className="w-4 h-4 text-primary flex-shrink-0" />
                 </div>
 
-                {/* Bubble wrapper — swipes right for ALL messages */}
+                {/* Bubble wrapper */}
                 <div
-                  className={`max-w-[75%] relative ${hasReactions ? 'mb-5' : ''}`}
+                  className={`max-w-[80%] relative ${hasReactions ? 'mb-5' : ''}`}
                   style={{
                     transform: `translateX(${swipeOffset}px)`,
                     transition: swipingId === msg.id ? 'none' : 'transform 0.2s ease-out',
@@ -422,38 +513,58 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
                     </div>
                   )}
 
+                  {/* Sender name (group) */}
+                  {showSenderName && (
+                    <p className="text-[11px] text-primary font-semibold mb-0.5 ml-1">
+                      {msg.sender?.displayName}
+                    </p>
+                  )}
+
                   {/* ── Bubble ── */}
-                  <div
-                    className={`rounded-2xl px-3 py-2 text-sm shadow-sm
-                      ${isMine
-                        ? 'bg-primary text-primary-foreground rounded-br-sm'
-                        : 'bg-card text-card-foreground border border-border rounded-bl-sm'
-                      }`}
+                  <div className={`rounded-2xl px-3 py-2 text-sm shadow-sm
+                    ${isMine
+                      ? 'bg-primary text-primary-foreground rounded-br-sm'
+                      : 'bg-card text-card-foreground border border-border rounded-bl-sm'
+                    }`}
                   >
-                    {/* FIX 2: Reply preview INSIDE the bubble, style WhatsApp */}
+                    {/* Reply preview inside bubble */}
                     {msg.replyTo && (
-                      <div
-                        className={`mb-2 rounded-lg overflow-hidden border-l-[3px] border-primary pl-2 pr-2 py-1 text-xs
-                          ${isMine ? 'bg-black/10' : 'bg-background/60'}`}
-                      >
+                      <div className={`mb-2 rounded-lg overflow-hidden border-l-[3px] border-primary pl-2 pr-2 py-1 text-xs
+                        ${isMine ? 'bg-black/10' : 'bg-background/60'}`}>
                         <p className="font-semibold text-primary text-[11px] mb-0.5 truncate">
                           {msg.replyTo.senderId === user?.id ? 'Vous' : msg.replyTo.sender?.displayName}
                         </p>
                         <p className={`truncate ${isMine ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                          {msg.replyTo.content || '📷 Image'}
+                          {msg.replyTo.content || (msg.replyTo.audioUrl ? '🎤 Message vocal' : '📷 Image')}
                         </p>
                       </div>
                     )}
 
                     {/* Image */}
-                    {msg.imageUrl && (
+                    {msg.imageUrl && !isPoll && (
                       <div className="mb-2 -mx-1 -mt-1 overflow-hidden rounded-xl">
                         <img src={msg.imageUrl} alt="attached" className="max-w-full max-h-64 object-cover rounded-xl" />
                       </div>
                     )}
 
-                    {/* Text content */}
-                    {msg.content && (
+                    {/* Audio message */}
+                    {isAudio && (
+                      <AudioPlayer url={msg.audioUrl!} duration={msg.audioDuration} isMine={isMine} />
+                    )}
+
+                    {/* Poll */}
+                    {isPoll && msg.poll && (
+                      <PollMessage
+                        poll={msg.poll}
+                        isMine={isMine}
+                        onVote={handlePollVote}
+                        onViewVotes={handleViewVotes}
+                        conversationId={conversationId}
+                      />
+                    )}
+
+                    {/* Text */}
+                    {msg.content && !isPoll && (
                       <div className="whitespace-pre-wrap break-words leading-snug">{msg.content}</div>
                     )}
 
@@ -477,11 +588,18 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
                       </div>
                     )}
 
-                    {/* Time + edited */}
-                    <div className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${isMine ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>
-                      {msg.editedAt && <span className="italic opacity-80">modifié</span>}
-                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </div>
+                    {/* Time + edited — HH:mm format like Base44 */}
+                    {!isPoll && (
+                      <div className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${isMine ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>
+                        {msg.editedAt && <span className="italic opacity-80">modifié</span>}
+                        <span>{msgTime}</span>
+                      </div>
+                    )}
+                    {isPoll && (
+                      <div className={`text-[10px] mt-2 flex items-center justify-end ${isMine ? 'text-primary-foreground/50' : 'text-muted-foreground'}`}>
+                        {msgTime}
+                      </div>
+                    )}
                   </div>
 
                   {/* Reactions row */}
@@ -491,13 +609,13 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
                         <button
                           key={emoji}
                           onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, emoji); }}
-                          className={`rounded-full px-1.5 py-0.5 text-xs flex items-center gap-1 shadow border transition-colors
+                          className={`rounded-full px-1.5 py-0.5 text-xs flex items-center gap-0.5 shadow border transition-colors
                             ${hasReacted(emoji)
                               ? 'bg-primary/20 border-primary/40 text-primary'
                               : 'bg-card border-border text-foreground hover:bg-muted'}`}
                         >
                           <span>{emoji}</span>
-                          {(count as number) > 1 && <span className="font-medium text-[10px]">{count as number}</span>}
+                          <span className="font-medium text-[10px]">{count as number}</span>
                         </button>
                       ))}
                     </div>
@@ -509,7 +627,7 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
         </div>
       </div>
 
-      {/* ── Reply bar (sticky, above input) ── */}
+      {/* ── Reply bar ── */}
       {replyTo && (
         <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-sidebar border-t border-primary/20">
           <Reply className="w-4 h-4 text-primary flex-shrink-0" />
@@ -517,7 +635,9 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
             <p className="text-[11px] text-primary font-semibold truncate">
               {replyTo.senderId === user?.id ? 'Vous' : replyTo.sender?.displayName}
             </p>
-            <p className="text-xs text-muted-foreground truncate">{replyTo.content || '📷 Image'}</p>
+            <p className="text-xs text-muted-foreground truncate">
+              {replyTo.content || (replyTo.audioUrl ? '🎤 Message vocal' : '📷 Image')}
+            </p>
           </div>
           <button onClick={() => setReplyTo(null)} className="text-muted-foreground hover:text-foreground p-1 flex-shrink-0">
             <X className="w-4 h-4" />
@@ -536,80 +656,92 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
         </div>
       )}
 
-      {/* ── Input bar (sticky) — Base44 style ── */}
+      {/* ── Input bar — Base44 style ── */}
       <div className="flex-shrink-0 px-3 py-3 glass border-t border-border/50">
-        <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
         <div className="flex items-end gap-2">
-          {/* Attachment button — purple rounded square */}
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploadingImg}
-            className="flex-shrink-0 w-10 h-10 rounded-xl bg-primary/20 border border-primary/30 hover:bg-primary/30 text-primary transition-colors flex items-center justify-center mb-0.5"
-          >
-            {uploadingImg ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}
-          </button>
+          {/* + Attachment button */}
+          {!voiceActive && (
+            <button
+              onClick={() => setAttachmentSheetOpen(true)}
+              disabled={uploadingImg}
+              className="flex-shrink-0 w-10 h-10 rounded-xl bg-primary/20 border border-primary/30 hover:bg-primary/30 text-primary transition-colors flex items-center justify-center mb-0.5"
+            >
+              {uploadingImg ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
+            </button>
+          )}
 
-          {/* Input field */}
-          <div className="flex-1 glass rounded-2xl border border-border/50 focus-within:border-primary/40 transition-colors flex items-end">
-            <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
-              <PopoverTrigger asChild>
-                <button className="flex-shrink-0 p-2.5 mb-0.5 text-muted-foreground hover:text-foreground transition-colors">
-                  <Smile className="w-5 h-5" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-72 p-2 glass-strong border-border/50" align="start" side="top">
-                <div className="grid grid-cols-8 gap-0.5">
-                  {PICKER_EMOJIS.map(e => (
-                    <button key={e} onClick={() => { setContent(p => p + e); setEmojiOpen(false); }}
-                      className="text-xl hover:bg-white/10 rounded p-1 transition-colors leading-none">{e}</button>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
-            <Textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={editState ? 'Modifier…' : 'Écrire un message...'}
-              className="min-h-[40px] max-h-[120px] border-0 focus-visible:ring-0 resize-none py-2.5 px-0 bg-transparent shadow-none text-sm"
-              rows={1}
+          {/* Voice recorder — replaces input when active */}
+          {voiceActive ? (
+            <VoiceRecorder
+              onSend={handleVoiceSend}
+              onCancel={() => setVoiceActive(false)}
             />
-          </div>
+          ) : (
+            <>
+              {/* Text input */}
+              <div className="flex-1 glass rounded-2xl border border-border/50 focus-within:border-primary/40 transition-colors flex items-end">
+                <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
+                  <PopoverTrigger asChild>
+                    <button className="flex-shrink-0 p-2.5 mb-0.5 text-muted-foreground hover:text-foreground transition-colors">
+                      <Smile className="w-5 h-5" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 p-2 glass-strong border-border/50" align="start" side="top">
+                    <div className="grid grid-cols-8 gap-0.5">
+                      {PICKER_EMOJIS.map(e => (
+                        <button key={e} onClick={() => { setContent(p => p + e); setEmojiOpen(false); }}
+                          className="text-xl hover:bg-white/10 rounded p-1 transition-colors leading-none">{e}</button>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                <Textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={editState ? 'Modifier…' : 'Écrire un message...'}
+                  className="min-h-[40px] max-h-[120px] border-0 focus-visible:ring-0 resize-none py-2.5 px-0 bg-transparent shadow-none text-sm"
+                  rows={1}
+                />
+              </div>
 
-          {/* Send / Mic button — animated like Base44 */}
-          <AnimatePresence mode="wait">
-            {content.trim() || editState ? (
-              <motion.button
-                key="send"
-                onClick={handleSend}
-                disabled={sending}
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.5, opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                className="flex-shrink-0 w-10 h-10 rounded-xl bg-primary/20 border border-primary/30 hover:bg-primary/30 text-primary transition-colors flex items-center justify-center mb-0.5 active:scale-95"
-              >
-                {sending
-                  ? <Loader2 className="w-4 h-4 animate-spin" />
-                  : editState ? <Check className="w-4 h-4" /> : <Send className="w-4 h-4" />}
-              </motion.button>
-            ) : (
-              <motion.button
-                key="mic"
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.5, opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                className="flex-shrink-0 w-10 h-10 rounded-xl bg-primary/20 border border-primary/30 hover:bg-primary/30 text-primary transition-colors flex items-center justify-center mb-0.5"
-              >
-                <Mic className="w-4 h-4" />
-              </motion.button>
-            )}
-          </AnimatePresence>
+              {/* Send or Mic */}
+              <AnimatePresence mode="wait">
+                {content.trim() || editState ? (
+                  <motion.button
+                    key="send"
+                    onClick={handleSend}
+                    disabled={sending}
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.5, opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="flex-shrink-0 w-10 h-10 rounded-xl bg-primary/20 border border-primary/30 hover:bg-primary/30 text-primary transition-colors flex items-center justify-center mb-0.5 active:scale-95"
+                  >
+                    {sending
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : editState ? <Check className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+                  </motion.button>
+                ) : (
+                  <motion.button
+                    key="mic"
+                    onClick={() => setVoiceActive(true)}
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.5, opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="flex-shrink-0 w-10 h-10 rounded-xl bg-primary/20 border border-primary/30 hover:bg-primary/30 text-primary transition-colors flex items-center justify-center mb-0.5"
+                  >
+                    <Mic className="w-4 h-4" />
+                  </motion.button>
+                )}
+              </AnimatePresence>
+            </>
+          )}
         </div>
       </div>
 
-      {/* ── Context Menu — Base44 bottom-sheet style ── */}
+      {/* ── Context Menu — bottom sheet ── */}
       <AnimatePresence>
         {ctxMenu && ctxMsg && (
           <motion.div
@@ -621,10 +753,7 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
             transition={{ duration: 0.15 }}
             onClick={closeCtx}
           >
-            {/* Blur overlay */}
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-
-            {/* Menu card — slides up from bottom */}
             <motion.div
               className="relative w-full max-w-sm"
               initial={{ y: 60, opacity: 0 }}
@@ -633,30 +762,20 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
               transition={{ type: 'spring', damping: 28, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Emoji reactions row */}
+              {/* Reactions */}
               <div className="glass-strong rounded-2xl mb-2 flex justify-around items-center p-3">
                 {REACTION_EMOJIS.map(emoji => (
-                  <button
-                    key={emoji}
-                    onClick={() => handleReaction(ctxMenu.msgId, emoji)}
-                    className="text-2xl hover:scale-125 active:scale-110 transition-transform"
-                  >{emoji}</button>
+                  <button key={emoji} onClick={() => handleReaction(ctxMenu.msgId, emoji)}
+                    className="text-2xl hover:scale-125 active:scale-110 transition-transform">{emoji}</button>
                 ))}
               </div>
 
-              {/* Actions */}
               <div className="glass-strong rounded-2xl overflow-hidden">
-                <SheetItem
-                  icon={<Reply size={18} />}
-                  label="Répondre"
-                  onClick={() => ctxMsg && handleReply(ctxMsg)}
-                />
+                <SheetItem icon={<Reply size={18} />} label="Répondre" onClick={() => ctxMsg && handleReply(ctxMsg)} />
 
                 {ctxMsg.content && (
                   <SheetItem
-                    icon={translatingId === ctxMenu.msgId
-                      ? <Loader2 size={18} className="animate-spin" />
-                      : <Languages size={18} />}
+                    icon={translatingId === ctxMenu.msgId ? <Loader2 size={18} className="animate-spin" /> : <Languages size={18} />}
                     label={translations.find(t => t.msgId === ctxMenu.msgId) ? 'Masquer traduction' : 'Traduire'}
                     onClick={() => ctxMsg && handleTranslate(ctxMsg)}
                     divider
@@ -670,38 +789,28 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
                   divider
                 />
 
-                {isMineCtx && ctxMsg.content && (
-                  <SheetItem
-                    icon={<Pencil size={18} />}
-                    label="Modifier"
-                    onClick={() => ctxMsg && handleEdit(ctxMsg)}
-                    divider
-                  />
+                {isMineCtx && ctxMsg.content && !ctxMsg.poll && (
+                  <SheetItem icon={<Pencil size={18} />} label="Modifier" onClick={() => ctxMsg && handleEdit(ctxMsg)} divider />
                 )}
 
                 {isMineCtx && (
                   deleteConfirm === ctxMenu.msgId ? (
-                    <div
-                      className="flex items-center gap-3 px-4 py-3.5 border-t border-white/5"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                    <div className="flex items-center gap-3 px-4 py-3.5 border-t border-white/5" onClick={(e) => e.stopPropagation()}>
                       <span className="text-sm text-red-400 flex-1">Confirmer la suppression ?</span>
-                      <button
-                        onClick={() => handleDeleteConfirm(ctxMenu.msgId)}
-                        className="text-xs font-semibold bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg transition-colors"
-                      >Oui</button>
-                      <button
-                        onClick={() => setDeleteConfirm(null)}
-                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                      >Non</button>
+                      <button onClick={() => handleDeleteConfirm(ctxMenu.msgId)} className="text-xs text-red-400 font-semibold hover:text-red-300 px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20">
+                        Supprimer
+                      </button>
+                      <button onClick={() => setDeleteConfirm(null)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1">
+                        Annuler
+                      </button>
                     </div>
                   ) : (
                     <SheetItem
-                      icon={<Trash2 size={18} className="text-red-400" />}
+                      icon={<Trash2 size={18} />}
                       label="Supprimer"
-                      labelCls="text-red-400"
                       onClick={() => setDeleteConfirm(ctxMenu.msgId)}
                       divider
+                      danger
                     />
                   )
                 )}
@@ -710,26 +819,82 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
-  );
-}
 
-function SheetItem({
-  icon, label, onClick, labelCls = '', divider = false,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  onClick: () => void;
-  labelCls?: string;
-  divider?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-3 w-full px-4 py-3.5 hover:bg-white/8 active:bg-white/10 transition-all text-left ${divider ? 'border-t border-white/5' : ''}`}
-    >
-      <span className="text-muted-foreground flex-shrink-0">{icon}</span>
-      <span className={`text-sm font-medium ${labelCls}`}>{label}</span>
-    </button>
+      {/* ── Poll votes viewer ── */}
+      <AnimatePresence>
+        {pollVotes && (
+          <motion.div
+            className="fixed inset-0 z-[500] flex items-end justify-center"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setPollVotes(null)}
+          >
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div
+              className="relative w-full max-w-lg"
+              initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="glass-strong rounded-t-3xl max-h-[70vh] overflow-y-auto">
+                <div className="flex items-center justify-between p-4 sticky top-0 glass-strong">
+                  <h3 className="font-bold text-foreground">Résultats du vote</h3>
+                  <button onClick={() => setPollVotes(null)} className="text-muted-foreground hover:text-foreground p-1">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="px-4 pb-6 space-y-4">
+                  {pollVotes.map((opt, i) => (
+                    <div key={i}>
+                      <p className="text-sm font-semibold text-foreground mb-2">{opt.optionText}</p>
+                      {opt.voters.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">Aucun vote</p>
+                      ) : (
+                        <div className="space-y-1">
+                          {opt.voters.map((v: any) => (
+                            <div key={v.id} className="flex items-center gap-2 glass rounded-xl px-3 py-2">
+                              <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                                <span className="text-xs font-bold text-primary">{v.displayName[0].toUpperCase()}</span>
+                              </div>
+                              <span className="text-sm text-foreground">{v.displayName}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Attachment sheet ── */}
+      <AttachmentSheet
+        open={attachmentSheetOpen}
+        onClose={() => setAttachmentSheetOpen(false)}
+        onCamera={() => cameraInputRef.current?.click()}
+        onGallery={() => galleryInputRef.current?.click()}
+        onDocument={() => documentInputRef.current?.click()}
+        onPoll={() => setPollCreatorOpen(true)}
+      />
+
+      {/* ── Poll creator ── */}
+      <PollCreator
+        open={pollCreatorOpen}
+        onClose={() => setPollCreatorOpen(false)}
+        onSubmit={handlePollCreate}
+      />
+
+      {/* ── Group info sheet ── */}
+      {conversation && (
+        <GroupInfoSheet
+          open={groupInfoOpen}
+          onClose={() => setGroupInfoOpen(false)}
+          conversation={conversation as any}
+          messages={(messages || []) as any}
+        />
+      )}
+    </div>
   );
 }

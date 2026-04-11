@@ -1,0 +1,122 @@
+import { Router, type IRouter } from "express";
+import { db, pollsTable, pollOptionsTable, pollVotesTable, usersTable } from "@workspace/db";
+import { eq, and, inArray } from "drizzle-orm";
+import { requireAuth } from "../lib/auth";
+
+const router: IRouter = Router();
+
+export async function buildPoll(pollId: number, requestingUserId?: number) {
+  const [poll] = await db.select().from(pollsTable).where(eq(pollsTable.id, pollId));
+  if (!poll) return null;
+
+  const options = await db.select().from(pollOptionsTable)
+    .where(eq(pollOptionsTable.pollId, pollId))
+    .orderBy(pollOptionsTable.sortOrder);
+
+  const votes = await db.select().from(pollVotesTable)
+    .where(eq(pollVotesTable.pollId, pollId));
+
+  const totalVotes = votes.length;
+  const userVotedOptionIds = requestingUserId
+    ? votes.filter(v => v.userId === requestingUserId).map(v => v.optionId)
+    : [];
+
+  const optionsWithVotes = options.map(opt => {
+    const optVotes = votes.filter(v => v.optionId === opt.id);
+    const percentage = totalVotes > 0 ? Math.round((optVotes.length / totalVotes) * 100) : 0;
+    return {
+      id: opt.id,
+      text: opt.text,
+      sortOrder: opt.sortOrder,
+      voteCount: optVotes.length,
+      percentage,
+      voters: poll.isAnonymous ? [] : optVotes.map(v => v.userId),
+    };
+  });
+
+  return {
+    id: poll.id,
+    question: poll.question,
+    isAnonymous: poll.isAnonymous,
+    isMultipleChoice: poll.isMultipleChoice,
+    isQuiz: poll.isQuiz,
+    totalVotes,
+    userVotedOptionIds,
+    options: optionsWithVotes,
+    createdAt: poll.createdAt.toISOString(),
+  };
+}
+
+// POST /polls/:pollId/vote
+router.post("/polls/:pollId/vote", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as typeof req & { userId: number }).userId;
+  const pollId = parseInt(req.params.pollId, 10);
+  if (isNaN(pollId)) { res.status(400).json({ error: "Invalid poll ID" }); return; }
+
+  const { optionIds } = req.body as { optionIds: number[] };
+  if (!Array.isArray(optionIds) || optionIds.length === 0) {
+    res.status(400).json({ error: "optionIds must be a non-empty array" });
+    return;
+  }
+
+  const [poll] = await db.select().from(pollsTable).where(eq(pollsTable.id, pollId));
+  if (!poll) { res.status(404).json({ error: "Poll not found" }); return; }
+
+  // If not multiple choice, only allow one vote
+  const voteIds = poll.isMultipleChoice ? optionIds : [optionIds[0]];
+
+  // Remove existing votes from this user for this poll
+  await db.delete(pollVotesTable).where(and(
+    eq(pollVotesTable.pollId, pollId),
+    eq(pollVotesTable.userId, userId)
+  ));
+
+  // Check if user is toggling (re-voted same options = unvote)
+  // Actually just re-insert the new votes
+  if (voteIds.length > 0) {
+    await db.insert(pollVotesTable).values(
+      voteIds.map(optionId => ({ pollId, optionId, userId }))
+    );
+  }
+
+  const result = await buildPoll(pollId, userId);
+  res.json(result);
+});
+
+// GET /polls/:pollId/votes — get voter details (non-anonymous)
+router.get("/polls/:pollId/votes", requireAuth, async (req, res): Promise<void> => {
+  const pollId = parseInt(req.params.pollId, 10);
+  if (isNaN(pollId)) { res.status(400).json({ error: "Invalid poll ID" }); return; }
+
+  const [poll] = await db.select().from(pollsTable).where(eq(pollsTable.id, pollId));
+  if (!poll) { res.status(404).json({ error: "Poll not found" }); return; }
+  if (poll.isAnonymous) { res.status(403).json({ error: "Poll is anonymous" }); return; }
+
+  const votes = await db.select().from(pollVotesTable)
+    .where(eq(pollVotesTable.pollId, pollId));
+
+  const userIds = [...new Set(votes.map(v => v.userId))];
+  const users = userIds.length > 0
+    ? await db.select().from(usersTable).where(inArray(usersTable.id, userIds))
+    : [];
+  const userMap = Object.fromEntries(users.map(u => [u.id, u]));
+
+  const options = await db.select().from(pollOptionsTable)
+    .where(eq(pollOptionsTable.pollId, pollId));
+
+  const result = options.map(opt => ({
+    optionId: opt.id,
+    optionText: opt.text,
+    voters: votes
+      .filter(v => v.optionId === opt.id)
+      .map(v => {
+        const u = userMap[v.userId];
+        return u ? { id: u.id, displayName: u.displayName, avatar: u.avatar } : null;
+      })
+      .filter(Boolean),
+  }));
+
+  res.json(result);
+});
+
+export default router;

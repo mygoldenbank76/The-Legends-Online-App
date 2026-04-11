@@ -16,12 +16,12 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname);
+    const ext = path.extname(file.originalname) || ".bin";
     cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
   },
 });
 
-const upload = multer({
+const imageUpload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
@@ -33,13 +33,52 @@ const upload = multer({
   },
 });
 
-router.post("/uploads/image", requireAuth, upload.single("file"), (req, res): void => {
+const audioUpload = multer({
+  storage,
+  limits: { fileSize: 25 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (
+      file.mimetype.startsWith("audio/") ||
+      file.mimetype === "video/webm" ||
+      file.mimetype === "application/octet-stream"
+    ) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only audio files are allowed"));
+    }
+  },
+});
+
+const documentUpload = multer({
+  storage,
+  limits: { fileSize: 50 * 1024 * 1024 },
+});
+
+router.post("/uploads/image", requireAuth, imageUpload.single("file"), (req, res): void => {
   if (!req.file) {
     res.status(400).json({ error: "No file uploaded" });
     return;
   }
   const url = `/api/uploads/${req.file.filename}`;
   res.json({ url });
+});
+
+router.post("/uploads/audio", requireAuth, audioUpload.single("file"), (req, res): void => {
+  if (!req.file) {
+    res.status(400).json({ error: "No file uploaded" });
+    return;
+  }
+  const url = `/api/uploads/${req.file.filename}`;
+  res.json({ url });
+});
+
+router.post("/uploads/document", requireAuth, documentUpload.single("file"), (req, res): void => {
+  if (!req.file) {
+    res.status(400).json({ error: "No file uploaded" });
+    return;
+  }
+  const url = `/api/uploads/${req.file.filename}`;
+  res.json({ url, name: req.file.originalname, size: req.file.size });
 });
 
 router.get("/uploads/:filename", (req, res): void => {
