@@ -555,46 +555,62 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
                     {/* Reply preview inside bubble — WhatsApp style */}
                     {msg.replyTo && !msg.replyTo.isDeleted && (
                       <div
-                        className={`mb-2 -mx-1 rounded-xl overflow-hidden flex cursor-pointer
-                          ${isMine ? 'bg-white/10' : 'bg-black/10'}`}
+                        className={`mb-2 rounded-lg overflow-hidden flex cursor-pointer
+                          ${isMine ? 'bg-black/20' : 'bg-black/8'}`}
+                        style={{ background: isMine ? 'rgba(0,0,0,0.20)' : 'rgba(0,0,0,0.07)' }}
                         onClick={(e) => {
                           e.stopPropagation();
                           const el = document.getElementById(`msg-${msg.replyTo!.id}`);
                           el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         }}
                       >
-                        {/* Accent bar */}
-                        <div className={`w-1 flex-shrink-0 ${isMine ? 'bg-white/60' : 'bg-primary'}`} />
+                        {/* Accent bar — thick, full height */}
+                        <div className={`w-[3.5px] flex-shrink-0 rounded-l-sm ${isMine ? 'bg-white' : 'bg-primary'}`} />
                         {/* Content */}
-                        <div className="flex-1 min-w-0 px-2.5 py-1.5">
-                          <p className={`text-[11px] font-bold leading-none mb-1 truncate
-                            ${isMine ? 'text-white/90' : 'text-primary'}`}>
+                        <div className="flex-1 min-w-0 px-3 py-2">
+                          <p className={`text-[11px] font-semibold leading-tight mb-[3px] truncate
+                            ${isMine ? 'text-white' : 'text-primary'}`}>
                             {msg.replyTo.senderId === user?.id ? 'Vous' : msg.replyTo.sender?.displayName}
                           </p>
-                          <p className={`text-xs leading-snug line-clamp-2
-                            ${isMine ? 'text-white/70' : 'text-muted-foreground'}`}>
+                          <p className={`text-[12px] leading-snug line-clamp-2
+                            ${isMine ? 'text-white/75' : 'text-foreground/70'}`}>
                             {msg.replyTo.audioUrl
                               ? '🎤 Message vocal'
                               : msg.replyTo.imageUrl
-                              ? '📷 Image'
+                              ? (msg.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? '🎬 Vidéo' : '📷 Image')
                               : msg.replyTo.content || ''}
                           </p>
                         </div>
-                        {/* Thumbnail if image */}
-                        {msg.replyTo.imageUrl && (
+                        {/* Thumbnail if image/video */}
+                        {msg.replyTo.imageUrl && !msg.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) && (
                           <img
                             src={msg.replyTo.imageUrl}
                             alt="reply"
-                            className="w-12 h-12 object-cover flex-shrink-0"
+                            className="w-14 h-14 object-cover flex-shrink-0"
                           />
+                        )}
+                        {msg.replyTo.imageUrl && msg.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) && (
+                          <div className="w-14 h-14 flex-shrink-0 bg-black/30 flex items-center justify-center">
+                            <span className="text-xl">🎬</span>
+                          </div>
                         )}
                       </div>
                     )}
 
-                    {/* Image */}
+                    {/* Image or Video */}
                     {msg.imageUrl && !isPoll && (
                       <div className="mb-2 -mx-1 -mt-1 overflow-hidden rounded-xl">
-                        <img src={msg.imageUrl} alt="attached" className="max-w-full max-h-64 object-cover rounded-xl" />
+                        {msg.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? (
+                          <video
+                            src={msg.imageUrl}
+                            controls
+                            playsInline
+                            className="max-w-full max-h-72 w-full rounded-xl bg-black"
+                            style={{ display: 'block' }}
+                          />
+                        ) : (
+                          <img src={msg.imageUrl} alt="attached" className="max-w-full max-h-64 object-cover rounded-xl" />
+                        )}
                       </div>
                     )}
 
