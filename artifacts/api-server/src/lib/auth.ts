@@ -54,3 +54,17 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   (req as Request & { userId: number }).userId = payload.userId;
   next();
 }
+
+export async function requireAuthAndNotBanned(req: Request, res: Response, next: NextFunction): Promise<void> {
+  requireAuth(req, res, async () => {
+    const { db, usersTable } = await import("@workspace/db");
+    const { eq } = await import("drizzle-orm");
+    const userId = (req as Request & { userId: number }).userId;
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+    if (user?.isBanned) {
+      res.status(403).json({ error: "Your account has been suspended" });
+      return;
+    }
+    next();
+  });
+}

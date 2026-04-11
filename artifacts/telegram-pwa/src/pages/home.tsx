@@ -5,7 +5,8 @@ import { ConversationList } from '@/components/chat/conversation-list';
 import { useAuth } from '@/lib/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AnimatedBackground } from '@/components/animated-background';
-import { Users, MessageSquare, ShoppingBag, Settings, Zap, LogOut, Globe, Languages, ChevronDown } from 'lucide-react';
+import { Users, MessageSquare, ShoppingBag, Settings, Zap, LogOut, Globe, Languages, ChevronDown, Shield } from 'lucide-react';
+import { AdminPanel } from '@/components/admin/admin-panel';
 import { usePreferences } from '@/lib/preferences-context';
 import { SUPPORTED_APP_LANGUAGES, SUPPORTED_TRANSLATE_LANGUAGES } from '@/lib/i18n';
 
@@ -404,11 +405,12 @@ function ShopPlaceholder() {
 function SettingsPage({
   user, onLogout,
 }: {
-  user: { displayName: string; username: string; avatar?: string | null };
+  user: { displayName: string; username: string; avatar?: string | null; isAdmin?: boolean };
   onLogout: () => void;
 }) {
   const { t, appLanguage, setAppLanguage, translateLanguage, setTranslateLanguage } = usePreferences();
   const [openLangMenu, setOpenLangMenu] = useState<'app' | 'translate' | null>(null);
+  const [showAdmin, setShowAdmin] = useState(false);
 
   const currentAppLang = SUPPORTED_APP_LANGUAGES.find(l => l.code === appLanguage);
   const currentTranslateLang = SUPPORTED_TRANSLATE_LANGUAGES.find(l => l.code === translateLanguage);
@@ -504,6 +506,26 @@ function SettingsPage({
           </div>
         </div>
       </div>
+
+      {/* Admin panel (only visible to admins) */}
+      {user.isAdmin && (
+        <div>
+          <button
+            onClick={() => setShowAdmin(v => !v)}
+            className="w-full flex items-center gap-3 px-4 py-3 glass rounded-2xl hover:bg-primary/10 transition-colors text-left mb-3"
+          >
+            <div className="w-8 h-8 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
+              <Shield className="w-4 h-4 text-primary" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-primary">Panel Administrateur</p>
+              <p className="text-xs text-muted-foreground">Gérer les utilisateurs</p>
+            </div>
+            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showAdmin ? 'rotate-180' : ''}`} />
+          </button>
+          {showAdmin && <AdminPanel />}
+        </div>
+      )}
 
       {/* Logout */}
       <div className="glass rounded-2xl overflow-hidden">

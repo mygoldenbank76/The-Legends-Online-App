@@ -11,6 +11,8 @@ export const usersTable = pgTable("users", {
   isOnline: boolean("is_online").notNull().default(false),
   lastSeen: timestamp("last_seen", { withTimezone: true }),
   replitId: varchar("replit_id").unique(),
+  isAdmin: boolean("is_admin").notNull().default(false),
+  isBanned: boolean("is_banned").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

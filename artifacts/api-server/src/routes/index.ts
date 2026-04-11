@@ -7,6 +7,7 @@ import messagesRouter from "./messages";
 import uploadsRouter from "./uploads";
 import pollsRouter from "./polls";
 import shopProxyRouter from "./shopProxy";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(messagesRouter);
 router.use(uploadsRouter);
 router.use(pollsRouter);
 router.use(shopProxyRouter);
+router.use(adminRouter);
 
 export default router;

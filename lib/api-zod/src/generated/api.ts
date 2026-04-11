@@ -40,6 +40,8 @@ export const LoginResponse = zod.object({
     displayName: zod.string(),
     avatar: zod.string().nullish(),
     isOnline: zod.boolean(),
+    isAdmin: zod.boolean().optional(),
+    isBanned: zod.boolean().optional(),
     lastSeen: zod.string().nullish(),
     createdAt: zod.string(),
   }),
@@ -62,6 +64,8 @@ export const GetMeResponse = zod.object({
   displayName: zod.string(),
   avatar: zod.string().nullish(),
   isOnline: zod.boolean(),
+  isAdmin: zod.boolean().optional(),
+  isBanned: zod.boolean().optional(),
   lastSeen: zod.string().nullish(),
   createdAt: zod.string(),
 });
@@ -79,6 +83,8 @@ export const SearchUsersResponseItem = zod.object({
   displayName: zod.string(),
   avatar: zod.string().nullish(),
   isOnline: zod.boolean(),
+  isAdmin: zod.boolean().optional(),
+  isBanned: zod.boolean().optional(),
   lastSeen: zod.string().nullish(),
   createdAt: zod.string(),
 });
@@ -110,6 +116,8 @@ export const ListConversationsResponseItem = zod.object({
       displayName: zod.string(),
       avatar: zod.string().nullish(),
       isOnline: zod.boolean(),
+      isAdmin: zod.boolean().optional(),
+      isBanned: zod.boolean().optional(),
       lastSeen: zod.string().nullish(),
       createdAt: zod.string(),
     })
@@ -126,6 +134,8 @@ export const ListConversationsResponseItem = zod.object({
           displayName: zod.string(),
           avatar: zod.string().nullish(),
           isOnline: zod.boolean(),
+          isAdmin: zod.boolean().optional(),
+          isBanned: zod.boolean().optional(),
           lastSeen: zod.string().nullish(),
           createdAt: zod.string(),
         })
@@ -156,6 +166,8 @@ export const ListConversationsResponseItem = zod.object({
               displayName: zod.string(),
               avatar: zod.string().nullish(),
               isOnline: zod.boolean(),
+              isAdmin: zod.boolean().optional(),
+              isBanned: zod.boolean().optional(),
               lastSeen: zod.string().nullish(),
               createdAt: zod.string(),
             })
@@ -199,6 +211,8 @@ export const GetConversationResponse = zod.object({
       displayName: zod.string(),
       avatar: zod.string().nullish(),
       isOnline: zod.boolean(),
+      isAdmin: zod.boolean().optional(),
+      isBanned: zod.boolean().optional(),
       lastSeen: zod.string().nullish(),
       createdAt: zod.string(),
     }),
@@ -229,6 +243,8 @@ export const ListMessagesResponseItem = zod.object({
       displayName: zod.string(),
       avatar: zod.string().nullish(),
       isOnline: zod.boolean(),
+      isAdmin: zod.boolean().optional(),
+      isBanned: zod.boolean().optional(),
       lastSeen: zod.string().nullish(),
       createdAt: zod.string(),
     })
@@ -259,6 +275,8 @@ export const ListMessagesResponseItem = zod.object({
           displayName: zod.string(),
           avatar: zod.string().nullish(),
           isOnline: zod.boolean(),
+          isAdmin: zod.boolean().optional(),
+          isBanned: zod.boolean().optional(),
           lastSeen: zod.string().nullish(),
           createdAt: zod.string(),
         })
@@ -316,6 +334,8 @@ export const EditMessageResponse = zod.object({
       displayName: zod.string(),
       avatar: zod.string().nullish(),
       isOnline: zod.boolean(),
+      isAdmin: zod.boolean().optional(),
+      isBanned: zod.boolean().optional(),
       lastSeen: zod.string().nullish(),
       createdAt: zod.string(),
     })
@@ -346,6 +366,8 @@ export const EditMessageResponse = zod.object({
           displayName: zod.string(),
           avatar: zod.string().nullish(),
           isOnline: zod.boolean(),
+          isAdmin: zod.boolean().optional(),
+          isBanned: zod.boolean().optional(),
           lastSeen: zod.string().nullish(),
           createdAt: zod.string(),
         })
@@ -400,6 +422,8 @@ export const AddReactionResponse = zod.object({
       displayName: zod.string(),
       avatar: zod.string().nullish(),
       isOnline: zod.boolean(),
+      isAdmin: zod.boolean().optional(),
+      isBanned: zod.boolean().optional(),
       lastSeen: zod.string().nullish(),
       createdAt: zod.string(),
     })
@@ -430,6 +454,8 @@ export const AddReactionResponse = zod.object({
           displayName: zod.string(),
           avatar: zod.string().nullish(),
           isOnline: zod.boolean(),
+          isAdmin: zod.boolean().optional(),
+          isBanned: zod.boolean().optional(),
           lastSeen: zod.string().nullish(),
           createdAt: zod.string(),
         })

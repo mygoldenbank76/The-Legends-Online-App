@@ -37,6 +37,8 @@ export interface User {
   /** @nullable */
   avatar?: string | null;
   isOnline: boolean;
+  isAdmin?: boolean;
+  isBanned?: boolean;
   /** @nullable */
   lastSeen?: string | null;
   createdAt: string;
