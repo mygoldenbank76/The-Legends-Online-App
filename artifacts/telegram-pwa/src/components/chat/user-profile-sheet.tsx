@@ -21,11 +21,34 @@ type Props = {
   onOpenConversation: (convId: number) => void;
 };
 
-async function translateText(text: string, targetLang: string): Promise<string> {
-  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=autodetect|${targetLang}`;
-  const res = await fetch(url);
-  const data = await res.json();
-  return data?.responseData?.translatedText ?? text;
+const MYMEMORY_ERROR_PATTERNS = /please select|invalid|mymemory|query length|quota|too many/i;
+
+async function safeTranslate(text: string, from: string, to: string): Promise<string | null> {
+  if (!text || from === to) return null;
+  try {
+    const res = await fetch(
+      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`
+    );
+    const data = await res.json();
+    const status = Number(data?.responseStatus);
+    const translated: string = data?.responseData?.translatedText ?? '';
+    if (status !== 200 || !translated || MYMEMORY_ERROR_PATTERNS.test(translated)) return null;
+    if (translated.trim().toLowerCase() === text.trim().toLowerCase()) return null;
+    return translated;
+  } catch {
+    return null;
+  }
+}
+
+const LIKELY_SOURCE_LANGS = ['fr', 'en', 'es', 'ar', 'pt', 'de'];
+
+async function translateBio(bio: string, targetLang: string): Promise<string | null> {
+  for (const src of LIKELY_SOURCE_LANGS) {
+    if (src === targetLang) continue;
+    const result = await safeTranslate(bio, src, targetLang);
+    if (result) return result;
+  }
+  return null;
 }
 
 export function UserProfileSheet({ user, currentUserId, onClose, onOpenConversation }: Props) {
@@ -37,8 +60,8 @@ export function UserProfileSheet({ user, currentUserId, onClose, onOpenConversat
   useEffect(() => {
     if (!user.bio) { setTranslatedBio(null); return; }
     setBioLoading(true);
-    translateText(user.bio, appLanguage)
-      .then(translated => setTranslatedBio(translated === user.bio ? null : translated))
+    translateBio(user.bio, appLanguage)
+      .then(result => setTranslatedBio(result))
       .catch(() => setTranslatedBio(null))
       .finally(() => setBioLoading(false));
   }, [user.bio, appLanguage]);
@@ -65,6 +88,7 @@ export function UserProfileSheet({ user, currentUserId, onClose, onOpenConversat
 
   const initials = user.displayName.substring(0, 2).toUpperCase();
   const displayedBio = translatedBio ?? user.bio;
+  const isTranslated = !!translatedBio && translatedBio !== user.bio;
 
   return (
     <AnimatePresence>
@@ -128,12 +152,14 @@ export function UserProfileSheet({ user, currentUserId, onClose, onOpenConversat
             </div>
 
             {/* Bio */}
-            {displayedBio && (
-              <div className="glass rounded-xl px-4 py-3 w-full text-center">
-                {bioLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin mx-auto text-muted-foreground" />
-                ) : (
-                  <p className="text-sm text-muted-foreground/90 italic">"{displayedBio}"</p>
+            {user.bio && (
+              <div className="glass rounded-xl px-4 py-3 w-full text-center relative">
+                <p className="text-sm text-muted-foreground/90 italic">"{displayedBio}"</p>
+                {isTranslated && (
+                  <p className="text-[10px] text-muted-foreground/50 mt-1">{user.bio}</p>
+                )}
+                {bioLoading && (
+                  <Loader2 className="w-3 h-3 animate-spin absolute top-2 right-2 text-muted-foreground/40" />
                 )}
               </div>
             )}
