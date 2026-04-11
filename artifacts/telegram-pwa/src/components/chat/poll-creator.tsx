@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { BarChart2, X, Plus, Trash2 } from 'lucide-react';
 
@@ -57,11 +58,11 @@ export function PollCreator({ open, onClose, onSubmit }: Props) {
 
   const canSubmit = question.trim().length > 0 && options.filter(o => o.trim()).length >= 2;
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-[500] flex items-end justify-center"
+          className="fixed inset-0 z-[500] flex items-end sm:items-center justify-center sm:p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -70,14 +71,14 @@ export function PollCreator({ open, onClose, onSubmit }: Props) {
         >
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <motion.div
-            className="relative w-full max-w-lg"
+            className="relative w-full max-w-lg sm:max-w-md"
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
             transition={{ type: 'spring', damping: 28, stiffness: 300 }}
             onClick={e => e.stopPropagation()}
           >
-            <div className="glass-strong rounded-t-3xl max-h-[85vh] overflow-y-auto">
+            <div className="glass-strong rounded-t-3xl sm:rounded-3xl max-h-[85dvh] overflow-y-auto">
               {/* Header */}
               <div className="flex items-center gap-3 p-4 pb-3 sticky top-0 glass-strong">
                 <div className="w-10 h-10 rounded-xl bg-amber-700/30 flex items-center justify-center">
@@ -158,7 +159,8 @@ export function PollCreator({ open, onClose, onSubmit }: Props) {
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
 

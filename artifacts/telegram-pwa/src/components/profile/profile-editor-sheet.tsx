@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Camera, User, AtSign, FileText, Save, Trash2, Loader2, Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -139,7 +140,7 @@ export function ProfileEditorSheet({ user, onClose, onSaved }: Props) {
     bio.trim() !== (user.bio || '') ||
     avatarChanged;
 
-  return (
+  return createPortal(
     <AnimatePresence>
       <>
         {/* Backdrop */}
@@ -326,6 +327,7 @@ export function ProfileEditorSheet({ user, onClose, onSaved }: Props) {
           </div>
         </motion.div>
       </>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

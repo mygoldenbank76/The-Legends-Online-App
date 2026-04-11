@@ -1077,7 +1077,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         {ctxMenu && ctxMsg && (
           <motion.div
             key="ctx-overlay"
-            className="fixed inset-0 z-[500] flex items-end justify-center pb-4 px-4"
+            className="fixed inset-0 z-[500] flex items-end sm:items-center justify-center pb-4 sm:pb-0 px-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -1169,18 +1169,18 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       <AnimatePresence>
         {pollVotes && (
           <motion.div
-            className="fixed inset-0 z-[500] flex items-end justify-center"
+            className="fixed inset-0 z-[500] flex items-end sm:items-center justify-center sm:p-4"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => setPollVotes(null)}
           >
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
             <motion.div
-              className="relative w-full max-w-lg"
+              className="relative w-full max-w-lg sm:max-w-md"
               initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
               transition={{ type: 'spring', damping: 28, stiffness: 300 }}
               onClick={e => e.stopPropagation()}
             >
-              <div className="glass-strong rounded-t-3xl max-h-[70vh] overflow-y-auto">
+              <div className="glass-strong rounded-t-3xl sm:rounded-3xl max-h-[70dvh] overflow-y-auto">
                 <div className="flex items-center justify-between p-4 sticky top-0 glass-strong">
                   <h3 className="font-bold text-foreground">Résultats du vote</h3>
                   <button onClick={() => setPollVotes(null)} className="text-muted-foreground hover:text-foreground p-1">

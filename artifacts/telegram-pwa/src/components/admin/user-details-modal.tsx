@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, KeyRound, Zap, Crown, ShieldOff, Send, Eye, EyeOff, Copy, Check, User, Clock, Calendar, Hash, Lock } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -134,22 +135,23 @@ export function UserDetailsModal({ userId, onClose, onNavigateToDM }: Props) {
   }
 
   if (loading) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-        <div className="glass-strong w-full max-w-md rounded-t-3xl p-6">
+    return createPortal(
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+        <div className="glass-strong w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6">
           <div className="text-center text-muted-foreground text-sm">Chargement...</div>
         </div>
-      </div>
+      </div>,
+      document.body
     );
   }
 
   if (!user) return null;
   const initials = user.displayName.substring(0, 2).toUpperCase();
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="glass-strong w-full max-w-md rounded-t-3xl flex flex-col max-h-[88vh] overflow-y-auto"
+        className="glass-strong w-full max-w-md rounded-t-3xl sm:rounded-3xl flex flex-col max-h-[88dvh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         {/* ── Header ── */}
@@ -312,7 +314,8 @@ export function UserDetailsModal({ userId, onClose, onNavigateToDM }: Props) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
