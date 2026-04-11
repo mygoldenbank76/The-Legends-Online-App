@@ -120,7 +120,7 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
           const lastMsg = conv.lastMessage;
           const isActive = activeConvId === conv.id;
           const isOnline = !isGroup && conv.otherUser?.isOnline;
-          const isRevealed = openId === conv.id;
+          const isRevealed = openId === conv.id && !isGroup;
           const isDeleting = deletingId === conv.id;
 
           return (
