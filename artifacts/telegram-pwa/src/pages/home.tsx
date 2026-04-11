@@ -222,16 +222,87 @@ function TabContent({
   return null;
 }
 
-/* ── Shop placeholder ── */
+/* ── Shop — iframe vers goldenvibeofficiel.com ── */
 function ShopPlaceholder() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const SHOP_URL = 'https://www.goldenvibeofficiel.com';
+
   return (
-    <div className="flex-1 flex flex-col items-center justify-center h-full gap-4 p-8 text-center">
-      <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-        <ShoppingBag className="w-8 h-8 text-primary" />
+    <div className="flex flex-col h-full w-full overflow-hidden">
+      {/* Barre supérieure */}
+      <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 glass border-b border-border/40">
+        <div className="flex items-center gap-2">
+          <ShoppingBag className="w-4 h-4 text-primary" />
+          <span className="text-sm font-semibold text-primary">Golden Vibe</span>
+        </div>
+        <a
+          href={SHOP_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors px-2 py-1 rounded-lg hover:bg-white/5"
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+          Ouvrir
+        </a>
       </div>
-      <div>
-        <h3 className="font-bold text-lg mb-1">Shop</h3>
-        <p className="text-sm text-muted-foreground">Bientôt disponible</p>
+
+      {/* Zone iframe */}
+      <div className="relative flex-1 min-h-0 w-full overflow-hidden">
+        {/* Spinner de chargement */}
+        {loading && !error && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background">
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+              <ShoppingBag className="w-6 h-6 text-primary animate-pulse" />
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+              <span className="text-xs text-muted-foreground mt-1">Chargement du shop…</span>
+            </div>
+          </div>
+        )}
+
+        {/* Message d'erreur si l'iframe est bloqué */}
+        {error && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 p-8 text-center bg-background">
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+              <ShoppingBag className="w-7 h-7 text-primary" />
+            </div>
+            <div>
+              <h3 className="font-bold text-base mb-1">Golden Vibe Shop</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Le shop ne peut pas s'afficher ici directement.
+              </p>
+              <a
+                href={SHOP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+                Visiter le shop
+              </a>
+            </div>
+          </div>
+        )}
+
+        {/* Iframe */}
+        {!error && (
+          <iframe
+            src={SHOP_URL}
+            title="Golden Vibe Shop"
+            className="w-full h-full border-0"
+            style={{ display: loading ? 'none' : 'block' }}
+            onLoad={() => setLoading(false)}
+            onError={() => { setLoading(false); setError(true); }}
+            allow="fullscreen"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
+          />
+        )}
       </div>
     </div>
   );
