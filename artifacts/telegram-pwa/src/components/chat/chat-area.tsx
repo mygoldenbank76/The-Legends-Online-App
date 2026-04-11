@@ -277,7 +277,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     const parts = text.split(/(@\S+)/g);
     return parts.map((part, i) =>
       part.startsWith('@') && part.length > 1
-        ? <span key={i} className="text-primary font-semibold">{part}</span>
+        ? <span key={i} className="font-bold underline decoration-dotted underline-offset-2 bg-white/20 rounded px-0.5 py-px">{part}</span>
         : <span key={i}>{part}</span>
     );
   };
