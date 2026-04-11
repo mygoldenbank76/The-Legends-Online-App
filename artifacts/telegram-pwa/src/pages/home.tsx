@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChatArea } from '@/components/chat/chat-area';
 import { ConversationList } from '@/components/chat/conversation-list';
 import { useAuth } from '@/lib/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AnimatedBackground } from '@/components/animated-background';
-import { Users, MessageSquare, ShoppingBag, Settings, Zap, Menu, LogOut, Search } from 'lucide-react';
+import { Users, MessageSquare, ShoppingBag, Settings, Zap, LogOut } from 'lucide-react';
 
 type Tab = 'groups' | 'messages' | 'shop' | 'settings';
 
@@ -16,28 +16,66 @@ const NAV_ITEMS: { id: Tab; icon: typeof Users; label: string }[] = [
   { id: 'settings', icon: Settings,      label: 'Paramètres' },
 ];
 
+const TAB_ORDER: Tab[] = ['groups', 'messages', 'shop', 'settings'];
+
 export default function Home() {
   const { user, logout } = useAuth();
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<Tab>('groups');
   const [activeConvId, setActiveConvId] = useState<number | undefined>();
+  const [swipeDir, setSwipeDir] = useState<1 | -1>(1);
+
+  // ── Swipe between tabs ───────────────────────────────────────
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const swipeLocked = useRef(false);
+
+  const handleSwipeStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+    swipeLocked.current = false;
+  };
+
+  const handleSwipeEnd = (e: React.TouchEvent) => {
+    if (swipeLocked.current) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
+    if (Math.abs(dx) < 60 || dy > Math.abs(dx) * 0.8) return; // too short or too vertical
+    const currentIdx = TAB_ORDER.indexOf(activeTab);
+    if (dx < 0 && currentIdx < TAB_ORDER.length - 1) {
+      // swipe left → next tab
+      setSwipeDir(1);
+      handleTabChange(TAB_ORDER[currentIdx + 1]);
+    } else if (dx > 0 && currentIdx > 0) {
+      // swipe right → previous tab
+      setSwipeDir(-1);
+      handleTabChange(TAB_ORDER[currentIdx - 1]);
+    }
+  };
+
+  const handleSwipeMove = (e: React.TouchEvent) => {
+    const dy = Math.abs(e.touches[0].clientY - touchStartY.current);
+    const dx = Math.abs(e.touches[0].clientX - touchStartX.current);
+    if (dy > dx && dy > 10) swipeLocked.current = true; // vertical scroll wins
+  };
+  // ────────────────────────────────────────────────────────────
 
   if (!user) return null;
 
   const showList = !isMobile || !activeConvId;
   const showChat = !isMobile || !!activeConvId;
 
-  const handleSelectConv = (id: number) => {
-    setActiveConvId(id);
-  };
-
-  const handleBack = () => {
-    setActiveConvId(undefined);
-  };
-
+  const handleSelectConv = (id: number) => { setActiveConvId(id); };
+  const handleBack = () => { setActiveConvId(undefined); };
   const handleTabChange = (tab: Tab) => {
     setActiveTab(tab);
     if (isMobile) setActiveConvId(undefined);
+  };
+
+  const slideVariants = {
+    enter: (dir: number) => ({ x: dir > 0 ? '100%' : '-100%', opacity: 0 }),
+    center: { x: 0, opacity: 1 },
+    exit: (dir: number) => ({ x: dir > 0 ? '-100%' : '100%', opacity: 0 }),
   };
 
   return (
@@ -68,17 +106,57 @@ export default function Home() {
           {showList && !activeConvId && (
             <div className="flex flex-col h-full">
               <MobileHeader user={user} />
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <TabContent
-                  tab={activeTab}
-                  activeConvId={activeConvId}
-                  onSelectConv={handleSelectConv}
-                  isMobile
-                  onLogout={logout}
-                  user={user}
+
+              {/* Content area with swipe + animated tab transitions */}
+              <div
+                className="flex-1 min-h-0 overflow-hidden relative"
+                onTouchStart={handleSwipeStart}
+                onTouchMove={handleSwipeMove}
+                onTouchEnd={handleSwipeEnd}
+              >
+                <AnimatePresence mode="popLayout" custom={swipeDir} initial={false}>
+                  <motion.div
+                    key={activeTab}
+                    custom={swipeDir}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ type: 'tween', duration: 0.25, ease: 'easeInOut' }}
+                    className="absolute inset-0"
+                  >
+                    <TabContent
+                      tab={activeTab}
+                      activeConvId={activeConvId}
+                      onSelectConv={handleSelectConv}
+                      isMobile
+                      onLogout={logout}
+                      user={user}
+                    />
+                  </motion.div>
+                </AnimatePresence>
+
+                {/* Edge swipe zones — float above iframe (Shop tab) */}
+                <div
+                  className="absolute left-0 top-0 bottom-0 w-7 z-20"
+                  onTouchStart={handleSwipeStart}
+                  onTouchMove={handleSwipeMove}
+                  onTouchEnd={handleSwipeEnd}
+                />
+                <div
+                  className="absolute right-0 top-0 bottom-0 w-7 z-20"
+                  onTouchStart={handleSwipeStart}
+                  onTouchMove={handleSwipeMove}
+                  onTouchEnd={handleSwipeEnd}
                 />
               </div>
-              <MobileBottomNav activeTab={activeTab} onSelect={handleTabChange} />
+
+              <MobileBottomNav activeTab={activeTab} onSelect={(t) => {
+                const cur = TAB_ORDER.indexOf(activeTab);
+                const nxt = TAB_ORDER.indexOf(t);
+                setSwipeDir(nxt >= cur ? 1 : -1);
+                handleTabChange(t);
+              }} />
             </div>
           )}
           {showChat && activeConvId && (
