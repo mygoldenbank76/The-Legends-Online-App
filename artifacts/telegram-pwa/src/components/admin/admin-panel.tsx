@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { Shield, Trash2, Ban, CheckCircle, ChevronUp, Search, RefreshCw, Crown, UserX, Zap, KeyRound } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 
@@ -53,8 +52,7 @@ export function AdminPanel() {
     try {
       const res = await fetch(`${API_BASE}/admin/users`, { headers: authHeaders() });
       if (!res.ok) throw new Error('Forbidden');
-      const data = await res.json();
-      setUsers(data);
+      setUsers(await res.json());
     } catch {
       toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de charger les utilisateurs' });
     } finally {
@@ -64,21 +62,40 @@ export function AdminPanel() {
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
-  async function doAction(userId: number, path: string, method = 'PATCH') {
+  async function doAction(userId: number, path: string) {
     setActionLoading(userId);
     try {
-      const res = await fetch(`${API_BASE}/admin/users/${userId}/${path}`, { method, headers: authHeaders() });
+      const res = await fetch(`${API_BASE}/admin/users/${userId}/${path}`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+      });
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({ error: 'Erreur serveur' }));
         throw new Error(err.error || 'Erreur');
       }
-      if (method === 'DELETE') {
-        setUsers(prev => prev.filter(u => u.id !== userId));
-      } else {
-        const updated = await res.json();
-        setUsers(prev => prev.map(u => u.id === userId ? updated : u));
-      }
+      const updated = await res.json();
+      setUsers(prev => prev.map(u => u.id === userId ? updated : u));
       toast({ title: 'Action effectuée avec succès' });
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: 'Erreur', description: e.message });
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function doDelete(userId: number) {
+    setActionLoading(userId);
+    try {
+      const res = await fetch(`${API_BASE}/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Erreur serveur' }));
+        throw new Error(err.error || 'Erreur');
+      }
+      setUsers(prev => prev.filter(u => u.id !== userId));
+      toast({ title: 'Utilisateur supprimé' });
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Erreur', description: e.message });
     } finally {
@@ -94,7 +111,7 @@ export function AdminPanel() {
 
   const stats = {
     total: users.length,
-    online: users.filter(u => u.isOnline).length,
+    online: users.filter(u => u.isOnline && !u.isBanned).length,
     banned: users.filter(u => u.isBanned).length,
     replit: users.filter(u => u.hasReplit).length,
   };
@@ -118,7 +135,7 @@ export function AdminPanel() {
           { label: 'Total', value: stats.total, color: 'text-foreground' },
           { label: 'En ligne', value: stats.online, color: 'text-green-400' },
           { label: 'Bannis', value: stats.banned, color: 'text-red-400' },
-          { label: 'Connexion rapide', value: stats.replit, color: 'text-primary' },
+          { label: 'Rapide', value: stats.replit, color: 'text-primary' },
         ].map(s => (
           <div key={s.label} className="glass rounded-xl p-2.5 text-center">
             <p className={`text-lg font-bold ${s.color}`}>{s.value}</p>
@@ -168,14 +185,13 @@ export function AdminPanel() {
                     {u.isBanned && <UserX className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />}
                     {isMe && <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full">Vous</span>}
                   </div>
-                  <div className="flex items-center gap-2 mt-0.5">
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     <span className="text-xs text-muted-foreground">@{u.username}</span>
-                    <span className="text-[10px] text-muted-foreground">·</span>
                     {u.hasReplit
                       ? <span className="flex items-center gap-0.5 text-[10px] text-primary/70"><Zap className="w-2.5 h-2.5" /> Connexion rapide</span>
                       : <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground"><KeyRound className="w-2.5 h-2.5" /> Mot de passe</span>
                     }
-                    <span className="text-[10px] text-muted-foreground">· {u.isOnline ? 'En ligne' : timeAgo(u.lastSeen)}</span>
+                    <span className="text-[10px] text-muted-foreground">· {u.isOnline && !u.isBanned ? 'En ligne' : timeAgo(u.lastSeen)}</span>
                   </div>
                 </div>
               </div>
@@ -227,13 +243,13 @@ export function AdminPanel() {
 
                   {/* Delete */}
                   {confirmDelete === u.id ? (
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 ml-auto">
                       <button
-                        onClick={() => doAction(u.id, 'delete', 'DELETE')}
+                        onClick={() => doDelete(u.id)}
                         disabled={busy}
                         className="text-xs px-3 py-1.5 rounded-lg bg-red-600/80 text-white hover:bg-red-600 transition-colors disabled:opacity-50"
                       >
-                        Confirmer
+                        {busy ? '...' : 'Confirmer'}
                       </button>
                       <button
                         onClick={() => setConfirmDelete(null)}

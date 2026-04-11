@@ -190,6 +190,14 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
 // POST send message
 router.post("/conversations/:conversationId/messages", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as typeof req & { userId: number }).userId;
+
+  // Block banned users from sending messages
+  const [senderCheck] = await db.select({ isBanned: usersTable.isBanned }).from(usersTable).where(eq(usersTable.id, userId));
+  if (senderCheck?.isBanned) {
+    res.status(403).json({ error: "Compte suspendu" });
+    return;
+  }
+
   const rawId = Array.isArray(req.params.conversationId) ? req.params.conversationId[0] : req.params.conversationId;
   const conversationId = parseInt(rawId, 10);
   if (isNaN(conversationId)) { res.status(400).json({ error: "Invalid conversation ID" }); return; }
