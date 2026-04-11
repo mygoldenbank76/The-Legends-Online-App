@@ -15,18 +15,33 @@ const BLOCKED_HEADERS = new Set([
   "content-encoding",
 ]);
 
-/** Build the absolute proxy base URL from the incoming request */
-function getProxyBase(req: Request): string {
-  const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
-  const host = req.headers["x-forwarded-host"] || req.headers.host || "";
-  return `${proto}://${host}/api/shop-proxy?path=`;
+/**
+ * Get the public-facing origin of the app.
+ * Priority: Referer origin → x-forwarded headers → host header.
+ * The Referer is the most reliable because it contains the URL the user
+ * actually sees in the browser.
+ */
+function getPublicOrigin(req: Request): string {
+  const referer = (req.headers["referer"] || req.headers["referrer"] || "") as string;
+  if (referer) {
+    try {
+      return new URL(referer).origin;
+    } catch {}
+  }
+  const proto = (req.headers["x-forwarded-proto"] as string) || req.protocol || "https";
+  const host = (req.headers["x-forwarded-host"] as string) || (req.headers.host as string) || "";
+  return `${proto}://${host}`;
 }
 
-function makeInterceptorScript(proxyBase: string): string {
-  return `
+/**
+ * JS injected into every proxied HTML page.
+ * Uses window.location.origin (reliable client-side) for the proxy base URL.
+ */
+const JS_INTERCEPTOR = `
 <script data-proxy-interceptor="1">
 (function() {
-  var PROXY_BASE = ${JSON.stringify(proxyBase)};
+  // Compute proxy base from the iframe's own origin — always correct.
+  var PROXY_BASE = window.location.origin + '/api/shop-proxy?path=';
   var SITE = ${JSON.stringify(SITE_ORIGIN)};
   var ORIGINS = ['www.goldenvibeofficiel.com', 'goldenvibeofficiel.com'];
 
@@ -36,7 +51,7 @@ function makeInterceptorScript(proxyBase: string): string {
     if (!s || s.startsWith('#') || s.startsWith('javascript:') ||
         s.startsWith('mailto:') || s.startsWith('tel:') ||
         s.startsWith('data:') || s.startsWith('blob:')) return null;
-    // Already a proxy URL — don't double-proxy
+    // Already a proxy URL
     if (s.indexOf('/api/shop-proxy') !== -1) return null;
     // Absolute path e.g. /collections/all
     if (s.startsWith('/') && !s.startsWith('//')) {
@@ -52,8 +67,9 @@ function makeInterceptorScript(proxyBase: string): string {
     return null;
   }
 
-  // Resolve URL relative to shop origin (for JS fetch/XHR calls)
-  function resolveShopUrl(url) {
+  // Resolve a URL relative to the shop origin (for fetch/XHR interception)
+  function shopProxyUrl(url) {
+    if (!url) return null;
     try {
       var parsed = new URL(String(url), SITE + '/');
       if (ORIGINS.indexOf(parsed.hostname) !== -1) {
@@ -63,7 +79,7 @@ function makeInterceptorScript(proxyBase: string): string {
     return null;
   }
 
-  // ── 1. Override history.pushState / replaceState ──────────────────────
+  // ── 1. Override history.pushState / replaceState ────────────────────
   var _push = history.pushState.bind(history);
   var _replace = history.replaceState.bind(history);
 
@@ -74,7 +90,6 @@ function makeInterceptorScript(proxyBase: string): string {
     }
     return _push(state, title, url);
   };
-
   history.replaceState = function(state, title, url) {
     if (url) {
       var p = toProxyUrl(String(url));
@@ -83,35 +98,35 @@ function makeInterceptorScript(proxyBase: string): string {
     return _replace(state, title, url);
   };
 
-  // ── 2. Override window.fetch ──────────────────────────────────────────
+  // ── 2. Override window.fetch ────────────────────────────────────────
   if (window.fetch) {
     var _fetch = window.fetch.bind(window);
     window.fetch = function(input, init) {
       try {
         var url = (typeof input === 'string') ? input
           : (input && input.url) ? input.url : String(input);
-        var p = resolveShopUrl(url);
+        var p = shopProxyUrl(url);
         if (p) {
-          input = (typeof input === 'string') ? p : new Request(p, input instanceof Request ? input : init);
-          if (p && !(typeof input === 'string')) init = undefined;
+          input = (typeof input === 'string') ? p : new Request(p, init);
+          if (typeof input !== 'string') init = undefined;
         }
       } catch(e) {}
       return _fetch(input, init);
     };
   }
 
-  // ── 3. Override XMLHttpRequest ────────────────────────────────────────
+  // ── 3. Override XMLHttpRequest ──────────────────────────────────────
   var _xhrOpen = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function(method, url, async, user, pass) {
     try {
-      var p = resolveShopUrl(String(url));
+      var p = shopProxyUrl(String(url));
       if (p) url = p;
     } catch(e) {}
     return _xhrOpen.call(this, method, url,
       async === undefined ? true : async, user, pass);
   };
 
-  // ── 4. Rewrite <a href> and <form action> elements ────────────────────
+  // ── 4. Rewrite existing <a> and <form> elements ─────────────────────
   function rewriteEl(el) {
     if (!el || !el.tagName) return;
     var tag = el.tagName.toUpperCase();
@@ -126,19 +141,17 @@ function makeInterceptorScript(proxyBase: string): string {
       if (pa) { el.setAttribute('action', pa); el.setAttribute('data-proxied', '1'); }
     }
   }
-
   function rewriteAll(root) {
     (root || document).querySelectorAll('a[href]:not([data-proxied])').forEach(rewriteEl);
     (root || document).querySelectorAll('form[action]:not([data-proxied])').forEach(rewriteEl);
   }
-
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() { rewriteAll(); });
   } else {
     rewriteAll();
   }
 
-  // Watch for dynamically added elements (Shopify lazy-renders menus)
+  // Watch for dynamically added elements
   new MutationObserver(function(muts) {
     muts.forEach(function(m) {
       m.addedNodes.forEach(function(n) {
@@ -151,13 +164,12 @@ function makeInterceptorScript(proxyBase: string): string {
     });
   }).observe(document.documentElement, { childList: true, subtree: true });
 
-  // ── 5. Click capture — final safety net ──────────────────────────────
+  // ── 5. Click capture — final fallback ──────────────────────────────
   document.addEventListener('click', function(e) {
     var el = e.target && typeof e.target.closest === 'function' && e.target.closest('a');
     if (!el) return;
     var href = el.getAttribute('href') || '';
-    // If href is already a full proxy URL, allow it through normally
-    if (href.indexOf('/api/shop-proxy') !== -1) return;
+    if (href.indexOf('/api/shop-proxy') !== -1) return; // already proxied
     var p = toProxyUrl(href);
     if (p) {
       e.preventDefault();
@@ -168,70 +180,58 @@ function makeInterceptorScript(proxyBase: string): string {
 
 })();
 </script>`;
-}
 
-function rewriteHtml(html: string, proxyBase: string): string {
+function rewriteHtml(html: string, publicOrigin: string): string {
+  const proxyBase = `${publicOrigin}/api/shop-proxy?path=`;
+
   // ── 1. Strip existing <base> tags
   html = html.replace(/<base[^>]*>/gi, "");
 
-  // ── 2. Add base tag for static resources (images, fonts, CDN assets)
-  //    This makes relative src="/..." paths resolve to goldenvibeofficiel.com
-  //    We must inject AFTER we rewrite all hrefs to absolute proxy URLs
-  const baseTag = `<base href="${SITE_ORIGIN}/">`;
-
-  // ── 3. Rewrite href="/path" → absolute proxy URL (double quotes)
+  // ── 2. Server-side: rewrite href="/path" on <a> tags → absolute proxy URL
+  //    Use absolute URLs so the <base> tag we inject doesn't affect them.
   html = html.replace(
-    /href="(\/(?!\/)[^"#?]*(?:[?#][^"]*)?)"/g,
-    (_, path) => `href="${proxyBase}${encodeURIComponent(path)}"`
+    /(<a\s[^>]*?)href="(\/(?!\/)[^"]*?)"/gi,
+    (match, pre, path) => `${pre}href="${proxyBase}${encodeURIComponent(path)}"`
   );
-  // Single quotes
   html = html.replace(
-    /href='(\/(?!\/)[^'#?]*(?:[?#][^']*)?)'/g,
-    (_, path) => `href='${proxyBase}${encodeURIComponent(path)}'`
+    /(<a\s[^>]*?)href='(\/(?!\/)[^']*?)'/gi,
+    (match, pre, path) => `${pre}href='${proxyBase}${encodeURIComponent(path)}'`
   );
 
-  // ── 4. Rewrite full shop URLs in href
+  // ── 3. Rewrite full shop URLs in <a href>
   html = html.replace(
-    /href="https?:\/\/(?:www\.)?goldenvibeofficiel\.com(\/[^"#?]*(?:[?#][^"]*)?)"/g,
-    (_, path) => `href="${proxyBase}${encodeURIComponent(path)}"`
-  );
-  html = html.replace(
-    /href='https?:\/\/(?:www\.)?goldenvibeofficiel\.com(\/[^'#?]*(?:[?#][^']*)?)'/g,
-    (_, path) => `href='${proxyBase}${encodeURIComponent(path)}'`
+    /(<a\s[^>]*?)href="https?:\/\/(?:www\.)?goldenvibeofficiel\.com(\/[^"]*)"/gi,
+    (match, pre, path) => `${pre}href="${proxyBase}${encodeURIComponent(path)}"`
   );
 
-  // ── 5. Rewrite form actions
+  // ── 4. Rewrite form actions
   html = html.replace(
     /action="(\/[^"]*)"/g,
     (_, path) => `action="${proxyBase}${encodeURIComponent(path)}"`
   );
-  html = html.replace(
-    /action='(\/[^']*)'/g,
-    (_, path) => `action='${proxyBase}${encodeURIComponent(path)}'`
-  );
 
-  // ── 6. Now inject base tag (AFTER href rewriting, so proxy hrefs aren't affected)
-  if (/<head>/i.test(html)) {
-    html = html.replace(/<head>/i, `<head>${baseTag}`);
-  } else if (/<head\s/i.test(html)) {
-    html = html.replace(/<head\s/i, `<head ${baseTag.slice(0, -1)} `);
+  // ── 5. Add base tag for static resources AFTER href rewriting
+  //    This ensures images, CSS, fonts resolve to goldenvibeofficiel.com
+  const baseTag = `<base href="${SITE_ORIGIN}/">`;
+  html = html.replace(/<head>/i, `<head>${baseTag}`);
+  if (!html.includes(SITE_ORIGIN) && !html.includes('<base')) {
+    html = html.replace(/<head\b[^>]*>/i, (m) => `${m}${baseTag}`);
   }
 
-  // ── 7. Inject JS interceptor script before </head>
-  const interceptor = makeInterceptorScript(proxyBase);
+  // ── 6. Inject JS interceptor before </head>
   if (html.includes("</head>")) {
-    html = html.replace("</head>", `${interceptor}</head>`);
+    html = html.replace("</head>", `${JS_INTERCEPTOR}</head>`);
   } else if (html.includes("</body>")) {
-    html = html.replace("</body>", `${interceptor}</body>`);
+    html = html.replace("</body>", `${JS_INTERCEPTOR}</body>`);
   } else {
-    html += interceptor;
+    html += JS_INTERCEPTOR;
   }
 
   return html;
 }
 
 async function proxyRequest(req: Request, res: Response) {
-  const proxyBase = getProxyBase(req);
+  const publicOrigin = getPublicOrigin(req);
   const rawPath = (req.query.path as string) || "/";
   const safePath = rawPath.startsWith("/") ? rawPath : `/${rawPath}`;
   const targetUrl = `${SITE_ORIGIN}${safePath}`;
@@ -247,8 +247,12 @@ async function proxyRequest(req: Request, res: Response) {
     Origin: SITE_ORIGIN,
   };
 
-  if (req.headers.cookie) forwardHeaders["Cookie"] = req.headers.cookie as string;
-  if (req.headers["content-type"]) forwardHeaders["Content-Type"] = req.headers["content-type"] as string;
+  if (req.headers.cookie) {
+    forwardHeaders["Cookie"] = req.headers.cookie as string;
+  }
+  if (req.headers["content-type"]) {
+    forwardHeaders["Content-Type"] = req.headers["content-type"] as string;
+  }
 
   try {
     const upstream = await axios({
@@ -262,7 +266,6 @@ async function proxyRequest(req: Request, res: Response) {
       timeout: 20000,
     });
 
-    // Forward safe upstream headers
     Object.entries(upstream.headers).forEach(([key, value]) => {
       if (!BLOCKED_HEADERS.has(key.toLowerCase()) && value) {
         res.setHeader(key, value as string | string[]);
@@ -272,7 +275,7 @@ async function proxyRequest(req: Request, res: Response) {
     const contentType = (upstream.headers["content-type"] as string) || "text/html";
 
     if (contentType.includes("text/html")) {
-      const html = rewriteHtml(upstream.data.toString("utf-8"), proxyBase);
+      const html = rewriteHtml(upstream.data.toString("utf-8"), publicOrigin);
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.status(upstream.status).send(html);
     } else {
