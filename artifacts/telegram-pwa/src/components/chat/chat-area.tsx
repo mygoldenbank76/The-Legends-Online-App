@@ -127,6 +127,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didTriggerMenu = useRef(false);
   const didJustSwipe = useRef(false);
@@ -160,6 +161,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
   // User profile sheet (click on avatar/name in group)
   const [profileUser, setProfileUser] = useState<{ id: number; displayName: string; username?: string; avatar?: string | null; bio?: string | null } | null>(null);
+
+  // @mention state
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionStartIdx, setMentionStartIdx] = useState(-1);
 
   // ── Socket ──────────────────────────────────────────────────
   useEffect(() => {
@@ -221,7 +226,71 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     finally { setSending(false); }
   }, [content, sending, editState, replyTo, conversationId, sendMsg, editMsg, invalidate, scrollBottom]);
 
+  // ── @mention helpers ──────────────────────────────────────
+  const participants: Array<{ id: number; displayName: string; username?: string; avatar?: string | null }> =
+    (conversation as any)?.participants ?? [];
+
+  const mentionSuggestions = mentionQuery !== null
+    ? participants.filter(p =>
+        p.id !== user?.id &&
+        (
+          p.displayName.toLowerCase().includes(mentionQuery.toLowerCase()) ||
+          (p.username || '').toLowerCase().includes(mentionQuery.toLowerCase())
+        )
+      ).slice(0, 6)
+    : [];
+
+  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setContent(value);
+    const cursor = e.target.selectionStart ?? value.length;
+    const textBeforeCursor = value.slice(0, cursor);
+    const match = textBeforeCursor.match(/@(\w*)$/);
+    if (match) {
+      setMentionQuery(match[1]);
+      setMentionStartIdx(cursor - match[0].length);
+    } else {
+      setMentionQuery(null);
+      setMentionStartIdx(-1);
+    }
+  };
+
+  const handleMentionSelect = (p: { id: number; displayName: string; username?: string }) => {
+    const name = p.username || p.displayName;
+    const before = content.slice(0, mentionStartIdx);
+    const after = content.slice(mentionStartIdx + 1 + (mentionQuery?.length ?? 0));
+    const newContent = `${before}@${name} ${after}`;
+    setContent(newContent);
+    setMentionQuery(null);
+    setMentionStartIdx(-1);
+    setTimeout(() => {
+      if (textareaRef.current) {
+        const pos = before.length + name.length + 2; // @name + space
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(pos, pos);
+      }
+    }, 0);
+  };
+
+  // Render message text with @mentions highlighted
+  const renderWithMentions = (text: string) => {
+    const parts = text.split(/(@\S+)/g);
+    return parts.map((part, i) =>
+      part.startsWith('@') && part.length > 1
+        ? <span key={i} className="text-primary font-semibold">{part}</span>
+        : <span key={i}>{part}</span>
+    );
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (mentionQuery !== null && mentionSuggestions.length > 0) {
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        handleMentionSelect(mentionSuggestions[0]);
+        return;
+      }
+      if (e.key === 'Escape') { setMentionQuery(null); return; }
+    }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
     if (e.key === 'Escape') { setEditState(null); setReplyTo(null); setContent(''); }
   };
@@ -723,7 +792,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
                     {/* Text */}
                     {msg.content && !isPoll && (
-                      <div className="whitespace-pre-wrap break-words leading-snug">{msg.content}</div>
+                      <div className="whitespace-pre-wrap break-words leading-snug">{renderWithMentions(msg.content)}</div>
                     )}
 
                     {/* Translation */}
@@ -810,6 +879,40 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         </div>
       )}
 
+      {/* ── @mention suggestions panel ── */}
+      <AnimatePresence>
+        {mentionQuery !== null && mentionSuggestions.length > 0 && (
+          <motion.div
+            key="mention-popup"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.15 }}
+            className="flex-shrink-0 mx-3 mb-1 glass-strong border border-primary/30 rounded-2xl overflow-hidden shadow-xl"
+          >
+            {mentionSuggestions.map((p, idx) => (
+              <button
+                key={p.id}
+                onMouseDown={(e) => { e.preventDefault(); handleMentionSelect(p); }}
+                onTouchStart={(e) => { e.preventDefault(); handleMentionSelect(p); }}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-primary/10 active:bg-primary/20 transition-colors text-left ${idx > 0 ? 'border-t border-white/5' : ''}`}
+              >
+                <Avatar className="w-8 h-8 flex-shrink-0">
+                  <AvatarImage src={p.avatar || ''} />
+                  <AvatarFallback className="bg-primary/20 text-primary text-xs">
+                    {(p.displayName || '?').substring(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <div className="text-sm font-medium truncate">{p.displayName}</div>
+                  {p.username && <div className="text-xs text-primary/70 truncate">@{p.username}</div>}
+                </div>
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Input bar — Base44 style ── */}
       <div className="flex-shrink-0 px-3 py-3 glass border-t border-border/50">
         <div className="flex items-end gap-2">
@@ -850,8 +953,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   </PopoverContent>
                 </Popover>
                 <Textarea
+                  ref={textareaRef}
                   value={content}
-                  onChange={(e) => setContent(e.target.value)}
+                  onChange={handleContentChange}
                   onKeyDown={handleKeyDown}
                   placeholder={editState ? uiT.chat.editPlaceholder : uiT.chat.placeholder}
                   className="min-h-[40px] max-h-[120px] border-0 focus-visible:ring-0 resize-none py-2.5 px-0 bg-transparent shadow-none text-sm"
