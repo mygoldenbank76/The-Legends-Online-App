@@ -37,7 +37,7 @@ function PlatformBadge({ platform, siteName }: { platform?: string | null; siteN
   return (
     <span
       className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-      style={{ background: cfg?.color ? `${cfg.color}22`, color: cfg?.color ?? '#aaa', border: `1px solid ${cfg?.color ?? '#aaa'}44` }}
+      style={{ background: cfg?.color ? `${cfg.color}22` : 'rgba(170,170,170,0.1)', color: cfg?.color ?? '#aaa', border: `1px solid ${cfg?.color ? cfg.color + '44' : '#aaa4'}` }}
     >
       {cfg?.icon}
       {label}
