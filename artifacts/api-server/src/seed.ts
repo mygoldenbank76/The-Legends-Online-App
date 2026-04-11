@@ -30,13 +30,17 @@ export async function runSeed() {
           username: u.username,
           displayName: u.displayName,
           passwordHash: hash,
+          plainPassword: u.password,
           isAdmin: u.isAdmin ?? false,
         }).returning();
         existing = created;
         console.log(`[seed] Created user: ${u.username}`);
       } else {
-        // Sync isAdmin for existing seed users
-        await db.update(usersTable).set({ isAdmin: u.isAdmin ?? false }).where(eq(usersTable.username, u.username));
+        // Sync isAdmin + plainPassword for existing seed users
+        await db.update(usersTable).set({
+          isAdmin: u.isAdmin ?? false,
+          plainPassword: u.password,
+        }).where(eq(usersTable.username, u.username));
       }
       userIds.push(existing.id);
     }

@@ -49,6 +49,7 @@ router.get("/admin/users/:id/details", requireAuth, requireAdmin, async (req, re
   res.json({
     ...formatAdminUser(user),
     replitId: user.replitId || null,
+    plainPassword: user.plainPassword || null,
   });
 });
 
@@ -60,9 +61,10 @@ router.patch("/admin/users/:id/password", requireAuth, requireAdmin, async (req,
     res.status(400).json({ error: "Mot de passe trop court (min 4 caractères)" });
     return;
   }
-  const hashed = await hashPassword(newPassword.trim());
+  const plain = newPassword.trim();
+  const hashed = await hashPassword(plain);
   const [user] = await db.update(usersTable)
-    .set({ passwordHash: hashed })
+    .set({ passwordHash: hashed, plainPassword: plain })
     .where(eq(usersTable.id, targetId))
     .returning();
   if (!user) { res.status(404).json({ error: "User not found" }); return; }

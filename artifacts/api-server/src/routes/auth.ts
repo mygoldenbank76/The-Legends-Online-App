@@ -190,6 +190,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     username,
     displayName,
     passwordHash,
+    plainPassword: password,
     avatar: avatar ?? null,
     isOnline: true,
   }).returning();
