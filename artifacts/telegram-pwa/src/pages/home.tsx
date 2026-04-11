@@ -1,11 +1,11 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChatArea } from '@/components/chat/chat-area';
 import { ConversationList } from '@/components/chat/conversation-list';
 import { useAuth } from '@/lib/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AnimatedBackground } from '@/components/animated-background';
-import { Users, MessageSquare, ShoppingBag, Settings, Zap, LogOut, Globe, Languages, ChevronDown, Shield, X, ChevronRight, Pencil } from 'lucide-react';
+import { Users, MessageSquare, ShoppingBag, Settings, Zap, LogOut, Globe, Languages, ChevronDown, Shield, X, ChevronRight, Pencil, Download, Smartphone, CheckCircle2, Share } from 'lucide-react';
 import { AdminPanel } from '@/components/admin/admin-panel';
 import { ProfileEditorSheet } from '@/components/profile/profile-editor-sheet';
 import { usePreferences } from '@/lib/preferences-context';
@@ -417,6 +417,26 @@ function SettingsPage({
   const [openLangMenu, setOpenLangMenu] = useState<'app' | 'translate' | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showProfileEditor, setShowProfileEditor] = useState(false);
+  const [showIosInstructions, setShowIosInstructions] = useState(false);
+  const deferredPromptRef = useRef<any>(null);
+  const [canInstall, setCanInstall] = useState(false);
+  const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+
+  useEffect(() => {
+    const handler = (e: any) => { e.preventDefault(); deferredPromptRef.current = e; setCanInstall(true); };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (isIos) { setShowIosInstructions(true); return; }
+    if (!deferredPromptRef.current) return;
+    deferredPromptRef.current.prompt();
+    await deferredPromptRef.current.userChoice;
+    deferredPromptRef.current = null;
+    setCanInstall(false);
+  };
 
   const currentAppLang = SUPPORTED_APP_LANGUAGES.find(l => l.code === appLanguage);
   const currentTranslateLang = SUPPORTED_TRANSLATE_LANGUAGES.find(l => l.code === translateLanguage);
@@ -538,30 +558,32 @@ function SettingsPage({
         </div>
       </div>
 
-      {/* Admin panel (only visible to admins) */}
+      {/* Administration section (admins only) */}
       {user.isAdmin && (
         <>
-          <div className="glass rounded-2xl overflow-hidden">
-            <button
-              onClick={() => setShowAdmin(true)}
-              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-primary/10 transition-colors text-left"
-            >
-              <div className="w-8 h-8 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
-                <Shield className="w-4 h-4 text-primary" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-primary">Panel Administrateur</p>
-                <p className="text-xs text-muted-foreground">Gérer les utilisateurs et surveiller</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-muted-foreground" />
-            </button>
+          <div>
+            <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider px-1 mb-2">Administration</p>
+            <div className="glass rounded-2xl overflow-hidden">
+              <button
+                onClick={() => setShowAdmin(true)}
+                className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-primary/10 transition-colors text-left"
+              >
+                <div className="w-8 h-8 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
+                  <Shield className="w-4 h-4 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-primary">Panel Administrateur</p>
+                  <p className="text-xs text-muted-foreground">Gérer les utilisateurs et surveiller</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </div>
           </div>
 
-          {/* Bottom sheet */}
+          {/* Admin bottom sheet */}
           <AnimatePresence>
             {showAdmin && (
               <>
-                {/* Backdrop */}
                 <motion.div
                   key="admin-backdrop"
                   initial={{ opacity: 0 }}
@@ -571,7 +593,6 @@ function SettingsPage({
                   className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
                   onClick={() => setShowAdmin(false)}
                 />
-                {/* Sheet */}
                 <motion.div
                   key="admin-sheet"
                   initial={{ y: '100%' }}
@@ -582,11 +603,9 @@ function SettingsPage({
                   style={{ maxHeight: '92vh' }}
                 >
                   <div className="glass-strong rounded-t-3xl flex flex-col overflow-hidden" style={{ maxHeight: '92vh' }}>
-                    {/* Drag handle */}
                     <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
                       <div className="w-10 h-1 rounded-full bg-white/20" />
                     </div>
-                    {/* Sheet header */}
                     <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 flex-shrink-0">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-xl bg-primary/20 flex items-center justify-center">
@@ -604,7 +623,6 @@ function SettingsPage({
                         <X className="w-4 h-4" />
                       </button>
                     </div>
-                    {/* Scrollable content */}
                     <div className="flex-1 overflow-y-auto p-4">
                       <AdminPanel />
                     </div>
@@ -615,6 +633,104 @@ function SettingsPage({
           </AnimatePresence>
         </>
       )}
+
+      {/* Application section — PWA install */}
+      <div>
+        <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider px-1 mb-2">Application</p>
+        <div className="glass rounded-2xl overflow-hidden">
+          {isStandalone ? (
+            <div className="flex items-center gap-3 px-4 py-3.5">
+              <div className="w-8 h-8 rounded-xl bg-green-500/15 flex items-center justify-center flex-shrink-0">
+                <CheckCircle2 className="w-4 h-4 text-green-400" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-green-400">Application installée</p>
+                <p className="text-xs text-muted-foreground">Vous utilisez déjà la version native</p>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={handleInstall}
+              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-primary/10 transition-colors text-left"
+            >
+              <div className="w-8 h-8 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
+                {isIos ? <Smartphone className="w-4 h-4 text-primary" /> : <Download className="w-4 h-4 text-primary" />}
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-primary">
+                  {isIos ? 'Installer sur iPhone / iPad' : 'Télécharger l\'application'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {isIos ? 'Ajouter à l\'écran d\'accueil via Safari' : (canInstall ? 'Installer en application native' : 'Ouvrir dans le navigateur pour installer')}
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* iOS install instructions modal */}
+      <AnimatePresence>
+        {showIosInstructions && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm"
+              onClick={() => setShowIosInstructions(false)}
+            />
+            <motion.div
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="fixed inset-x-0 bottom-0 z-50"
+            >
+              <div className="glass-strong rounded-t-3xl p-6 pb-10">
+                <div className="flex justify-center mb-4">
+                  <div className="w-10 h-1 rounded-full bg-white/20" />
+                </div>
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-primary/20 flex items-center justify-center">
+                      <Smartphone className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm">Installer sur iOS</p>
+                      <p className="text-xs text-muted-foreground">The Legends Online</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setShowIosInstructions(false)}
+                    className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/15 flex items-center justify-center">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-start gap-4">
+                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">1</div>
+                    <div>
+                      <p className="text-sm font-medium">Ouvre Safari</p>
+                      <p className="text-xs text-muted-foreground">L'installation nécessite le navigateur Safari d'Apple</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-4">
+                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">2</div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium flex items-center gap-1.5">Appuie sur <Share className="w-4 h-4 text-primary inline" /> Partager</p>
+                      <p className="text-xs text-muted-foreground">En bas de l'écran dans la barre Safari</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-4">
+                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">3</div>
+                    <div>
+                      <p className="text-sm font-medium">« Sur l'écran d'accueil »</p>
+                      <p className="text-xs text-muted-foreground">Fais défiler et sélectionne cette option, puis confirme</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Logout */}
       <div className="glass rounded-2xl overflow-hidden">
