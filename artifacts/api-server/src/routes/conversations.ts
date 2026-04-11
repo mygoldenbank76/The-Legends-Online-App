@@ -182,6 +182,52 @@ router.post("/conversations", requireAuth, async (req, res): Promise<void> => {
   res.json({ ...newConv, participants: participantUsers.map(formatUser), createdAt: newConv.createdAt.toISOString() });
 });
 
+router.delete("/conversations/:conversationId", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as typeof req & { userId: number }).userId;
+  const rawId = Array.isArray(req.params.conversationId) ? req.params.conversationId[0] : req.params.conversationId;
+  const conversationId = parseInt(rawId, 10);
+  if (isNaN(conversationId)) {
+    res.status(400).json({ error: "Invalid conversation ID" });
+    return;
+  }
+
+  const [participation] = await db.select()
+    .from(conversationParticipantsTable)
+    .where(and(
+      eq(conversationParticipantsTable.conversationId, conversationId),
+      eq(conversationParticipantsTable.userId, userId)
+    ));
+  if (!participation) {
+    res.status(403).json({ error: "Not a participant" });
+    return;
+  }
+
+  await db.delete(conversationParticipantsTable)
+    .where(and(
+      eq(conversationParticipantsTable.conversationId, conversationId),
+      eq(conversationParticipantsTable.userId, userId)
+    ));
+
+  const remaining = await db.select()
+    .from(conversationParticipantsTable)
+    .where(eq(conversationParticipantsTable.conversationId, conversationId));
+
+  if (remaining.length === 0) {
+    const msgIds = (await db.select({ id: messagesTable.id })
+      .from(messagesTable)
+      .where(eq(messagesTable.conversationId, conversationId)))
+      .map(m => m.id);
+    if (msgIds.length > 0) {
+      await db.delete(reactionsTable).where(inArray(reactionsTable.messageId, msgIds));
+    }
+    await db.delete(messagesTable).where(eq(messagesTable.conversationId, conversationId));
+    await db.delete(conversationPinsTable).where(eq(conversationPinsTable.conversationId, conversationId));
+    await db.delete(conversationsTable).where(eq(conversationsTable.id, conversationId));
+  }
+
+  res.json({ ok: true });
+});
+
 router.get("/conversations/:conversationId", requireAuth, async (req, res): Promise<void> => {
   const rawId = Array.isArray(req.params.conversationId) ? req.params.conversationId[0] : req.params.conversationId;
   const conversationId = parseInt(rawId, 10);
