@@ -59,12 +59,17 @@ export function VoiceRecorder({ onSend, onCancel }: Props) {
         : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4'
         : '';
 
-      const options: MediaRecorderOptions = {};
-      if (mimeType) options.mimeType = mimeType;
-      // 128 kbps for voice — clear, intelligible, reasonable size
-      options.audioBitsPerSecond = 128_000;
+      // Build options — don't force audioBitsPerSecond, let the browser pick
+      // (some Android Chrome versions reject explicit bitrates and throw)
+      const options: MediaRecorderOptions = mimeType ? { mimeType } : {};
 
-      const mr = new MediaRecorder(stream, options);
+      let mr: MediaRecorder;
+      try {
+        mr = new MediaRecorder(stream, options);
+      } catch {
+        // Fallback: no options at all
+        mr = new MediaRecorder(stream);
+      }
       chunksRef.current = [];
 
       mr.ondataavailable = e => {
@@ -75,14 +80,13 @@ export function VoiceRecorder({ onSend, onCancel }: Props) {
         const type = mr.mimeType || 'audio/webm';
         const blob = new Blob(chunksRef.current, { type });
         audioBlobRef.current = blob;
-        durationRef.current = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        durationRef.current = Math.max(1, Math.floor((Date.now() - startTimeRef.current) / 1000));
         stream.getTracks().forEach(t => t.stop());
         if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
         setPhase('preview');
       };
 
-      // Collect chunks every 250 ms for smoother data flow
-      mr.start(250);
+      mr.start(100); // 100 ms chunks — fine-grained for reliability
       mediaRecorderRef.current = mr;
       startTimeRef.current = Date.now();
       setElapsed(0);

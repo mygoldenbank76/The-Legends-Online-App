@@ -773,7 +773,13 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     {/* Audio message */}
                     {isAudio && (
                       <div onClick={(e) => e.stopPropagation()}>
-                        <AudioPlayer url={msg.audioUrl!} duration={msg.audioDuration} isMine={isMine} />
+                        <AudioPlayer
+                          url={msg.audioUrl!}
+                          duration={msg.audioDuration}
+                          isMine={isMine}
+                          senderAvatar={!isMine ? msg.sender?.avatar : undefined}
+                          senderInitials={!isMine ? (msg.sender?.displayName || '?').substring(0, 2).toUpperCase() : undefined}
+                        />
                       </div>
                     )}
 
