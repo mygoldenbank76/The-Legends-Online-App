@@ -40,16 +40,31 @@ export function VoiceRecorder({ onSend, onCancel }: Props) {
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/webm')
-        ? 'audio/webm'
-        : MediaRecorder.isTypeSupported('audio/mp4')
-        ? 'audio/mp4'
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate: { ideal: 48000 },
+          sampleSize: { ideal: 16 },
+          channelCount: { ideal: 1 },
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+
+      // Pick the best supported codec — opus gives the best quality/size ratio
+      const mimeType =
+        MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
+        : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4'
         : '';
 
-      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+      const options: MediaRecorderOptions = {};
+      if (mimeType) options.mimeType = mimeType;
+      // 128 kbps for voice — clear, intelligible, reasonable size
+      options.audioBitsPerSecond = 128_000;
+
+      const mr = new MediaRecorder(stream, options);
       chunksRef.current = [];
 
       mr.ondataavailable = e => {
@@ -66,7 +81,8 @@ export function VoiceRecorder({ onSend, onCancel }: Props) {
         setPhase('preview');
       };
 
-      mr.start(100);
+      // Collect chunks every 250 ms for smoother data flow
+      mr.start(250);
       mediaRecorderRef.current = mr;
       startTimeRef.current = Date.now();
       setElapsed(0);
