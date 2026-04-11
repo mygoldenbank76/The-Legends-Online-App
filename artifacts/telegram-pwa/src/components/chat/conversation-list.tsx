@@ -234,10 +234,6 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
                     </div>
                   </div>
 
-                  {/* Hint when revealed */}
-                  {isRevealed && (
-                    <span className="text-[10px] text-red-400 flex-shrink-0 font-medium">Supprimer</span>
-                  )}
                 </motion.div>
               </motion.div>
             </div>
