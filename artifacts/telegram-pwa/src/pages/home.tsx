@@ -264,7 +264,7 @@ function DesktopTabs({ activeTab, onSelect }: { activeTab: Tab; onSelect: (t: Ta
   const { t } = usePreferences();
   const tabs: Tab[] = ['groups', 'messages', 'shop', 'settings'];
   return (
-    <div className="flex-shrink-0 flex gap-1 px-3 py-2 border-b border-border/30">
+    <div className="flex-shrink-0 grid grid-cols-4 gap-1 px-2 py-2 border-b border-border/30">
       {tabs.map((id) => {
         const Icon = NAV_ICONS[id];
         const label = t.tabs[id];
@@ -272,14 +272,14 @@ function DesktopTabs({ activeTab, onSelect }: { activeTab: Tab; onSelect: (t: Ta
           <button
             key={id}
             onClick={() => onSelect(id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-lg text-[11px] font-medium transition-all min-w-0 ${
               activeTab === id
                 ? 'bg-primary/15 text-primary border border-primary/20'
                 : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
             }`}
           >
-            <Icon className="w-3.5 h-3.5" />
-            {label}
+            <Icon className="w-3.5 h-3.5 flex-shrink-0" />
+            <span className="truncate w-full text-center leading-none">{label}</span>
           </button>
         );
       })}
