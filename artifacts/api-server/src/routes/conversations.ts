@@ -33,10 +33,14 @@ async function getMessagesWithDetails(messageIds: number[]) {
     conversationId: m.conversationId,
     senderId: m.senderId,
     sender: senderMap[m.senderId] ? formatUser(senderMap[m.senderId]) : undefined,
-    content: m.content,
-    imageUrl: m.imageUrl,
-    linkPreview: m.linkPreview as { url: string; title?: string; description?: string; image?: string } | null,
-    reactions: (reactionsByMessage[m.id] || []).map(r => ({
+    content: m.isDeleted ? null : m.content,
+    imageUrl: m.isDeleted ? null : m.imageUrl,
+    audioUrl: m.isDeleted ? null : m.audioUrl,
+    audioDuration: m.isDeleted ? null : m.audioDuration,
+    pollId: m.isDeleted ? null : m.pollId,
+    isDeleted: m.isDeleted,
+    linkPreview: m.isDeleted ? null : (m.linkPreview as { url: string; title?: string; description?: string; image?: string } | null),
+    reactions: m.isDeleted ? [] : (reactionsByMessage[m.id] || []).map(r => ({
       id: r.id,
       messageId: r.messageId,
       userId: r.userId,

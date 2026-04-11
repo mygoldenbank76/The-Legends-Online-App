@@ -6,7 +6,6 @@ import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { UserSearch } from './user-search';
-import { Search } from 'lucide-react';
 
 type Props = {
   filterType: 'group' | 'direct' | 'all';
@@ -106,7 +105,15 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
                         {lastMsg.senderId === user.id && (
                           <span className="text-primary/70 mr-1">Vous:</span>
                         )}
-                        {lastMsg.content || (lastMsg.imageUrl ? '📷 Image' : '')}
+                        {lastMsg.content
+                          ? lastMsg.content
+                          : (lastMsg as any).audioUrl
+                          ? '🎤 Message vocal'
+                          : (lastMsg as any).pollId
+                          ? '📊 Sondage'
+                          : lastMsg.imageUrl
+                          ? '📷 Image'
+                          : ''}
                       </>
                     ) : (
                       <span className="italic">Aucun message</span>

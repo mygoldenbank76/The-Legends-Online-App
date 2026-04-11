@@ -559,7 +559,6 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
                         isMine={isMine}
                         onVote={handlePollVote}
                         onViewVotes={handleViewVotes}
-                        conversationId={conversationId}
                       />
                     )}
 
@@ -589,7 +588,7 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
                     )}
 
                     {/* Bottom row: reactions (left) + time (right) — inside bubble like Base44 */}
-                    <div className={`flex items-end justify-between gap-2 mt-1.5 ${isPoll ? 'mt-2' : ''}`}>
+                    <div className={`flex items-end justify-between gap-2 ${isPoll ? 'mt-2' : 'mt-1.5'}`}>
                       {/* Reactions inside bubble */}
                       {hasReactions ? (
                         <div className="flex flex-wrap gap-1">
