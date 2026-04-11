@@ -1,5 +1,5 @@
-const CACHE_NAME = 'legends-v3';
-const STATIC_CACHE = 'legends-static-v3';
+const CACHE_NAME = 'legends-v4';
+const STATIC_CACHE = 'legends-static-v4';
 
 // On install: skip waiting to activate immediately
 self.addEventListener('install', (event) => {
@@ -138,6 +138,13 @@ self.addEventListener('notificationclick', (event) => {
   const type = isGroup ? 'group' : 'direct';
   const fallbackUrl = conversationId ? `/?conv=${conversationId}&type=${type}` : '/';
 
+  // Helper: find an open PWA window (same origin only)
+  function findAppClient(clientList) {
+    return clientList.find(
+      (c) => c.url.startsWith(self.location.origin) && 'focus' in c
+    ) || null;
+  }
+
   // ── Inline reply action ────────────────────────────────────────────────
   if (event.action === 'reply' && event.reply && conversationId) {
     const replyText = event.reply.trim();
@@ -154,10 +161,11 @@ self.addEventListener('notificationclick', (event) => {
           },
           body: JSON.stringify({ content: replyText }),
         }).then(() => {
-          // Notify open app to refresh the conversation
+          // Notify open app window (same origin) to open that conversation
           return clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-            for (const client of clientList) {
-              client.postMessage({ type: 'MESSAGE_SENT', conversationId });
+            const appClient = findAppClient(clientList);
+            if (appClient) {
+              appClient.postMessage({ type: 'MESSAGE_SENT', conversationId, isGroup });
             }
           });
         });
@@ -169,15 +177,19 @@ self.addEventListener('notificationclick', (event) => {
   // ── Normal tap: open conversation ─────────────────────────────────────
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      for (const client of clientList) {
-        if ('focus' in client) {
-          client.focus();
+      const appClient = findAppClient(clientList);
+
+      if (appClient) {
+        // Wait for focus() to resolve before sending postMessage
+        // so the app is fully in the foreground when it receives the message
+        return appClient.focus().then((focused) => {
           if (conversationId) {
-            client.postMessage({ type: 'OPEN_CONVERSATION', conversationId, isGroup });
+            focused.postMessage({ type: 'OPEN_CONVERSATION', conversationId, isGroup });
           }
-          return;
-        }
+        });
       }
+
+      // App is not open — open a new window, URL params will be read on mount
       if (clients.openWindow) {
         return clients.openWindow(fallbackUrl);
       }

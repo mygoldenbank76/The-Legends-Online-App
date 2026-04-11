@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChatArea } from '@/components/chat/chat-area';
 import { ConversationList } from '@/components/chat/conversation-list';
@@ -42,38 +42,37 @@ export default function Home() {
   const [swipeDir, setSwipeDir] = useState<1 | -1>(1);
 
   // ── Open conversation from push notification ──────────────────────────────
-  const openConversation = (convId: number, isGroup: boolean) => {
-    setActiveTab(isGroup ? 'groups' : 'messages');
+  const openConversation = useCallback((convId: number, isGroupConv: boolean) => {
+    setActiveTab(isGroupConv ? 'groups' : 'messages');
     setActiveConvId(convId);
-  };
+  }, []);
 
-  // Handle SW postMessage (app already open)
+  // Handle SW postMessage (app already open when notification is tapped)
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
     const handler = (event: MessageEvent) => {
       if (event.data?.type === 'OPEN_CONVERSATION') {
-        openConversation(event.data.conversationId, event.data.isGroup);
+        openConversation(Number(event.data.conversationId), Boolean(event.data.isGroup));
       }
       if (event.data?.type === 'MESSAGE_SENT') {
-        // A reply was sent from the notification — open the conversation to show it
-        openConversation(event.data.conversationId, event.data.isGroup ?? false);
+        openConversation(Number(event.data.conversationId), Boolean(event.data.isGroup));
       }
     };
     navigator.serviceWorker.addEventListener('message', handler);
     return () => navigator.serviceWorker.removeEventListener('message', handler);
-  }, []);
+  }, [openConversation]);
 
-  // Handle URL params (app opened fresh from notification)
+  // Handle URL params (app was closed — opened fresh via notification link)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const convId = params.get('conv');
     const type = params.get('type');
     if (convId) {
-      openConversation(Number(convId), type !== 'direct');
-      // Clean the URL without reloading
+      // Clean the URL immediately so a refresh doesn't re-trigger this
       window.history.replaceState({}, '', window.location.pathname);
+      openConversation(Number(convId), type !== 'direct');
     }
-  }, []);
+  }, [openConversation]);
   // ─────────────────────────────────────────────────────────────────────────
 
   // ── Swipe between tabs ───────────────────────────────────────
