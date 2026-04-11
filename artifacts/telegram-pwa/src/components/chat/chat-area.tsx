@@ -488,7 +488,12 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
               <div
                 key={msg.id}
                 id={`msg-${msg.id}`}
-                className={`flex items-end gap-2 ${isMine ? 'justify-end' : 'justify-start'} ${isSameAuthor ? 'mt-0.5' : 'mt-3'}`}
+                className={`flex items-end gap-2 w-full ${isMine ? 'justify-end' : 'justify-start'} ${isSameAuthor ? 'mt-0.5' : 'mt-3'}`}
+                style={{ userSelect: 'none', WebkitUserSelect: 'none' } as React.CSSProperties}
+                onContextMenu={(e) => openCtxMenu(e, msg)}
+                onTouchStart={(e) => onTouchStart(e, msg)}
+                onTouchMove={(e) => onTouchMove(e, msg.id)}
+                onTouchEnd={(e) => onTouchEnd(e, msg)}
               >
                 {/* Avatar */}
                 {!isMine && (
@@ -517,19 +522,13 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
                   <Reply className="w-4 h-4 text-primary flex-shrink-0" />
                 </div>
 
-                {/* Bubble wrapper */}
+                {/* Bubble wrapper — only handles the slide animation */}
                 <div
                   className="max-w-[80%] relative"
                   style={{
                     transform: `translateX(${swipeOffset}px)`,
                     transition: swipingId === msg.id ? 'none' : 'transform 0.2s ease-out',
-                    userSelect: 'none',
-                    WebkitUserSelect: 'none',
                   }}
-                  onContextMenu={(e) => openCtxMenu(e, msg)}
-                  onTouchStart={(e) => onTouchStart(e, msg)}
-                  onTouchMove={(e) => onTouchMove(e, msg.id)}
-                  onTouchEnd={(e) => onTouchEnd(e, msg)}
                 >
                   {/* Pinned label */}
                   {isPinned && (
