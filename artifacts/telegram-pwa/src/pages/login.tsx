@@ -16,6 +16,12 @@ const loginSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
+function getApiBase(): string {
+  const base = import.meta.env.BASE_URL || '/';
+  const origin = window.location.origin;
+  return origin + (base.endsWith('/') ? base.slice(0, -1) : base);
+}
+
 export default function Login() {
   const { login } = useAuth();
   const [, setLocation] = useLocation();
@@ -29,6 +35,11 @@ export default function Login() {
       password: '',
     },
   });
+
+  const handleReplitLogin = () => {
+    const returnTo = import.meta.env.BASE_URL || '/';
+    window.location.href = `/api/login?returnTo=${encodeURIComponent(returnTo)}`;
+  };
 
   const onSubmit = async (values: z.infer<typeof loginSchema>) => {
     try {
@@ -60,7 +71,27 @@ export default function Login() {
             Enter your credentials to continue
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <Button
+            type="button"
+            className="w-full bg-[#0066CC] hover:bg-[#0055AA] text-white font-semibold"
+            onClick={handleReplitLogin}
+          >
+            <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm-.5 5.5h5v3h-5v3h3v3h-3v3h-3v-9h3v-3z"/>
+            </svg>
+            Continue with Replit
+          </Button>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-border" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground">Or sign in with username</span>
+            </div>
+          </div>
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
@@ -94,7 +125,7 @@ export default function Login() {
               </Button>
             </form>
           </Form>
-          <div className="mt-4 text-center text-sm">
+          <div className="text-center text-sm">
             <span className="text-muted-foreground">Don't have an account? </span>
             <Button variant="link" className="p-0 h-auto font-normal" onClick={() => setLocation('/register')}>
               Sign up

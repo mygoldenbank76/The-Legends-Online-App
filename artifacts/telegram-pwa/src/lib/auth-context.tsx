@@ -14,14 +14,36 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function extractTokenFromUrl(): string | null {
+  const params = new URLSearchParams(window.location.search);
+  const authToken = params.get('auth_token');
+  if (authToken) {
+    params.delete('auth_token');
+    const newSearch = params.toString();
+    const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '') + window.location.hash;
+    window.history.replaceState({}, '', newUrl);
+    return authToken;
+  }
+  return null;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  
+
+  const [hasToken, setHasToken] = useState<boolean>(() => {
+    const urlToken = extractTokenFromUrl();
+    if (urlToken) {
+      localStorage.setItem('telechat_token', urlToken);
+      return true;
+    }
+    return !!localStorage.getItem('telechat_token');
+  });
+
   const { data: user, isLoading, refetch } = useGetMe({
     query: {
       retry: false,
-      enabled: !!localStorage.getItem('telechat_token')
+      enabled: hasToken,
     }
   });
 
@@ -36,16 +58,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Ignore
     } finally {
       localStorage.removeItem('telechat_token');
-      refetch();
+      setHasToken(false);
       setLocation('/login');
     }
   };
 
   useEffect(() => {
-    if (!isLoading && !user && window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+    if (!isLoading && !user && hasToken) {
+      localStorage.removeItem('telechat_token');
+      setHasToken(false);
+    }
+  }, [user, isLoading, hasToken]);
+
+  useEffect(() => {
+    if (!isLoading && !user && !hasToken && window.location.pathname !== '/login' && window.location.pathname !== '/register') {
       setLocation('/login');
     }
-  }, [user, isLoading, setLocation]);
+  }, [user, isLoading, hasToken, setLocation]);
 
   return (
     <AuthContext.Provider

@@ -1,9 +1,23 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
+import * as oidcClient from "openid-client";
 import { type Request, type Response, type NextFunction } from "express";
 
 const JWT_SECRET = process.env.SESSION_SECRET || "telechat-secret-key";
 const SALT_ROUNDS = 10;
+export const ISSUER_URL = process.env.ISSUER_URL ?? "https://replit.com/oidc";
+
+let oidcConfig: oidcClient.Configuration | null = null;
+
+export async function getOidcConfig(): Promise<oidcClient.Configuration> {
+  if (!oidcConfig) {
+    oidcConfig = await oidcClient.discovery(
+      new URL(ISSUER_URL),
+      process.env.REPL_ID!,
+    );
+  }
+  return oidcConfig;
+}
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, SALT_ROUNDS);
