@@ -139,24 +139,31 @@ router.post("/conversations", requireAuth, async (req, res): Promise<void> => {
   const myConvIds = myConversations.map(p => p.conversationId);
 
   if (myConvIds.length > 0) {
-    const targetConversations = await db.select()
+    const sharedConvIds = (await db.select()
       .from(conversationParticipantsTable)
       .where(and(
         eq(conversationParticipantsTable.userId, targetUserId),
         inArray(conversationParticipantsTable.conversationId, myConvIds)
-      ));
+      ))).map(p => p.conversationId);
 
-    if (targetConversations.length > 0) {
-      const existingConvId = targetConversations[0].conversationId;
-      const [conv] = await db.select().from(conversationsTable).where(eq(conversationsTable.id, existingConvId));
-      if (conv && conv.type === "direct") {
+    if (sharedConvIds.length > 0) {
+      // Find the first direct conversation among all shared conversations
+      const [existingDM] = await db.select()
+        .from(conversationsTable)
+        .where(and(
+          inArray(conversationsTable.id, sharedConvIds),
+          eq(conversationsTable.type, "direct")
+        ))
+        .limit(1);
+
+      if (existingDM) {
         const participants = await db.select()
           .from(conversationParticipantsTable)
-          .where(eq(conversationParticipantsTable.conversationId, conv.id));
+          .where(eq(conversationParticipantsTable.conversationId, existingDM.id));
         const participantUsers = await db.select()
           .from(usersTable)
           .where(inArray(usersTable.id, participants.map(p => p.userId)));
-        res.json({ ...conv, participants: participantUsers.map(formatUser), createdAt: conv.createdAt.toISOString() });
+        res.json({ ...existingDM, participants: participantUsers.map(formatUser), createdAt: existingDM.createdAt.toISOString() });
         return;
       }
     }
