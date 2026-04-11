@@ -291,7 +291,6 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       }
       if (e.key === 'Escape') { setMentionQuery(null); return; }
     }
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
     if (e.key === 'Escape') { setEditState(null); setReplyTo(null); setContent(''); }
   };
 
