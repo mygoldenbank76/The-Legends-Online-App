@@ -49,7 +49,7 @@ export function AttachmentSheet({ open, onClose, onCamera, onGallery, onDocument
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-[400] flex items-end justify-center"
+          className="fixed inset-0 z-[400] flex items-end sm:items-center justify-center sm:p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

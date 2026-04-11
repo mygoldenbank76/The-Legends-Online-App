@@ -46,24 +46,26 @@ export function UserProfileSheet({ user, currentUserId, onClose, onOpenConversat
 
   return (
     <AnimatePresence>
-      <motion.div
-        key="backdrop"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <motion.div
-        key="sheet"
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-        className="fixed inset-x-0 bottom-0 z-50"
-      >
-        <div className="glass-strong rounded-t-3xl pb-10 overflow-hidden">
+      <>
+        <motion.div
+          key="backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+          onClick={onClose}
+        />
+        <motion.div
+          key="sheet"
+          initial={{ y: '100%', opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: '100%', opacity: 0 }}
+          transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+          className="fixed inset-x-0 bottom-0 z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4"
+          onClick={onClose}
+        >
+        <div className="glass-strong rounded-t-3xl sm:rounded-3xl pb-10 overflow-hidden w-full sm:max-w-sm sm:mx-auto" onClick={e => e.stopPropagation()}>
           {/* Handle */}
           <div className="flex justify-center pt-3 pb-4">
             <div className="w-10 h-1 rounded-full bg-white/20" />
@@ -117,7 +119,8 @@ export function UserProfileSheet({ user, currentUserId, onClose, onOpenConversat
             )}
           </div>
         </div>
-      </motion.div>
+        </motion.div>
+      </>
     </AnimatePresence>
   );
 }

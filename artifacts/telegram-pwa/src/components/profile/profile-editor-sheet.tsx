@@ -153,17 +153,17 @@ export function ProfileEditorSheet({ user, onClose, onSaved }: Props) {
           onClick={onClose}
         />
 
-        {/* Sheet */}
+        {/* Sheet — bottom sheet on mobile, centered dialog on desktop */}
         <motion.div
           key="profile-sheet"
-          initial={{ y: '100%' }}
-          animate={{ y: 0 }}
-          exit={{ y: '100%' }}
+          initial={{ y: '100%', opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: '100%', opacity: 0 }}
           transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-          className="fixed inset-x-0 bottom-0 z-50"
-          style={{ maxHeight: '92vh' }}
+          className="fixed inset-x-0 bottom-0 z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4"
+          onClick={onClose}
         >
-          <div className="glass-strong rounded-t-3xl flex flex-col overflow-hidden" style={{ maxHeight: '92vh' }}>
+          <div className="glass-strong rounded-t-3xl sm:rounded-3xl flex flex-col overflow-hidden w-full sm:max-w-md sm:mx-auto" style={{ maxHeight: '92dvh' }} onClick={e => e.stopPropagation()}>
             {/* Drag handle */}
             <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
               <div className="w-10 h-1 rounded-full bg-white/20" />

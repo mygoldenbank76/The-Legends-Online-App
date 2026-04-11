@@ -45,7 +45,7 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-[450] flex items-end justify-center"
+          className="fixed inset-0 z-[450] flex items-end sm:items-center justify-center sm:p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -54,14 +54,14 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
         >
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <motion.div
-            className="relative w-full max-w-lg"
+            className="relative w-full max-w-lg sm:max-w-md"
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
             transition={{ type: 'spring', damping: 28, stiffness: 300 }}
             onClick={e => e.stopPropagation()}
           >
-            <div className="glass-strong rounded-t-3xl max-h-[80vh] flex flex-col">
+            <div className="glass-strong rounded-t-3xl sm:rounded-3xl max-h-[80dvh] flex flex-col">
               {/* Close button */}
               <div className="flex justify-end p-3 pb-0">
                 <button onClick={onClose} className="w-8 h-8 rounded-full glass flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
