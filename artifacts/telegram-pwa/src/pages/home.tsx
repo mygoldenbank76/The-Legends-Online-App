@@ -600,53 +600,6 @@ function SettingsPage({
         </div>
       </div>
 
-      {/* Notifications section */}
-      {pushSupported && (
-        <div>
-          <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider px-1 mb-2">Notifications</p>
-          <div className="glass rounded-2xl overflow-hidden">
-            <button
-              onClick={pushSubscribed ? disablePush : enablePush}
-              disabled={pushLoading || pushPermission === 'denied'}
-              className={`w-full flex items-center gap-3 px-4 py-3.5 transition-colors text-left disabled:opacity-50 ${pushSubscribed ? 'hover:bg-red-500/10' : 'hover:bg-primary/10'}`}
-            >
-              <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${pushSubscribed ? 'bg-green-500/15' : 'bg-primary/15'}`}>
-                {pushLoading ? (
-                  <div className="w-4 h-4 border-2 border-primary/50 border-t-primary rounded-full animate-spin" />
-                ) : pushSubscribed ? (
-                  <Bell className="w-4 h-4 text-green-400" />
-                ) : (
-                  <BellOff className="w-4 h-4 text-primary" />
-                )}
-              </div>
-              <div className="flex-1">
-                {pushPermission === 'denied' ? (
-                  <>
-                    <p className="text-sm font-medium text-red-400">Notifications bloquées</p>
-                    <p className="text-xs text-muted-foreground">Autorise-les dans les réglages du navigateur</p>
-                  </>
-                ) : pushSubscribed ? (
-                  <>
-                    <p className="text-sm font-medium text-green-400">Notifications activées</p>
-                    <p className="text-xs text-muted-foreground">Appuie pour désactiver</p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm font-semibold text-primary">Activer les notifications</p>
-                    <p className="text-xs text-muted-foreground">Reçois une alerte pour chaque nouveau message</p>
-                  </>
-                )}
-              </div>
-              {!pushLoading && pushPermission !== 'denied' && (
-                <div className={`w-10 h-6 rounded-full transition-colors flex-shrink-0 ${pushSubscribed ? 'bg-green-500' : 'bg-white/10'}`}>
-                  <div className={`w-5 h-5 bg-white rounded-full shadow m-0.5 transition-transform ${pushSubscribed ? 'translate-x-4' : 'translate-x-0'}`} />
-                </div>
-              )}
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Administration section (admins only) */}
       {user.isAdmin && (
         <>
@@ -765,6 +718,53 @@ function SettingsPage({
           )}
         </div>
       </div>
+
+      {/* Notifications section */}
+      {pushSupported && (
+        <div>
+          <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider px-1 mb-2">Notifications</p>
+          <div className="glass rounded-2xl overflow-hidden">
+            <button
+              onClick={pushSubscribed ? disablePush : enablePush}
+              disabled={pushLoading || pushPermission === 'denied'}
+              className={`w-full flex items-center gap-3 px-4 py-3.5 transition-colors text-left disabled:opacity-50 ${pushSubscribed ? 'hover:bg-red-500/10' : 'hover:bg-primary/10'}`}
+            >
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${pushSubscribed ? 'bg-green-500/15' : 'bg-primary/15'}`}>
+                {pushLoading ? (
+                  <div className="w-4 h-4 border-2 border-primary/50 border-t-primary rounded-full animate-spin" />
+                ) : pushSubscribed ? (
+                  <Bell className="w-4 h-4 text-green-400" />
+                ) : (
+                  <BellOff className="w-4 h-4 text-primary" />
+                )}
+              </div>
+              <div className="flex-1">
+                {pushPermission === 'denied' ? (
+                  <>
+                    <p className="text-sm font-medium text-red-400">Notifications bloquées</p>
+                    <p className="text-xs text-muted-foreground">Autorise-les dans les réglages du navigateur</p>
+                  </>
+                ) : pushSubscribed ? (
+                  <>
+                    <p className="text-sm font-medium text-green-400">Notifications activées</p>
+                    <p className="text-xs text-muted-foreground">Appuie pour désactiver</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-semibold text-primary">Activer les notifications</p>
+                    <p className="text-xs text-muted-foreground">Reçois une alerte pour chaque nouveau message</p>
+                  </>
+                )}
+              </div>
+              {!pushLoading && pushPermission !== 'denied' && (
+                <div className={`w-10 h-6 rounded-full transition-colors flex-shrink-0 ${pushSubscribed ? 'bg-green-500' : 'bg-white/10'}`}>
+                  <div className={`w-5 h-5 bg-white rounded-full shadow m-0.5 transition-transform ${pushSubscribed ? 'translate-x-4' : 'translate-x-0'}`} />
+                </div>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* iOS install instructions modal */}
       <AnimatePresence>
