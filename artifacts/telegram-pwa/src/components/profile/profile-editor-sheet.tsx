@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Camera, User, AtSign, FileText, Save, Trash2, Loader2, Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { usePreferences } from '@/hooks/use-preferences';
+import { usePreferences } from '@/lib/preferences-context';
 
 const API_BASE = '/api';
 function getToken() { return localStorage.getItem('telechat_token'); }
