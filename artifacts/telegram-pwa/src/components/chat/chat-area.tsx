@@ -1080,7 +1080,8 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       <div className="flex-shrink-0 glass border-t border-border/50">
         {/* Formatting toolbar — shown BELOW messages, ABOVE the input row */}
         <FormattingToolbar
-          show={!!selectionRange || linkMode}
+          visible={!voiceActive}
+          hasSelection={!!selectionRange}
           linkMode={linkMode}
           linkUrl={linkUrl}
           onLinkUrlChange={setLinkUrl}
