@@ -8,19 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { MessageCircle, Zap } from 'lucide-react';
+import { MessageCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const loginSchema = z.object({
   username: z.string().min(1, 'Username is required'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
-
-function getApiBase(): string {
-  const base = import.meta.env.BASE_URL || '/';
-  const origin = window.location.origin;
-  return origin + (base.endsWith('/') ? base.slice(0, -1) : base);
-}
 
 export default function Login() {
   const { login } = useAuth();
@@ -35,11 +29,6 @@ export default function Login() {
       password: '',
     },
   });
-
-  const handleQuickLogin = () => {
-    const returnTo = import.meta.env.BASE_URL || '/';
-    window.location.href = `/api/login?returnTo=${encodeURIComponent(returnTo)}`;
-  };
 
   const onSubmit = async (values: z.infer<typeof loginSchema>) => {
     try {
@@ -71,25 +60,7 @@ export default function Login() {
             Enter your credentials to continue
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <Button
-            type="button"
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-            onClick={handleQuickLogin}
-          >
-            <Zap className="w-5 h-5 mr-2" />
-            Connexion rapide
-          </Button>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-border" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">Ou avec vos identifiants</span>
-            </div>
-          </div>
-
+        <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
@@ -123,7 +94,7 @@ export default function Login() {
               </Button>
             </form>
           </Form>
-          <div className="text-center text-sm">
+          <div className="mt-4 text-center text-sm">
             <span className="text-muted-foreground">Don't have an account? </span>
             <Button variant="link" className="p-0 h-auto font-normal" onClick={() => setLocation('/register')}>
               Sign up
