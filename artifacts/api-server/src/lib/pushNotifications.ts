@@ -75,7 +75,7 @@ export async function notifyNewMessage(opts: {
 
   const title = isGroup
     ? (conversationTitle ?? "The Legends Online")
-    : `The Legends Online`;
+    : senderName;
 
   const body = isGroup
     ? `${senderName} : ${content ? content.slice(0, 80) : imageUrl ? "📷 Photo" : "📎 Pièce jointe"}`
@@ -84,8 +84,8 @@ export async function notifyNewMessage(opts: {
   const payload = {
     title,
     body,
-    icon: "/icon-192.png",
-    badge: "/icon-192.png",
+    icon: "/icon-notification.png",
+    badge: "/icon-badge.png",
     tag: `conversation-${conversationId}`,
     data: { conversationId, isGroup },
   };

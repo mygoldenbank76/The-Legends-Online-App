@@ -91,7 +91,7 @@ self.addEventListener('push', (event) => {
   // Always use absolute URLs so Android can load the icon correctly
   const origin = self.location.origin;
   const toAbsolute = (path) => {
-    if (!path) return origin + '/icon-192.png';
+    if (!path) return origin + '/icon-notification.png';
     if (path.startsWith('http')) return path;
     return origin + path;
   };
