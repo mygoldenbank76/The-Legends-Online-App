@@ -112,6 +112,26 @@ type Dict = {
     votesTitle: string;
     noVotes: string;
   };
+  profile: {
+    editProfile: string;
+    publicInfo: string;
+    displayName: string;
+    displayNamePlaceholder: string;
+    username: string;
+    usernameHint: string;
+    bio: string;
+    bioPlaceholder: string;
+    addPhoto: string;
+    changePhoto: string;
+    removePhoto: string;
+    save: string;
+    saving: string;
+    saved: string;
+  };
+  home: {
+    selectConversation: string;
+    loadingShop: string;
+  };
   groupNames: Record<string, string>;
 };
 
@@ -203,6 +223,26 @@ export const i18n: Record<AppLang, Dict> = {
       votesTitle: 'Résultats du vote',
       noVotes: 'Aucun vote',
     },
+    profile: {
+      editProfile: 'Modifier le profil',
+      publicInfo: 'Infos visibles par tous',
+      displayName: 'Nom affiché',
+      displayNamePlaceholder: 'Ton nom affiché…',
+      username: 'Identifiant',
+      usernameHint: '3–20 caractères, lettres, chiffres et _ uniquement',
+      bio: 'Bio',
+      bioPlaceholder: 'Quelques mots sur toi…',
+      addPhoto: 'Ajouter une photo',
+      changePhoto: 'Changer la photo',
+      removePhoto: 'Supprimer',
+      save: 'Enregistrer les modifications',
+      saving: 'Enregistrement…',
+      saved: 'Enregistré !',
+    },
+    home: {
+      selectConversation: 'Sélectionne une conversation',
+      loadingShop: 'Chargement du shop…',
+    },
     groupNames: {},
   },
 
@@ -292,6 +332,26 @@ export const i18n: Record<AppLang, Dict> = {
       viewVotes: 'View votes',
       votesTitle: 'Vote results',
       noVotes: 'No votes',
+    },
+    profile: {
+      editProfile: 'Edit profile',
+      publicInfo: 'Info visible to all',
+      displayName: 'Display name',
+      displayNamePlaceholder: 'Your display name…',
+      username: 'Username',
+      usernameHint: '3–20 characters, letters, digits and _ only',
+      bio: 'Bio',
+      bioPlaceholder: 'A few words about you…',
+      addPhoto: 'Add a photo',
+      changePhoto: 'Change photo',
+      removePhoto: 'Remove',
+      save: 'Save changes',
+      saving: 'Saving…',
+      saved: 'Saved!',
+    },
+    home: {
+      selectConversation: 'Select a conversation',
+      loadingShop: 'Loading shop…',
     },
     groupNames: {
       'Discussion générale': 'General Discussion',
@@ -386,6 +446,26 @@ export const i18n: Record<AppLang, Dict> = {
       votesTitle: 'Resultados del voto',
       noVotes: 'Sin votos',
     },
+    profile: {
+      editProfile: 'Editar perfil',
+      publicInfo: 'Info visible para todos',
+      displayName: 'Nombre mostrado',
+      displayNamePlaceholder: 'Tu nombre mostrado…',
+      username: 'Usuario',
+      usernameHint: '3–20 caracteres, letras, dígitos y _ únicamente',
+      bio: 'Bio',
+      bioPlaceholder: 'Unas palabras sobre ti…',
+      addPhoto: 'Añadir una foto',
+      changePhoto: 'Cambiar foto',
+      removePhoto: 'Eliminar',
+      save: 'Guardar cambios',
+      saving: 'Guardando…',
+      saved: '¡Guardado!',
+    },
+    home: {
+      selectConversation: 'Selecciona una conversación',
+      loadingShop: 'Cargando tienda…',
+    },
     groupNames: {
       'Discussion générale': 'Discusión general',
       'Divertissement': 'Entretenimiento',
@@ -478,6 +558,26 @@ export const i18n: Record<AppLang, Dict> = {
       viewVotes: 'عرض الأصوات',
       votesTitle: 'نتائج التصويت',
       noVotes: 'لا توجد أصوات',
+    },
+    profile: {
+      editProfile: 'تعديل الملف الشخصي',
+      publicInfo: 'معلومات مرئية للجميع',
+      displayName: 'الاسم المعروض',
+      displayNamePlaceholder: 'اسمك المعروض…',
+      username: 'المعرّف',
+      usernameHint: '3–20 حرفاً، أحرف وأرقام و _ فقط',
+      bio: 'السيرة',
+      bioPlaceholder: 'بضع كلمات عنك…',
+      addPhoto: 'إضافة صورة',
+      changePhoto: 'تغيير الصورة',
+      removePhoto: 'حذف',
+      save: 'حفظ التغييرات',
+      saving: 'جارٍ الحفظ…',
+      saved: 'تم الحفظ!',
+    },
+    home: {
+      selectConversation: 'اختر محادثة',
+      loadingShop: 'تحميل المتجر…',
     },
     groupNames: {
       'Discussion générale': 'نقاش عام',
@@ -572,6 +672,26 @@ export const i18n: Record<AppLang, Dict> = {
       votesTitle: 'Resultados da votação',
       noVotes: 'Nenhum voto',
     },
+    profile: {
+      editProfile: 'Editar perfil',
+      publicInfo: 'Info visível para todos',
+      displayName: 'Nome exibido',
+      displayNamePlaceholder: 'Seu nome exibido…',
+      username: 'Identificador',
+      usernameHint: '3–20 caracteres, letras, dígitos e _ apenas',
+      bio: 'Bio',
+      bioPlaceholder: 'Algumas palavras sobre você…',
+      addPhoto: 'Adicionar foto',
+      changePhoto: 'Alterar foto',
+      removePhoto: 'Remover',
+      save: 'Salvar alterações',
+      saving: 'Salvando…',
+      saved: 'Salvo!',
+    },
+    home: {
+      selectConversation: 'Selecione uma conversa',
+      loadingShop: 'Carregando loja…',
+    },
     groupNames: {
       'Discussion générale': 'Discussão geral',
       'Divertissement': 'Entretenimento',
@@ -664,6 +784,26 @@ export const i18n: Record<AppLang, Dict> = {
       viewVotes: 'Stimmen anzeigen',
       votesTitle: 'Abstimmungsergebnisse',
       noVotes: 'Keine Stimmen',
+    },
+    profile: {
+      editProfile: 'Profil bearbeiten',
+      publicInfo: 'Für alle sichtbare Info',
+      displayName: 'Anzeigename',
+      displayNamePlaceholder: 'Dein Anzeigename…',
+      username: 'Benutzername',
+      usernameHint: '3–20 Zeichen, Buchstaben, Ziffern und _ nur',
+      bio: 'Bio',
+      bioPlaceholder: 'Ein paar Worte über dich…',
+      addPhoto: 'Foto hinzufügen',
+      changePhoto: 'Foto ändern',
+      removePhoto: 'Entfernen',
+      save: 'Änderungen speichern',
+      saving: 'Speichern…',
+      saved: 'Gespeichert!',
+    },
+    home: {
+      selectConversation: 'Gespräch auswählen',
+      loadingShop: 'Shop wird geladen…',
     },
     groupNames: {
       'Discussion générale': 'Allgemeine Diskussion',
