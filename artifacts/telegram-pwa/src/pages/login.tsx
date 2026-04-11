@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { MessageCircle } from 'lucide-react';
+import { MessageCircle, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const loginSchema = z.object({
@@ -36,7 +36,7 @@ export default function Login() {
     },
   });
 
-  const handleReplitLogin = () => {
+  const handleQuickLogin = () => {
     const returnTo = import.meta.env.BASE_URL || '/';
     window.location.href = `/api/login?returnTo=${encodeURIComponent(returnTo)}`;
   };
@@ -74,13 +74,11 @@ export default function Login() {
         <CardContent className="space-y-4">
           <Button
             type="button"
-            className="w-full bg-[#0066CC] hover:bg-[#0055AA] text-white font-semibold"
-            onClick={handleReplitLogin}
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+            onClick={handleQuickLogin}
           >
-            <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm-.5 5.5h5v3h-5v3h3v3h-3v3h-3v-9h3v-3z"/>
-            </svg>
-            Continue with Replit
+            <Zap className="w-5 h-5 mr-2" />
+            Connexion rapide
           </Button>
 
           <div className="relative">
@@ -88,7 +86,7 @@ export default function Login() {
               <span className="w-full border-t border-border" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">Or sign in with username</span>
+              <span className="bg-card px-2 text-muted-foreground">Ou avec vos identifiants</span>
             </div>
           </div>
 
