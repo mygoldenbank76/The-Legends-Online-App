@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Play, Pause, Volume2 } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 type Props = {
   url: string;
@@ -116,16 +115,6 @@ export function AudioPlayer({ url, duration, isMine, senderAvatar, senderInitial
       onMouseLeave={() => setDragging(false)}
     >
       <audio ref={audioRef} src={url} preload="metadata" />
-
-      {/* Sender avatar — only for received messages */}
-      {!isMine && (
-        <Avatar className="w-9 h-9 flex-shrink-0 ring-2 ring-white/10">
-          <AvatarImage src={senderAvatar || ''} />
-          <AvatarFallback className="bg-primary/20 text-primary text-[10px] font-bold">
-            {senderInitials || '🎤'}
-          </AvatarFallback>
-        </Avatar>
-      )}
 
       {/* Play / Pause */}
       <button
