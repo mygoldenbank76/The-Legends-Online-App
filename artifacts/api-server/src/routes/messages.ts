@@ -4,11 +4,11 @@ import {
   conversationParticipantsTable, conversationsTable,
   pollsTable, pollOptionsTable, conversationPinsTable,
 } from "@workspace/db";
-import { eq, and, lt, desc, inArray } from "drizzle-orm";
+import { eq, and, lt, desc, inArray, ne, gt } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 import { formatUser } from "./users";
 import { extractFirstUrl, fetchLinkPreview } from "../lib/linkPreview";
-import { io } from "../app";
+import { io, userSockets, roomPresence } from "../app";
 import { buildPoll } from "./polls";
 import { notifyNewMessage } from "../lib/pushNotifications";
 
@@ -91,6 +91,7 @@ type FormattedMessage = {
   replyTo: any;
   editedAt: string | null;
   isDeleted: boolean;
+  status?: 'sent' | 'delivered' | 'read';
   reactions: Array<{ id: number; messageId: number; userId: number; emoji: string; user?: ReturnType<typeof formatUser>; createdAt: string }>;
   createdAt: string;
 };
@@ -144,6 +145,33 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
     pollsData[pollId] = await buildPoll(pollId, userId);
   }
 
+  // ── Message status (read receipts) ──────────────────────────────────────────
+  // Fetch all participants (except current user) and their lastReadAt
+  const participants = await db.select({
+    userId: conversationParticipantsTable.userId,
+    lastReadAt: conversationParticipantsTable.lastReadAt,
+  }).from(conversationParticipantsTable)
+    .where(and(
+      eq(conversationParticipantsTable.conversationId, conversationId),
+      ne(conversationParticipantsTable.userId, userId),
+    ));
+
+  // IDs of non-sender participants currently in the socket room
+  const presentInRoom = roomPresence.get(conversationId) ?? new Set<number>();
+
+  // Helper: compute status for a message sent by the current user
+  function computeStatus(msg: typeof msgs[number]): 'sent' | 'delivered' | 'read' {
+    if (msg.senderId !== userId) return 'sent'; // status only shown for own messages
+    const createdAt = msg.createdAt;
+    // read = at least one non-sender has lastReadAt >= createdAt
+    const isRead = participants.some(p => p.lastReadAt && p.lastReadAt >= createdAt);
+    if (isRead) return 'read';
+    // delivered = at least one non-sender is currently in the socket room
+    const isDelivered = participants.some(p => presentInRoom.has(p.userId));
+    if (isDelivered) return 'delivered';
+    return 'sent';
+  }
+
   const formatted = msgs.map(m => {
     const replyMsg = m.replyToId ? replyMsgMap[m.replyToId] : null;
     const replyTo = replyMsg ? {
@@ -173,6 +201,7 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
       replyTo,
       editedAt: m.editedAt ? m.editedAt.toISOString() : null,
       isDeleted: m.isDeleted,
+      status: computeStatus(m),
       reactions: m.isDeleted ? [] : (reactionsByMessage[m.id] || []).map(r => ({
         id: r.id,
         messageId: r.messageId,
@@ -286,9 +315,37 @@ router.post("/conversations/:conversationId/read", requireAuth, async (req, res)
   const conversationId = parseInt(rawId, 10);
   if (isNaN(conversationId)) { res.status(400).json({ error: "Invalid conversation ID" }); return; }
 
-  await db.update(conversationParticipantsTable)
-    .set({ lastReadAt: new Date() })
+  // Get previous lastReadAt before updating
+  const [participant] = await db.select({ lastReadAt: conversationParticipantsTable.lastReadAt })
+    .from(conversationParticipantsTable)
     .where(and(eq(conversationParticipantsTable.conversationId, conversationId), eq(conversationParticipantsTable.userId, userId)));
+
+  const prevReadAt = participant?.lastReadAt ?? new Date(0);
+  const now = new Date();
+
+  await db.update(conversationParticipantsTable)
+    .set({ lastReadAt: now })
+    .where(and(eq(conversationParticipantsTable.conversationId, conversationId), eq(conversationParticipantsTable.userId, userId)));
+
+  // Find senders of newly-read messages and notify them
+  try {
+    const newlyReadMsgs = await db.select({ senderId: messagesTable.senderId })
+      .from(messagesTable)
+      .where(and(
+        eq(messagesTable.conversationId, conversationId),
+        ne(messagesTable.senderId, userId),
+        gt(messagesTable.createdAt, prevReadAt),
+      ));
+    const senderIds = [...new Set(newlyReadMsgs.map(m => m.senderId))];
+    for (const senderId of senderIds) {
+      const senderSocketIds = userSockets.get(senderId);
+      if (senderSocketIds) {
+        for (const socketId of senderSocketIds) {
+          io.to(socketId).emit("messages_read", { conversationId, readBy: userId });
+        }
+      }
+    }
+  } catch { /* non-critical */ }
 
   res.json({ success: true });
 });

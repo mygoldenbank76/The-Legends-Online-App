@@ -64,6 +64,7 @@ type Msg = {
   replyTo?: Msg | null;
   editedAt?: string | null;
   isDeleted?: boolean;
+  status?: 'sent' | 'delivered' | 'read';
   reactions: Array<{ id: number; messageId: number; userId: number; emoji: string }>;
   createdAt: string;
 };
@@ -106,7 +107,7 @@ function SheetItem({
 
 export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAreaProps) {
   const { user } = useAuth();
-  const { socket, joinConversation } = useSocket();
+  const { socket, joinConversation, emitTyping, typingUsers } = useSocket();
   const queryClient = useQueryClient();
   const { translateLanguage, t: uiT } = usePreferences();
 
@@ -137,6 +138,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // Guard: timestamp when this conversation was opened — prevents ghost-touch
   // from the navigation tap immediately triggering the long-press menu
   const conversationOpenedAt = useRef<number>(Date.now());
+  const typingStopTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [content, setContent] = useState('');
   const [sending, setSending] = useState(false);
@@ -225,12 +227,15 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     setContent('');
     setReplyTo(null);
     setSending(true);
+    // Stop typing indicator immediately on send
+    if (typingStopTimeout.current) clearTimeout(typingStopTimeout.current);
+    emitTyping(conversationId, false);
     try {
       await sendMsg.mutateAsync({ conversationId, data: { content: trimmed, replyToId: replyId } });
       invalidate(); scrollBottom(80);
     } catch { setContent(trimmed); }
     finally { setSending(false); }
-  }, [content, sending, editState, replyTo, conversationId, sendMsg, editMsg, invalidate, scrollBottom]);
+  }, [content, sending, editState, replyTo, conversationId, sendMsg, editMsg, invalidate, scrollBottom, emitTyping]);
 
   // ── @mention helpers ──────────────────────────────────────
   const participants: Array<{ id: number; displayName: string; username?: string; avatar?: string | null }> =
@@ -259,6 +264,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       setMentionQuery(null);
       setMentionStartIdx(-1);
     }
+    // Typing indicator — emit start, debounce stop
+    emitTyping(conversationId, true);
+    if (typingStopTimeout.current) clearTimeout(typingStopTimeout.current);
+    typingStopTimeout.current = setTimeout(() => { emitTyping(conversationId, false); }, 2500);
   };
 
   const handleMentionSelect = (p: { id: number; displayName: string; username?: string }) => {
@@ -850,10 +859,32 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                         </div>
                       ) : <div />}
 
-                      {/* Time + edited */}
+                      {/* Time + edited + status */}
                       <div className={`text-[10px] flex items-center gap-1 flex-shrink-0 ${isMine ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>
                         {msg.editedAt && <span className="italic opacity-80">modifié</span>}
                         <span>{msgTime}</span>
+                        {isMine && (
+                          <span className="flex items-center -ml-0.5">
+                            {msg.status === 'read' ? (
+                              // Two colored (purple/white) checks = read
+                              <svg width="16" height="10" viewBox="0 0 16 10" className="text-[#a78bfa] drop-shadow-sm">
+                                <path d="M1 5l3 3L11 1" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M5 5l3 3 7-7" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            ) : msg.status === 'delivered' ? (
+                              // Two gray checks = delivered
+                              <svg width="16" height="10" viewBox="0 0 16 10" className="opacity-70">
+                                <path d="M1 5l3 3L11 1" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M5 5l3 3 7-7" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            ) : (
+                              // One gray check = sent
+                              <svg width="10" height="10" viewBox="0 0 10 10" className="opacity-70">
+                                <path d="M1 5l3 3 5-6" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            )}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -923,6 +954,34 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                 </div>
               </button>
             ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Typing indicator ── */}
+      <AnimatePresence>
+        {typingUsers.filter(u => u.conversationId === conversationId).length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }}
+            className="flex-shrink-0 px-5 py-1 flex items-center gap-2"
+          >
+            {/* Animated dots */}
+            <div className="flex items-center gap-0.5">
+              {[0, 1, 2].map(i => (
+                <motion.div key={i} className="w-1.5 h-1.5 rounded-full bg-primary"
+                  animate={{ y: [0, -4, 0] }}
+                  transition={{ repeat: Infinity, duration: 0.8, delay: i * 0.15, ease: 'easeInOut' }}
+                />
+              ))}
+            </div>
+            <span className="text-xs text-muted-foreground italic">
+              {(() => {
+                const typers = typingUsers.filter(u => u.conversationId === conversationId);
+                if (typers.length === 1) return `${typers[0].displayName} est en train d'écrire…`;
+                if (typers.length === 2) return `${typers[0].displayName} et ${typers[1].displayName} écrivent…`;
+                return `${typers.length} personnes écrivent…`;
+              })()}
+            </span>
           </motion.div>
         )}
       </AnimatePresence>
