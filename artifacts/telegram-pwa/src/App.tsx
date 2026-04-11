@@ -1,5 +1,7 @@
 import { Switch, Route, Router as WouterRouter } from "wouter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
@@ -11,7 +13,20 @@ import { SocketProvider } from "@/lib/socket-context";
 import { PreferencesProvider } from "@/lib/preferences-context";
 import { ShieldOff, LogOut } from "lucide-react";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5,   // 5 min — use cached data without refetch
+      gcTime: 1000 * 60 * 60 * 24, // 24h — keep in cache (needed for persistence)
+    },
+  },
+});
+
+const persister = createSyncStoragePersister({
+  storage: typeof window !== "undefined" ? window.localStorage : undefined,
+  key: "telechat-query-cache",
+  throttleTime: 1000,
+});
 
 function BannedScreen() {
   const { logout } = useAuth();
@@ -63,7 +78,7 @@ function AppRouter() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <PreferencesProvider>
@@ -76,7 +91,7 @@ function App() {
         </WouterRouter>
         <Toaster />
       </TooltipProvider>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   );
 }
 

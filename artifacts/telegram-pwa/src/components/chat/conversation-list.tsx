@@ -27,7 +27,7 @@ type Props = {
 };
 
 export function ConversationList({ filterType, activeConvId, onSelectConv, user }: Props) {
-  const { data: allConvs = [] } = useListConversations();
+  const { data: allConvs = [], isLoading } = useListConversations();
   const queryClient = useQueryClient();
   const { t, appLanguage } = usePreferences();
   const [openId, setOpenId] = useState<number | null>(null);
@@ -113,7 +113,21 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
       </div>
 
       <div className="flex-1 overflow-y-auto py-1 px-2 no-scrollbar">
-        {conversations.length === 0 && (
+        {isLoading && conversations.length === 0 && (
+          <div className="flex flex-col gap-1 pt-1">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 px-3 py-3 rounded-xl animate-pulse">
+                <div className="w-12 h-12 rounded-full bg-white/8 flex-shrink-0" />
+                <div className="flex-1 flex flex-col gap-2">
+                  <div className="h-3.5 rounded-full bg-white/8" style={{ width: `${55 + (i % 3) * 15}%` }} />
+                  <div className="h-2.5 rounded-full bg-white/5" style={{ width: `${40 + (i % 4) * 10}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!isLoading && conversations.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground gap-2">
             <p className="text-sm">{t.conversations.noConversation}</p>
             <p className="text-xs">{t.conversations.noConversationDesc}</p>
