@@ -28,6 +28,7 @@ import { AudioPlayer } from './audio-player';
 import { VoiceRecorder } from './voice-recorder';
 import { GroupInfoSheet } from './group-info-sheet';
 import { UserProfileSheet } from './user-profile-sheet';
+import { LinkPreviewCard } from './link-preview';
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡', '🔥'];
 const PICKER_EMOJIS = ['😀','😂','🤣','😊','😍','🥰','😘','😋','😎','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😣','😥','😮','🤐','😯','😪','😫','🥱','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','☹️','🙁','😖','😞','😟','😤','😢','😭','😦','😧','😨','😩','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','😡','😠','🤬','😷','🤒','🤕','🤢','🤮','🤧','😇','🥳','🥺','🤠','🤡','🤥','🤫','🤭','🧐','🤓','😈','👿','👹','👺','💀','👻','👽','👾','🤖'];
@@ -61,7 +62,7 @@ type Msg = {
   audioUrl?: string | null;
   audioDuration?: number | null;
   poll?: Poll | null;
-  linkPreview?: { url: string; title?: string | null; description?: string | null; image?: string | null } | null;
+  linkPreview?: { url: string; title?: string | null; description?: string | null; image?: string | null; platform?: string | null; embedUrl?: string | null; siteName?: string | null } | null;
   replyTo?: Msg | null;
   editedAt?: string | null;
   isDeleted?: boolean;
@@ -874,12 +875,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
                     {/* Link preview */}
                     {msg.linkPreview && (
-                      <div className={`mt-2 rounded-lg p-2 text-xs border overflow-hidden
-                        ${isMine ? 'bg-black/10 border-primary-foreground/20' : 'bg-background border-border'}`}>
-                        {msg.linkPreview.image && <img src={msg.linkPreview.image} alt="preview" className="w-full h-20 object-cover rounded mb-1.5" />}
-                        {msg.linkPreview.title && <div className="font-semibold truncate">{msg.linkPreview.title}</div>}
-                        {msg.linkPreview.description && <div className="line-clamp-2 opacity-80 mt-0.5">{msg.linkPreview.description}</div>}
-                      </div>
+                      <LinkPreviewCard preview={msg.linkPreview} isMine={isMine} />
                     )}
 
                     {/* Bottom row: reactions (left) + time (right) — inside bubble like Base44 */}

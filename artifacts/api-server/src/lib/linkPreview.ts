@@ -2,11 +2,14 @@ import axios from "axios";
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/g;
 
-interface LinkPreview {
+export interface LinkPreview {
   url: string;
   title: string | null;
   description: string | null;
   image: string | null;
+  platform: string | null;
+  embedUrl: string | null;
+  siteName: string | null;
 }
 
 export function extractFirstUrl(text: string): string | null {
@@ -14,29 +17,117 @@ export function extractFirstUrl(text: string): string | null {
   return match ? match[0] : null;
 }
 
+function extractYouTubeId(url: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?(?:[^&]*&)*v=)([^&?/\s]+)/,
+    /(?:youtu\.be\/)([^&?/\s]+)/,
+    /(?:youtube\.com\/shorts\/)([^&?/\s]+)/,
+    /(?:youtube\.com\/embed\/)([^&?/\s]+)/,
+  ];
+  for (const p of patterns) {
+    const m = url.match(p);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+function extractSpotifyInfo(url: string): { type: string; id: string } | null {
+  const m = url.match(/open\.spotify\.com\/(track|album|playlist|artist|episode|show)\/([^?&/\s]+)/);
+  return m ? { type: m[1], id: m[2] } : null;
+}
+
+function detectPlatform(url: string, siteName?: string | null): string | null {
+  const u = url.toLowerCase();
+  const sn = (siteName || '').toLowerCase();
+  if (u.includes('twitter.com') || u.includes('x.com') || sn.includes('twitter')) return 'twitter';
+  if (u.includes('instagram.com') || sn.includes('instagram')) return 'instagram';
+  if (u.includes('tiktok.com') || sn.includes('tiktok')) return 'tiktok';
+  if (u.includes('netflix.com') || sn.includes('netflix')) return 'netflix';
+  if (u.includes('twitch.tv') || sn.includes('twitch')) return 'twitch';
+  if (u.includes('soundcloud.com') || sn.includes('soundcloud')) return 'soundcloud';
+  if (u.includes('deezer.com') || sn.includes('deezer')) return 'deezer';
+  if (u.includes('apple.com/music') || sn.includes('apple music')) return 'apple-music';
+  if (u.includes('github.com') || sn.includes('github')) return 'github';
+  if (u.includes('reddit.com') || sn.includes('reddit')) return 'reddit';
+  return null;
+}
+
 export async function fetchLinkPreview(url: string): Promise<LinkPreview | null> {
   try {
+    // ── YouTube ──────────────────────────────────────────────────────
+    const ytId = extractYouTubeId(url);
+    if (ytId) {
+      let title: string | null = null;
+      let description: string | null = null;
+      try {
+        const oembedRes = await axios.get(
+          `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${ytId}&format=json`,
+          { timeout: 5000 }
+        );
+        const oe = oembedRes.data as { title?: string; author_name?: string };
+        title = oe.title ?? null;
+        description = oe.author_name ? `YouTube · ${oe.author_name}` : 'YouTube';
+      } catch {
+        description = 'YouTube';
+      }
+      return {
+        url,
+        title,
+        description,
+        image: `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`,
+        platform: 'youtube',
+        embedUrl: `https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0`,
+        siteName: 'YouTube',
+      };
+    }
+
+    // ── Spotify ──────────────────────────────────────────────────────
+    const spotifyInfo = extractSpotifyInfo(url);
+    if (spotifyInfo) {
+      return {
+        url,
+        title: null,
+        description: null,
+        image: null,
+        platform: 'spotify',
+        embedUrl: `https://open.spotify.com/embed/${spotifyInfo.type}/${spotifyInfo.id}?utm_source=generator&theme=0`,
+        siteName: 'Spotify',
+      };
+    }
+
+    // ── Generic OG scraping ───────────────────────────────────────────
     const response = await axios.get(url, {
-      timeout: 5000,
-      headers: {
-        "User-Agent": "TeleChatBot/1.0",
-      },
-      maxRedirects: 3,
+      timeout: 6000,
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; TeleChat/1.0; +https://legendsonline.app)' },
+      maxRedirects: 5,
     });
     const html = response.data as string;
-    if (typeof html !== "string") return null;
+    if (typeof html !== 'string') return null;
 
-    const title = html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim() || null;
-    const ogTitle = html.match(/<meta[^>]*property="og:title"[^>]*content="([^"]+)"/i)?.[1] || null;
-    const ogDesc = html.match(/<meta[^>]*property="og:description"[^>]*content="([^"]+)"/i)?.[1] || null;
-    const metaDesc = html.match(/<meta[^>]*name="description"[^>]*content="([^"]+)"/i)?.[1] || null;
-    const ogImage = html.match(/<meta[^>]*property="og:image"[^>]*content="([^"]+)"/i)?.[1] || null;
+    const getTag = (pattern: RegExp) => pattern.exec(html)?.[1]?.trim() ?? null;
+
+    const ogTitle = getTag(/<meta[^>]*property="og:title"[^>]*content="([^"]+)"/i)
+      ?? getTag(/<meta[^>]*content="([^"]+)"[^>]*property="og:title"/i);
+    const title = ogTitle ?? getTag(/<title[^>]*>([^<]+)<\/title>/i);
+    const description = getTag(/<meta[^>]*property="og:description"[^>]*content="([^"]+)"/i)
+      ?? getTag(/<meta[^>]*content="([^"]+)"[^>]*property="og:description"/i)
+      ?? getTag(/<meta[^>]*name="description"[^>]*content="([^"]+)"/i)
+      ?? getTag(/<meta[^>]*content="([^"]+)"[^>]*name="description"/i);
+    const image = getTag(/<meta[^>]*property="og:image"[^>]*content="([^"]+)"/i)
+      ?? getTag(/<meta[^>]*content="([^"]+)"[^>]*property="og:image"/i);
+    const siteName = getTag(/<meta[^>]*property="og:site_name"[^>]*content="([^"]+)"/i)
+      ?? getTag(/<meta[^>]*content="([^"]+)"[^>]*property="og:site_name"/i);
+
+    const platform = detectPlatform(url, siteName);
 
     return {
       url,
-      title: ogTitle || title,
-      description: ogDesc || metaDesc || null,
-      image: ogImage || null,
+      title,
+      description,
+      image,
+      platform,
+      embedUrl: null,
+      siteName,
     };
   } catch {
     return null;
