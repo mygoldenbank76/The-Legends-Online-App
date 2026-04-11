@@ -461,13 +461,23 @@ router.get("/messages/:messageId/reads", requireAuth, async (req, res): Promise<
     gte(conversationParticipantsTable.lastReadAt, msg.createdAt),
   ));
 
-  const readerUserIds = readers.map(r => r.userId);
+  // Deduplicate by userId — keep most recent lastReadAt per user
+  const uniqueByUser = Object.values(
+    readers.reduce<Record<number, { userId: number; lastReadAt: Date | null }>>((acc, r) => {
+      if (!acc[r.userId] || (r.lastReadAt && (!acc[r.userId].lastReadAt || r.lastReadAt > acc[r.userId].lastReadAt!))) {
+        acc[r.userId] = r;
+      }
+      return acc;
+    }, {})
+  );
+
+  const readerUserIds = uniqueByUser.map(r => r.userId);
   const readerUsers = readerUserIds.length > 0
     ? await db.select().from(usersTable).where(inArray(usersTable.id, readerUserIds))
     : [];
   const userMap = Object.fromEntries(readerUsers.map(u => [u.id, u]));
 
-  const result = readers.map(r => ({
+  const result = uniqueByUser.map(r => ({
     id: r.userId,
     displayName: userMap[r.userId]?.displayName ?? 'User',
     username: userMap[r.userId]?.username ?? '',
