@@ -222,11 +222,12 @@ function TabContent({
   return null;
 }
 
-/* ── Shop — iframe vers goldenvibeofficiel.com ── */
+/* ── Shop — iframe via proxy serveur (évite X-Frame-Options) ── */
 function ShopPlaceholder() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const SHOP_URL = 'https://www.goldenvibeofficiel.com';
+  const PROXY_URL = '/api/shop-proxy?path=/';
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
@@ -290,17 +291,17 @@ function ShopPlaceholder() {
           </div>
         )}
 
-        {/* Iframe */}
+        {/* Iframe via proxy — contourne X-Frame-Options */}
         {!error && (
           <iframe
-            src={SHOP_URL}
+            src={PROXY_URL}
             title="Golden Vibe Shop"
             className="w-full h-full border-0"
             style={{ display: loading ? 'none' : 'block' }}
             onLoad={() => setLoading(false)}
             onError={() => { setLoading(false); setError(true); }}
             allow="fullscreen"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation-by-user-activation"
           />
         )}
       </div>

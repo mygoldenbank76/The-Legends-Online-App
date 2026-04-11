@@ -6,6 +6,7 @@ import conversationsRouter from "./conversations";
 import messagesRouter from "./messages";
 import uploadsRouter from "./uploads";
 import pollsRouter from "./polls";
+import shopProxyRouter from "./shopProxy";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(conversationsRouter);
 router.use(messagesRouter);
 router.use(uploadsRouter);
 router.use(pollsRouter);
+router.use(shopProxyRouter);
 
 export default router;
