@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { BarChart2, X, Plus, Trash2 } from 'lucide-react';
+import { usePreferences } from '@/lib/preferences-context';
 
 type PollData = {
   question: string;
@@ -18,6 +19,7 @@ type Props = {
 };
 
 export function PollCreator({ open, onClose, onSubmit }: Props) {
+  const { t } = usePreferences();
   const [question, setQuestion] = useState('');
   const [options, setOptions] = useState(['', '']);
   const [isAnonymous, setIsAnonymous] = useState(true);
@@ -57,6 +59,7 @@ export function PollCreator({ open, onClose, onSubmit }: Props) {
   };
 
   const canSubmit = question.trim().length > 0 && options.filter(o => o.trim()).length >= 2;
+  const remaining = maxOptions - options.length;
 
   return createPortal(
     <AnimatePresence>
@@ -84,7 +87,7 @@ export function PollCreator({ open, onClose, onSubmit }: Props) {
                 <div className="w-10 h-10 rounded-xl bg-amber-700/30 flex items-center justify-center">
                   <BarChart2 className="w-5 h-5 text-amber-400" />
                 </div>
-                <h2 className="text-base font-bold text-foreground flex-1">Nouveau sondage</h2>
+                <h2 className="text-base font-bold text-foreground flex-1">{t.poll.title}</h2>
                 <button onClick={handleClose} className="text-muted-foreground hover:text-foreground p-1 transition-colors">
                   <X className="w-5 h-5" />
                 </button>
@@ -93,11 +96,11 @@ export function PollCreator({ open, onClose, onSubmit }: Props) {
               <div className="px-4 pb-6 space-y-4">
                 {/* Question */}
                 <div>
-                  <label className="text-xs font-semibold text-amber-400 mb-2 block">Question du sondage</label>
+                  <label className="text-xs font-semibold text-amber-400 mb-2 block">{t.poll.question}</label>
                   <textarea
                     value={question}
                     onChange={e => setQuestion(e.target.value)}
-                    placeholder="Posez une question..."
+                    placeholder={t.poll.questionPlaceholder}
                     rows={2}
                     className="w-full glass rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground border border-border/50 focus:border-primary/40 focus:outline-none resize-none"
                   />
@@ -105,7 +108,7 @@ export function PollCreator({ open, onClose, onSubmit }: Props) {
 
                 {/* Options */}
                 <div>
-                  <label className="text-xs font-semibold text-amber-400 mb-2 block">Options de réponse</label>
+                  <label className="text-xs font-semibold text-amber-400 mb-2 block">{t.poll.options}</label>
                   <div className="space-y-2">
                     {options.map((opt, idx) => (
                       <div key={idx} className="flex items-center gap-2">
@@ -128,20 +131,20 @@ export function PollCreator({ open, onClose, onSubmit }: Props) {
                       <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
                         <Plus className="w-3 h-3" />
                       </div>
-                      Ajouter une option...
+                      {t.poll.addOption}
                     </button>
                   )}
                   <p className="text-xs text-muted-foreground mt-1">
-                    Vous pouvez encore ajouter {maxOptions - options.length} options.
+                    {t.poll.remainingOptions.replace('{n}', String(remaining))}
                   </p>
                 </div>
 
                 {/* Settings */}
                 <div>
-                  <label className="text-xs font-semibold text-amber-400 mb-3 block">Paramètres</label>
+                  <label className="text-xs font-semibold text-amber-400 mb-3 block">{t.poll.settings}</label>
                   <div className="space-y-3">
-                    <Toggle label="Vote anonyme" value={isAnonymous} onChange={setIsAnonymous} />
-                    <Toggle label="Réponses multiples" value={isMultipleChoice} onChange={setIsMultipleChoice} />
+                    <Toggle label={t.poll.anonymousVote} value={isAnonymous} onChange={setIsAnonymous} />
+                    <Toggle label={t.poll.multipleChoice} value={isMultipleChoice} onChange={setIsMultipleChoice} />
                   </div>
                 </div>
 
@@ -152,7 +155,7 @@ export function PollCreator({ open, onClose, onSubmit }: Props) {
                   className="w-full py-3.5 rounded-2xl bg-primary/20 border border-primary/30 hover:bg-primary/30 text-primary font-semibold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <BarChart2 className="w-4 h-4" />
-                  Créer le sondage
+                  {t.poll.create}
                 </button>
               </div>
             </div>

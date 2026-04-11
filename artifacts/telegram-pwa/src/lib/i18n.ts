@@ -95,6 +95,18 @@ type Dict = {
     you: string;
     noMessage: string;
   };
+  poll: {
+    title: string;
+    question: string;
+    questionPlaceholder: string;
+    options: string;
+    addOption: string;
+    remainingOptions: string;
+    settings: string;
+    anonymousVote: string;
+    multipleChoice: string;
+    create: string;
+  };
   groupNames: Record<string, string>;
 };
 
@@ -169,6 +181,18 @@ export const i18n: Record<AppLang, Dict> = {
       you: 'Vous',
       noMessage: 'Aucun message',
     },
+    poll: {
+      title: 'Nouveau sondage',
+      question: 'Question du sondage',
+      questionPlaceholder: 'Posez une question...',
+      options: 'Options de réponse',
+      addOption: 'Ajouter une option...',
+      remainingOptions: 'Vous pouvez encore ajouter {n} options.',
+      settings: 'Paramètres',
+      anonymousVote: 'Vote anonyme',
+      multipleChoice: 'Réponses multiples',
+      create: 'Créer le sondage',
+    },
     groupNames: {},
   },
 
@@ -241,6 +265,18 @@ export const i18n: Record<AppLang, Dict> = {
       image: '📷 Image',
       you: 'You',
       noMessage: 'No message',
+    },
+    poll: {
+      title: 'New poll',
+      question: 'Poll question',
+      questionPlaceholder: 'Ask a question...',
+      options: 'Answer options',
+      addOption: 'Add an option...',
+      remainingOptions: 'You can still add {n} options.',
+      settings: 'Settings',
+      anonymousVote: 'Anonymous vote',
+      multipleChoice: 'Multiple answers',
+      create: 'Create poll',
     },
     groupNames: {
       'Discussion générale': 'General Discussion',
@@ -318,6 +354,18 @@ export const i18n: Record<AppLang, Dict> = {
       you: 'Tú',
       noMessage: 'Sin mensajes',
     },
+    poll: {
+      title: 'Nueva encuesta',
+      question: 'Pregunta de la encuesta',
+      questionPlaceholder: 'Haz una pregunta...',
+      options: 'Opciones de respuesta',
+      addOption: 'Añadir una opción...',
+      remainingOptions: 'Puedes añadir {n} opciones más.',
+      settings: 'Configuración',
+      anonymousVote: 'Voto anónimo',
+      multipleChoice: 'Respuestas múltiples',
+      create: 'Crear encuesta',
+    },
     groupNames: {
       'Discussion générale': 'Discusión general',
       'Divertissement': 'Entretenimiento',
@@ -393,6 +441,18 @@ export const i18n: Record<AppLang, Dict> = {
       image: '📷 صورة',
       you: 'أنت',
       noMessage: 'لا توجد رسالة',
+    },
+    poll: {
+      title: 'استطلاع جديد',
+      question: 'سؤال الاستطلاع',
+      questionPlaceholder: 'اطرح سؤالاً...',
+      options: 'خيارات الإجابة',
+      addOption: 'إضافة خيار...',
+      remainingOptions: 'يمكنك إضافة {n} خيارات إضافية.',
+      settings: 'الإعدادات',
+      anonymousVote: 'تصويت مجهول',
+      multipleChoice: 'إجابات متعددة',
+      create: 'إنشاء استطلاع',
     },
     groupNames: {
       'Discussion générale': 'نقاش عام',
@@ -470,6 +530,18 @@ export const i18n: Record<AppLang, Dict> = {
       you: 'Você',
       noMessage: 'Nenhuma mensagem',
     },
+    poll: {
+      title: 'Nova enquete',
+      question: 'Pergunta da enquete',
+      questionPlaceholder: 'Faça uma pergunta...',
+      options: 'Opções de resposta',
+      addOption: 'Adicionar uma opção...',
+      remainingOptions: 'Você pode adicionar mais {n} opções.',
+      settings: 'Configurações',
+      anonymousVote: 'Voto anônimo',
+      multipleChoice: 'Respostas múltiplas',
+      create: 'Criar enquete',
+    },
     groupNames: {
       'Discussion générale': 'Discussão geral',
       'Divertissement': 'Entretenimento',
@@ -545,6 +617,18 @@ export const i18n: Record<AppLang, Dict> = {
       image: '📷 Bild',
       you: 'Sie',
       noMessage: 'Keine Nachricht',
+    },
+    poll: {
+      title: 'Neue Umfrage',
+      question: 'Umfragefrage',
+      questionPlaceholder: 'Eine Frage stellen...',
+      options: 'Antwortoptionen',
+      addOption: 'Option hinzufügen...',
+      remainingOptions: 'Sie können noch {n} Optionen hinzufügen.',
+      settings: 'Einstellungen',
+      anonymousVote: 'Anonyme Abstimmung',
+      multipleChoice: 'Mehrfachantworten',
+      create: 'Umfrage erstellen',
     },
     groupNames: {
       'Discussion générale': 'Allgemeine Diskussion',
