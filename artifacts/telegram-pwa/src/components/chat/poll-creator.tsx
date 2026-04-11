@@ -141,7 +141,6 @@ export function PollCreator({ open, onClose, onSubmit }: Props) {
                   <div className="space-y-3">
                     <Toggle label="Vote anonyme" value={isAnonymous} onChange={setIsAnonymous} />
                     <Toggle label="Réponses multiples" value={isMultipleChoice} onChange={setIsMultipleChoice} />
-                    <Toggle label="Mode quiz" value={isQuiz} onChange={setIsQuiz} />
                   </div>
                 </div>
 

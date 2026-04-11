@@ -14,7 +14,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   ArrowLeft, Loader2, Send, Plus, Smile,
   Reply, Pin, Pencil, Trash2, Languages, X, Check, PinOff, MoreVertical,
-  Mic,
+  Mic, Copy,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -71,9 +71,13 @@ type CtxMenu = { msgId: number } | null;
 type TranslateEntry = { msgId: number; text: string };
 
 async function translateText(text: string): Promise<string> {
-  const r = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=|fr`);
+  const r = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=autodetect|fr`);
   const d = await r.json();
-  return d.responseData?.translatedText ?? text;
+  const translated = d.responseData?.translatedText;
+  if (!translated || translated === text || d.responseStatus !== 200) {
+    throw new Error('Traduction indisponible');
+  }
+  return translated;
 }
 
 function SheetItem({
@@ -850,6 +854,20 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
 
               <div className="glass-strong rounded-2xl overflow-hidden">
                 <SheetItem icon={<Reply size={18} />} label="Répondre" onClick={() => ctxMsg && handleReply(ctxMsg)} />
+
+                {ctxMsg.content && (
+                  <SheetItem
+                    icon={<Copy size={18} />}
+                    label="Copier"
+                    onClick={() => {
+                      if (ctxMsg?.content) {
+                        navigator.clipboard.writeText(ctxMsg.content).catch(() => {});
+                      }
+                      closeCtx();
+                    }}
+                    divider
+                  />
+                )}
 
                 {ctxMsg.content && (
                   <SheetItem
