@@ -1,10 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { Shield, Trash2, Ban, CheckCircle, ChevronUp, Search, RefreshCw, Crown, UserX, Zap, KeyRound } from 'lucide-react';
+import {
+  Shield, Trash2, Ban, CheckCircle, ChevronUp, Search, RefreshCw,
+  Crown, UserX, Zap, KeyRound, Info, MessageSquare, Users,
+} from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { UserDetailsModal } from './user-details-modal';
+import { MessageSurveillance } from './message-surveillance';
 
 const API_BASE = '/api';
+function getToken() { return localStorage.getItem('telechat_token'); }
+function authHeaders() { return { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` }; }
 
 type AdminUser = {
   id: number;
@@ -15,17 +22,10 @@ type AdminUser = {
   isBanned: boolean;
   isAdmin: boolean;
   hasReplit: boolean;
+  hasPassword: boolean;
   lastSeen: string | null;
   createdAt: string;
 };
-
-function getToken() {
-  return localStorage.getItem('telechat_token');
-}
-
-function authHeaders() {
-  return { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` };
-}
 
 function timeAgo(iso: string | null): string {
   if (!iso) return 'jamais';
@@ -38,14 +38,20 @@ function timeAgo(iso: string | null): string {
   return `il y a ${Math.floor(h / 24)}j`;
 }
 
+type Tab = 'users' | 'surveillance';
+
 export function AdminPanel() {
   const { user: me } = useAuth();
   const { toast } = useToast();
+  const [tab, setTab] = useState<Tab>('users');
+
+  // Users state
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [detailsUserId, setDetailsUserId] = useState<number | null>(null);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -74,8 +80,8 @@ export function AdminPanel() {
         throw new Error(err.error || 'Erreur');
       }
       const updated = await res.json();
-      setUsers(prev => prev.map(u => u.id === userId ? updated : u));
-      toast({ title: 'Action effectuée avec succès' });
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updated } : u));
+      toast({ title: 'Action effectuée' });
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Erreur', description: e.message });
     } finally {
@@ -124,156 +130,201 @@ export function AdminPanel() {
           <Shield className="w-5 h-5 text-primary" />
           <span className="font-bold text-base">Administration</span>
         </div>
-        <button onClick={fetchUsers} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
-          <RefreshCw className={`w-4 h-4 text-muted-foreground ${loading ? 'animate-spin' : ''}`} />
-        </button>
+        {tab === 'users' && (
+          <button onClick={fetchUsers} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
+            <RefreshCw className={`w-4 h-4 text-muted-foreground ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        )}
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-2">
-        {[
-          { label: 'Total', value: stats.total, color: 'text-foreground' },
-          { label: 'En ligne', value: stats.online, color: 'text-green-400' },
-          { label: 'Bannis', value: stats.banned, color: 'text-red-400' },
-          { label: 'Rapide', value: stats.replit, color: 'text-primary' },
-        ].map(s => (
-          <div key={s.label} className="glass rounded-xl p-2.5 text-center">
-            <p className={`text-lg font-bold ${s.color}`}>{s.value}</p>
-            <p className="text-[10px] text-muted-foreground leading-tight">{s.label}</p>
-          </div>
-        ))}
+      {/* Tabs */}
+      <div className="flex gap-1 p-1 glass rounded-xl">
+        <TabButton active={tab === 'users'} onClick={() => setTab('users')}>
+          <Users className="w-3.5 h-3.5" />
+          Utilisateurs
+        </TabButton>
+        <TabButton active={tab === 'surveillance'} onClick={() => setTab('surveillance')}>
+          <MessageSquare className="w-3.5 h-3.5" />
+          Surveillance
+        </TabButton>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Rechercher un utilisateur..."
-          className="pl-9 bg-white/5 border-white/10 text-sm"
-        />
-      </div>
-
-      {/* Users list */}
-      <div className="glass rounded-2xl overflow-hidden divide-y divide-white/5">
-        {loading ? (
-          <div className="py-10 text-center text-muted-foreground text-sm">Chargement...</div>
-        ) : filtered.length === 0 ? (
-          <div className="py-10 text-center text-muted-foreground text-sm">Aucun utilisateur trouvé</div>
-        ) : filtered.map(u => {
-          const isMe = u.id === (me as any)?.id;
-          const busy = actionLoading === u.id;
-          const initials = u.displayName.substring(0, 2).toUpperCase();
-
-          return (
-            <div key={u.id} className={`px-4 py-3 ${u.isBanned ? 'bg-red-500/5' : ''}`}>
-              <div className="flex items-center gap-3">
-                {/* Avatar */}
-                <div className="relative flex-shrink-0">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold ${u.isBanned ? 'bg-red-500/20 text-red-400' : 'bg-primary/20 text-primary'}`}>
-                    {initials}
-                  </div>
-                  <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background ${u.isOnline && !u.isBanned ? 'bg-green-400' : 'bg-gray-500'}`} />
-                </div>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-sm font-semibold truncate">{u.displayName}</span>
-                    {u.isAdmin && <Crown className="w-3.5 h-3.5 text-yellow-400 flex-shrink-0" />}
-                    {u.isBanned && <UserX className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />}
-                    {isMe && <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full">Vous</span>}
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                    <span className="text-xs text-muted-foreground">@{u.username}</span>
-                    {u.hasReplit
-                      ? <span className="flex items-center gap-0.5 text-[10px] text-primary/70"><Zap className="w-2.5 h-2.5" /> Connexion rapide</span>
-                      : <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground"><KeyRound className="w-2.5 h-2.5" /> Mot de passe</span>
-                    }
-                    <span className="text-[10px] text-muted-foreground">· {u.isOnline && !u.isBanned ? 'En ligne' : timeAgo(u.lastSeen)}</span>
-                  </div>
-                </div>
+      {/* ── Users tab ─────────────────────────────────────────── */}
+      {tab === 'users' && (
+        <>
+          {/* Stats */}
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { label: 'Total', value: stats.total, color: 'text-foreground' },
+              { label: 'En ligne', value: stats.online, color: 'text-green-400' },
+              { label: 'Bannis', value: stats.banned, color: 'text-red-400' },
+              { label: 'Rapide', value: stats.replit, color: 'text-primary' },
+            ].map(s => (
+              <div key={s.label} className="glass rounded-xl p-2.5 text-center">
+                <p className={`text-lg font-bold ${s.color}`}>{s.value}</p>
+                <p className="text-[10px] text-muted-foreground leading-tight">{s.label}</p>
               </div>
+            ))}
+          </div>
 
-              {/* Actions */}
-              {!isMe && (
-                <div className="flex gap-2 mt-2.5 flex-wrap">
-                  {/* Ban/Unban */}
-                  {u.isBanned ? (
-                    <button
-                      onClick={() => doAction(u.id, 'unban')}
-                      disabled={busy}
-                      className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-green-500/15 text-green-400 hover:bg-green-500/25 transition-colors disabled:opacity-50"
-                    >
-                      <CheckCircle className="w-3.5 h-3.5" />
-                      Débannir
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => doAction(u.id, 'ban')}
-                      disabled={busy}
-                      className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors disabled:opacity-50"
-                    >
-                      <Ban className="w-3.5 h-3.5" />
-                      Bannir
-                    </button>
-                  )}
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Rechercher un utilisateur..."
+              className="pl-9 bg-white/5 border-white/10 text-sm"
+            />
+          </div>
 
-                  {/* Promote/Demote */}
-                  {u.isAdmin ? (
-                    <button
-                      onClick={() => doAction(u.id, 'demote')}
-                      disabled={busy}
-                      className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/25 transition-colors disabled:opacity-50"
-                    >
-                      <ChevronUp className="w-3.5 h-3.5 rotate-180" />
-                      Retirer admin
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => doAction(u.id, 'promote')}
-                      disabled={busy}
-                      className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/25 transition-colors disabled:opacity-50"
-                    >
-                      <Crown className="w-3.5 h-3.5" />
-                      Rendre admin
-                    </button>
-                  )}
+          {/* User list */}
+          <div className="glass rounded-2xl overflow-hidden divide-y divide-white/5">
+            {loading ? (
+              <div className="py-10 text-center text-muted-foreground text-sm">Chargement...</div>
+            ) : filtered.length === 0 ? (
+              <div className="py-10 text-center text-muted-foreground text-sm">Aucun utilisateur trouvé</div>
+            ) : filtered.map(u => {
+              const isMe = u.id === (me as any)?.id;
+              const busy = actionLoading === u.id;
+              const initials = u.displayName.substring(0, 2).toUpperCase();
 
-                  {/* Delete */}
-                  {confirmDelete === u.id ? (
-                    <div className="flex gap-1 ml-auto">
-                      <button
-                        onClick={() => doDelete(u.id)}
-                        disabled={busy}
-                        className="text-xs px-3 py-1.5 rounded-lg bg-red-600/80 text-white hover:bg-red-600 transition-colors disabled:opacity-50"
-                      >
-                        {busy ? '...' : 'Confirmer'}
-                      </button>
-                      <button
-                        onClick={() => setConfirmDelete(null)}
-                        className="text-xs px-3 py-1.5 rounded-lg bg-white/10 text-muted-foreground hover:bg-white/15 transition-colors"
-                      >
-                        Annuler
-                      </button>
+              return (
+                <div key={u.id} className={`px-4 py-3 ${u.isBanned ? 'bg-red-500/5' : ''}`}>
+                  {/* Avatar + info */}
+                  <div className="flex items-center gap-3">
+                    <div className="relative flex-shrink-0">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold ${u.isBanned ? 'bg-red-500/20 text-red-400' : 'bg-primary/20 text-primary'}`}>
+                        {initials}
+                      </div>
+                      <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background ${u.isOnline && !u.isBanned ? 'bg-green-400' : 'bg-gray-500'}`} />
                     </div>
-                  ) : (
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-sm font-semibold truncate">{u.displayName}</span>
+                        {u.isAdmin && <Crown className="w-3.5 h-3.5 text-yellow-400 flex-shrink-0" />}
+                        {u.isBanned && <UserX className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />}
+                        {isMe && <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full">Vous</span>}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span className="text-xs text-muted-foreground">@{u.username}</span>
+                        {u.hasReplit
+                          ? <span className="flex items-center gap-0.5 text-[10px] text-primary/70"><Zap className="w-2.5 h-2.5" /> Rapide</span>
+                          : <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground"><KeyRound className="w-2.5 h-2.5" /> MDP</span>
+                        }
+                        <span className="text-[10px] text-muted-foreground">· {u.isOnline && !u.isBanned ? 'En ligne' : timeAgo(u.lastSeen)}</span>
+                      </div>
+                    </div>
+                    {/* Details button */}
                     <button
-                      onClick={() => setConfirmDelete(u.id)}
-                      disabled={busy}
-                      className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-white/5 text-muted-foreground hover:bg-red-500/15 hover:text-red-400 transition-colors disabled:opacity-50 ml-auto"
+                      onClick={() => setDetailsUserId(u.id)}
+                      className="p-2 rounded-xl hover:bg-primary/15 text-muted-foreground hover:text-primary transition-colors flex-shrink-0"
+                      title="Voir détails"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Supprimer
+                      <Info className="w-4 h-4" />
                     </button>
+                  </div>
+
+                  {/* Actions (not for self) */}
+                  {!isMe && (
+                    <div className="flex gap-2 mt-2.5 flex-wrap">
+                      {u.isBanned ? (
+                        <button
+                          onClick={() => doAction(u.id, 'unban')}
+                          disabled={busy}
+                          className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-green-500/15 text-green-400 hover:bg-green-500/25 transition-colors disabled:opacity-50"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5" /> Débannir
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => doAction(u.id, 'ban')}
+                          disabled={busy}
+                          className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors disabled:opacity-50"
+                        >
+                          <Ban className="w-3.5 h-3.5" /> Bannir
+                        </button>
+                      )}
+
+                      {u.isAdmin ? (
+                        <button
+                          onClick={() => doAction(u.id, 'demote')}
+                          disabled={busy}
+                          className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/25 transition-colors disabled:opacity-50"
+                        >
+                          <ChevronUp className="w-3.5 h-3.5 rotate-180" /> Retirer admin
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => doAction(u.id, 'promote')}
+                          disabled={busy}
+                          className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/25 transition-colors disabled:opacity-50"
+                        >
+                          <Crown className="w-3.5 h-3.5" /> Admin
+                        </button>
+                      )}
+
+                      {confirmDelete === u.id ? (
+                        <div className="flex gap-1 ml-auto">
+                          <button
+                            onClick={() => doDelete(u.id)}
+                            disabled={busy}
+                            className="text-xs px-3 py-1.5 rounded-lg bg-red-600/80 text-white hover:bg-red-600 transition-colors disabled:opacity-50"
+                          >
+                            {busy ? '...' : 'Confirmer'}
+                          </button>
+                          <button
+                            onClick={() => setConfirmDelete(null)}
+                            className="text-xs px-3 py-1.5 rounded-lg bg-white/10 text-muted-foreground hover:bg-white/15 transition-colors"
+                          >
+                            Annuler
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDelete(u.id)}
+                          disabled={busy}
+                          className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-white/5 text-muted-foreground hover:bg-red-500/15 hover:text-red-400 transition-colors disabled:opacity-50 ml-auto"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Supprimer
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {/* ── Surveillance tab ──────────────────────────────────── */}
+      {tab === 'surveillance' && (
+        <MessageSurveillance />
+      )}
+
+      {/* User details modal */}
+      {detailsUserId !== null && (
+        <UserDetailsModal
+          userId={detailsUserId}
+          onClose={() => setDetailsUserId(null)}
+        />
+      )}
     </div>
+  );
+}
+
+function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+        active
+          ? 'bg-primary text-white shadow-sm'
+          : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+      }`}
+    >
+      {children}
+    </button>
   );
 }
