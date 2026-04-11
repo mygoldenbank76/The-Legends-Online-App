@@ -942,7 +942,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       {editState && (
         <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-sidebar border-t border-primary/30">
           <Pencil className="w-4 h-4 text-primary flex-shrink-0" />
-          <p className="flex-1 text-xs text-primary font-medium truncate">Modifier · {editState.orig}</p>
+          <p className="flex-1 text-xs text-primary font-medium truncate">{uiT.chat.edit} · {editState.orig}</p>
           <button onClick={() => { setEditState(null); setContent(''); }} className="text-muted-foreground hover:text-foreground p-1 flex-shrink-0">
             <X className="w-4 h-4" />
           </button>
