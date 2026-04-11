@@ -10,6 +10,7 @@ import { formatUser } from "./users";
 import { extractFirstUrl, fetchLinkPreview } from "../lib/linkPreview";
 import { io } from "../app";
 import { buildPoll } from "./polls";
+import { notifyNewMessage } from "../lib/pushNotifications";
 
 const router: IRouter = Router();
 
@@ -259,6 +260,22 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
 
   const fullMessage = await buildMessage(msg.id, userId);
   io.to(`conversation:${conversationId}`).emit("new_message", fullMessage);
+
+  // Trigger push notifications (async — don't block response)
+  const [conv] = await db.select().from(conversationsTable).where(eq(conversationsTable.id, conversationId));
+  const [sender] = await db.select({ displayName: usersTable.displayName }).from(usersTable).where(eq(usersTable.id, userId));
+  if (conv && sender) {
+    notifyNewMessage({
+      conversationId,
+      senderId: userId,
+      senderName: sender.displayName,
+      conversationTitle: conv.name,
+      isGroup: conv.type === "group",
+      content: content ?? null,
+      imageUrl: imageUrl ?? null,
+    }).catch(() => {});
+  }
+
   res.status(201).json(fullMessage);
 });
 

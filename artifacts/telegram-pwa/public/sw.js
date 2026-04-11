@@ -1,12 +1,12 @@
-const CACHE_NAME = 'telechat-v3';
-const STATIC_CACHE = 'telechat-static-v3';
+const CACHE_NAME = 'legends-v1';
+const STATIC_CACHE = 'legends-static-v1';
 
 // On install: skip waiting to activate immediately
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) => {
-      return cache.addAll(['/manifest.json', '/favicon.svg']);
+      return cache.addAll(['/manifest.json', '/icon-192.png']);
     })
   );
 });
@@ -43,7 +43,6 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Cache a copy for offline fallback
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
           return response;
@@ -73,5 +72,58 @@ self.addEventListener('fetch', (event) => {
   // Everything else — network first
   event.respondWith(
     fetch(request).catch(() => caches.match(request))
+  );
+});
+
+// ── Push notification handler ──────────────────────────────────────────────
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+
+  let payload;
+  try {
+    payload = event.data.json();
+  } catch {
+    payload = { title: 'The Legends Online', body: event.data.text() };
+  }
+
+  const { title, body, icon, badge, tag, data } = payload;
+
+  event.waitUntil(
+    self.registration.showNotification(title || 'The Legends Online', {
+      body: body || '',
+      icon: icon || '/icon-192.png',
+      badge: badge || '/icon-192.png',
+      tag: tag || 'legends-notification',
+      data: data || {},
+      vibrate: [200, 100, 200],
+      requireInteraction: false,
+    })
+  );
+});
+
+// ── Notification click handler ─────────────────────────────────────────────
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const conversationId = event.notification.data?.conversationId;
+  const url = conversationId ? `/?conv=${conversationId}` : '/';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // If app is already open, focus it
+      for (const client of clientList) {
+        if ('focus' in client) {
+          client.focus();
+          if (conversationId && 'navigate' in client) {
+            client.navigate(url);
+          }
+          return;
+        }
+      }
+      // Otherwise open a new window
+      if (clients.openWindow) {
+        return clients.openWindow(url);
+      }
+    })
   );
 });
