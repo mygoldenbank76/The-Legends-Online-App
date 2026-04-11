@@ -13,8 +13,9 @@ const GROUPS = [
 ];
 
 const SEED_USERS = [
-  { username: "alice", displayName: "Alice", password: "password123" },
-  { username: "bob", displayName: "Bob", password: "password123" },
+  { username: "goldenvibe", displayName: "Golden Vibe", password: "GoldenVibe2025!", isAdmin: true as boolean },
+  { username: "alice", displayName: "Alice", password: "password123", isAdmin: false as boolean },
+  { username: "bob", displayName: "Bob", password: "password123", isAdmin: false as boolean },
 ];
 
 export async function runSeed() {
@@ -29,9 +30,13 @@ export async function runSeed() {
           username: u.username,
           displayName: u.displayName,
           passwordHash: hash,
+          isAdmin: u.isAdmin ?? false,
         }).returning();
         existing = created;
         console.log(`[seed] Created user: ${u.username}`);
+      } else {
+        // Sync isAdmin for existing seed users
+        await db.update(usersTable).set({ isAdmin: u.isAdmin ?? false }).where(eq(usersTable.username, u.username));
       }
       userIds.push(existing.id);
     }
