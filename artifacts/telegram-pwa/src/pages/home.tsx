@@ -11,6 +11,17 @@ import { ProfileEditorSheet } from '@/components/profile/profile-editor-sheet';
 import { usePreferences } from '@/lib/preferences-context';
 import { SUPPORTED_APP_LANGUAGES, SUPPORTED_TRANSLATE_LANGUAGES } from '@/lib/i18n';
 
+/* ── PWA install prompt — captured at module level before React mounts ── */
+let _pwaPrompt: any = null;
+let _pwaPromptListeners: Array<() => void> = [];
+function onPwaPromptReady(cb: () => void) { _pwaPromptListeners.push(cb); }
+window.addEventListener('beforeinstallprompt', (e: any) => {
+  e.preventDefault();
+  _pwaPrompt = e;
+  _pwaPromptListeners.forEach(fn => fn());
+  _pwaPromptListeners = [];
+});
+
 type Tab = 'groups' | 'messages' | 'shop' | 'settings';
 
 const NAV_ICONS: Record<Tab, typeof Users> = {
@@ -418,24 +429,28 @@ function SettingsPage({
   const [showAdmin, setShowAdmin] = useState(false);
   const [showProfileEditor, setShowProfileEditor] = useState(false);
   const [showIosInstructions, setShowIosInstructions] = useState(false);
-  const deferredPromptRef = useRef<any>(null);
-  const [canInstall, setCanInstall] = useState(false);
+  const [showAndroidInstructions, setShowAndroidInstructions] = useState(false);
+  const [canInstall, setCanInstall] = useState(() => !!_pwaPrompt);
   const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
 
   useEffect(() => {
-    const handler = (e: any) => { e.preventDefault(); deferredPromptRef.current = e; setCanInstall(true); };
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+    if (_pwaPrompt) { setCanInstall(true); return; }
+    onPwaPromptReady(() => setCanInstall(true));
   }, []);
 
   const handleInstall = async () => {
     if (isIos) { setShowIosInstructions(true); return; }
-    if (!deferredPromptRef.current) return;
-    deferredPromptRef.current.prompt();
-    await deferredPromptRef.current.userChoice;
-    deferredPromptRef.current = null;
-    setCanInstall(false);
+    if (_pwaPrompt) {
+      try {
+        _pwaPrompt.prompt();
+        await _pwaPrompt.userChoice;
+      } catch (_) {}
+      _pwaPrompt = null;
+      setCanInstall(false);
+    } else {
+      setShowAndroidInstructions(true);
+    }
   };
 
   const currentAppLang = SUPPORTED_APP_LANGUAGES.find(l => l.code === appLanguage);
@@ -723,6 +738,68 @@ function SettingsPage({
                     <div>
                       <p className="text-sm font-medium">« Sur l'écran d'accueil »</p>
                       <p className="text-xs text-muted-foreground">Fais défiler et sélectionne cette option, puis confirme</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Android install instructions modal */}
+      <AnimatePresence>
+        {showAndroidInstructions && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm"
+              onClick={() => setShowAndroidInstructions(false)}
+            />
+            <motion.div
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="fixed inset-x-0 bottom-0 z-50"
+            >
+              <div className="glass-strong rounded-t-3xl p-6 pb-10">
+                <div className="flex justify-center mb-4">
+                  <div className="w-10 h-1 rounded-full bg-white/20" />
+                </div>
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-primary/20 flex items-center justify-center">
+                      <Download className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm">Installer sur Android</p>
+                      <p className="text-xs text-muted-foreground">The Legends Online</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setShowAndroidInstructions(false)}
+                    className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/15 flex items-center justify-center">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-start gap-4">
+                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">1</div>
+                    <div>
+                      <p className="text-sm font-medium">Ouvre Chrome ou ton navigateur</p>
+                      <p className="text-xs text-muted-foreground">Assure-toi d'utiliser Chrome pour Android</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-4">
+                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">2</div>
+                    <div>
+                      <p className="text-sm font-medium">Menu ⋮ → « Ajouter à l'écran d'accueil »</p>
+                      <p className="text-xs text-muted-foreground">Les trois points en haut à droite du navigateur</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-4">
+                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">3</div>
+                    <div>
+                      <p className="text-sm font-medium">Confirme l'installation</p>
+                      <p className="text-xs text-muted-foreground">Appuie sur "Installer" dans la fenêtre qui apparaît</p>
                     </div>
                   </div>
                 </div>
