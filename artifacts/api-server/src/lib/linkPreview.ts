@@ -1,7 +1,5 @@
 import axios from "axios";
 
-const URL_REGEX = /(https?:\/\/[^\s]+)/g;
-
 export interface LinkPreview {
   url: string;
   title: string | null;
@@ -12,9 +10,21 @@ export interface LinkPreview {
   siteName: string | null;
 }
 
+function cleanUrl(raw: string): string {
+  // Strip trailing punctuation that's not part of the URL
+  return raw.replace(/[)\].,!?;:'"]+$/, '');
+}
+
 export function extractFirstUrl(text: string): string | null {
-  const match = text.match(URL_REGEX);
-  return match ? match[0] : null;
+  // 1. Markdown links [label](url) — extract URL from parentheses
+  const mdMatch = text.match(/\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/);
+  if (mdMatch) return cleanUrl(mdMatch[1]);
+
+  // 2. Plain URLs
+  const plainMatch = text.match(/https?:\/\/[^\s]+/);
+  if (plainMatch) return cleanUrl(plainMatch[0]);
+
+  return null;
 }
 
 function extractYouTubeId(url: string): string | null {

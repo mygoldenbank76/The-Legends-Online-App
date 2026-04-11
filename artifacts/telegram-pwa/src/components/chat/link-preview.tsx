@@ -109,17 +109,27 @@ function YouTubeEmbed({ preview, isMine }: { preview: LinkPreviewData; isMine: b
   );
 }
 
+// Stop touch events from bubbling to the message bubble (prevents long-press menu)
+const stopTouch = (e: React.TouchEvent | React.MouseEvent) => e.stopPropagation();
+
 export function LinkPreviewCard({ preview, isMine }: Props) {
   const platform = preview.platform ?? null;
   const cfg = platform ? PLATFORM_CONFIG[platform] : null;
 
-  const containerClass = `mt-2 rounded-xl overflow-hidden text-xs cursor-pointer
+  const containerClass = `mt-2 rounded-xl overflow-hidden text-xs
     ${isMine ? 'bg-black/15 border border-white/10' : 'bg-background/60 border border-border'}`;
+
+  const blockProps = {
+    onTouchStart: stopTouch,
+    onTouchEnd: stopTouch,
+    onTouchMove: stopTouch,
+    onClick: stopTouch,
+  };
 
   // ── Spotify ──────────────────────────────────────────────────────────
   if (platform === 'spotify' && preview.embedUrl) {
     return (
-      <div className={containerClass}>
+      <div className={containerClass} {...blockProps}>
         <div className="px-3 pt-2 pb-1">
           <PlatformBadge platform={platform} siteName={preview.siteName} />
           {preview.title && <p className="font-semibold mt-1 truncate text-foreground">{preview.title}</p>}
@@ -133,7 +143,7 @@ export function LinkPreviewCard({ preview, isMine }: Props) {
   // ── YouTube ───────────────────────────────────────────────────────────
   if (platform === 'youtube') {
     return (
-      <div className={containerClass}>
+      <div className={containerClass} {...blockProps}>
         <YouTubeEmbed preview={preview} isMine={isMine} />
         <div className="px-3 py-2 flex items-start gap-2">
           <div className="flex-1 min-w-0">
@@ -154,7 +164,13 @@ export function LinkPreviewCard({ preview, isMine }: Props) {
   // ── Generic (with image) ──────────────────────────────────────────────
   const hasImage = !!preview.image;
   return (
-    <a href={preview.url} target="_blank" rel="noopener noreferrer" className={containerClass + ' block hover:opacity-90 transition-opacity'}>
+    <a
+      href={preview.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={containerClass + ' block hover:opacity-90 transition-opacity'}
+      {...blockProps}
+    >
       {hasImage && (
         <img src={preview.image!} alt={preview.title ?? ''} className="w-full object-cover max-h-40" />
       )}

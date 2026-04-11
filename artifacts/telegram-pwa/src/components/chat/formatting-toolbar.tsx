@@ -118,7 +118,7 @@ export function FormattingToolbar({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.1 }}
-                className="flex items-center px-1 py-0.5 overflow-x-auto scrollbar-none"
+                className="flex items-center justify-between w-full px-1 py-0.5"
               >
                 {/* Clipboard actions first */}
                 <ToolBtn
@@ -133,7 +133,7 @@ export function FormattingToolbar({
                   label="Coller"
                 />
                 {/* Divider */}
-                <div className="w-px h-6 bg-border/50 mx-0.5 flex-shrink-0" />
+                <div className="w-px h-6 bg-border/50 flex-shrink-0" />
                 {/* Format tools */}
                 {FORMAT_TOOLS.map(({ fmt, icon, label }) => (
                   <ToolBtn
