@@ -71,6 +71,8 @@ type Dict = {
     typingOne: string;
     typingTwo: string;
     typingMany: string;
+    lastSeen: string;
+    offline: string;
   };
   groupInfo: {
     members: string;
@@ -185,6 +187,8 @@ export const i18n: Record<AppLang, Dict> = {
       typingOne: '{name} écrit…',
       typingTwo: '{a} et {b} écrivent…',
       typingMany: '{n} personnes écrivent…',
+      lastSeen: 'vu à {time}',
+      offline: 'hors ligne',
     },
     groupInfo: {
       members: 'membres',
@@ -298,6 +302,8 @@ export const i18n: Record<AppLang, Dict> = {
       typingOne: '{name} is typing…',
       typingTwo: '{a} and {b} are typing…',
       typingMany: '{n} people are typing…',
+      lastSeen: 'seen at {time}',
+      offline: 'offline',
     },
     groupInfo: {
       members: 'members',
@@ -414,6 +420,8 @@ export const i18n: Record<AppLang, Dict> = {
       typingOne: '{name} está escribiendo…',
       typingTwo: '{a} y {b} están escribiendo…',
       typingMany: '{n} personas están escribiendo…',
+      lastSeen: 'visto a las {time}',
+      offline: 'desconectado',
     },
     groupInfo: {
       members: 'miembros',
@@ -530,6 +538,8 @@ export const i18n: Record<AppLang, Dict> = {
       typingOne: '{name} يكتب…',
       typingTwo: '{a} و {b} يكتبان…',
       typingMany: '{n} أشخاص يكتبون…',
+      lastSeen: 'شوهد في {time}',
+      offline: 'غير متصل',
     },
     groupInfo: {
       members: 'أعضاء',
@@ -646,6 +656,8 @@ export const i18n: Record<AppLang, Dict> = {
       typingOne: '{name} está digitando…',
       typingTwo: '{a} e {b} estão digitando…',
       typingMany: '{n} pessoas estão digitando…',
+      lastSeen: 'visto às {time}',
+      offline: 'offline',
     },
     groupInfo: {
       members: 'membros',
@@ -762,6 +774,8 @@ export const i18n: Record<AppLang, Dict> = {
       typingOne: '{name} schreibt…',
       typingTwo: '{a} und {b} schreiben…',
       typingMany: '{n} Personen schreiben…',
+      lastSeen: 'gesehen um {time}',
+      offline: 'offline',
     },
     groupInfo: {
       members: 'Mitglieder',

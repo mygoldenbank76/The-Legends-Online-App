@@ -2,11 +2,15 @@ import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useListConversations } from "@workspace/api-client-react";
 import { formatDistanceToNow } from "date-fns";
+import { fr, enUS, es, ar, pt, de } from 'date-fns/locale';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserSearch } from "./user-search";
 import { Button } from "@/components/ui/button";
+import { usePreferences } from "@/lib/preferences-context";
+
+const dateFnsLocaleMap: Record<string, Locale> = { fr, en: enUS, es, ar, pt, de };
 
 type SidebarProps = {
   activeConversationId?: number;
@@ -15,6 +19,7 @@ type SidebarProps = {
 
 export function Sidebar({ activeConversationId, onSelectConversation }: SidebarProps) {
   const { user, logout } = useAuth();
+  const { appLanguage } = usePreferences();
   const { data: conversations = [] } = useListConversations();
 
   return (
@@ -73,7 +78,7 @@ export function Sidebar({ activeConversationId, onSelectConversation }: SidebarP
                   </h3>
                   {lastMsg && (
                     <span className="text-xs text-muted-foreground whitespace-nowrap">
-                      {formatDistanceToNow(new Date(lastMsg.createdAt), { addSuffix: false }).replace('about ', '')}
+                      {formatDistanceToNow(new Date(lastMsg.createdAt), { addSuffix: false, locale: dateFnsLocaleMap[appLanguage] ?? fr })}
                     </span>
                   )}
                 </div>

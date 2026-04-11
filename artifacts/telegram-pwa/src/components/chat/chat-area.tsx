@@ -19,7 +19,6 @@ import {
   Mic, Copy,
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { AttachmentSheet } from './attachment-sheet';
 import { PollCreator } from './poll-creator';
@@ -545,8 +544,8 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const otherUser = conversation?.participants?.find((p: any) => p.id !== user?.id) as any;
   const isOnline = otherUser?.isOnline;
   const lastSeen = otherUser?.lastSeen
-    ? `vu ${format(new Date(otherUser.lastSeen), 'HH:mm', { locale: fr })}`
-    : 'hors ligne';
+    ? uiT.chat.lastSeen.replace('{time}', format(new Date(otherUser.lastSeen), 'HH:mm'))
+    : uiT.chat.offline;
 
   const isGroup = conversation?.type === 'group';
   const memberCount = (conversation as any)?.participants?.length ?? 0;
@@ -633,7 +632,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             const translation = translations.find(t => t.msgId === msg.id)?.text ?? null;
             const isTranslating = translatingId === msg.id;
             const isPinned = pinnedMessageIds.includes(msg.id);
-            const msgTime = format(new Date(msg.createdAt), 'HH:mm', { locale: fr });
+            const msgTime = format(new Date(msg.createdAt), 'HH:mm');
             const isPoll = !!msg.poll;
             const isAudio = !!msg.audioUrl;
 

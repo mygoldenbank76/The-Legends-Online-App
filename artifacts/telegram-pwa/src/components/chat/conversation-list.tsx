@@ -3,13 +3,18 @@ import { motion } from 'framer-motion';
 import { useListConversations, getListConversationsQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { fr, enUS, es, ar, pt, de } from 'date-fns/locale';
 import { Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { UserSearch } from './user-search';
 import { getAuthHeaders } from '@/lib/auth-fetch';
+
 import { usePreferences } from '@/lib/preferences-context';
 import { translateGroupName } from '@/lib/i18n';
+
+const dateFnsLocaleMap: Record<string, Locale> = {
+  fr, en: enUS, es, ar, pt, de,
+};
 
 const SWIPE_REVEAL_PX = -72;
 const LONG_PRESS_MS = 450;
@@ -204,7 +209,7 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
                       </p>
                       {lastMsg && (
                         <span className="text-[10px] text-muted-foreground flex-shrink-0">
-                          {formatDistanceToNow(new Date(lastMsg.createdAt), { addSuffix: false, locale: fr })}
+                          {formatDistanceToNow(new Date(lastMsg.createdAt), { addSuffix: false, locale: dateFnsLocaleMap[appLanguage] ?? fr })}
                         </span>
                       )}
                     </div>
