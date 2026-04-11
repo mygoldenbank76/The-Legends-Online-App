@@ -128,6 +128,8 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const documentInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const didTriggerMenu = useRef(false);
+  const didJustSwipe = useRef(false);
   const swipeStartX = useRef(0);
   const swipeStartY = useRef(0);
   const isSwiping = useRef(false);
@@ -372,8 +374,13 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     swipeStartX.current = e.touches[0].clientX;
     swipeStartY.current = e.touches[0].clientY;
     isSwiping.current = false;
+    didTriggerMenu.current = false;
+    didJustSwipe.current = false;
     longPressTimer.current = setTimeout(() => {
-      if (!isSwiping.current) openCtxMenu({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY }, msg);
+      if (!isSwiping.current) {
+        didTriggerMenu.current = true;
+        openCtxMenu({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY }, msg);
+      }
     }, 500);
   };
 
@@ -395,7 +402,11 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const onTouchEnd = (e: React.TouchEvent, msg: Msg) => {
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
     const dx = e.changedTouches[0].clientX - swipeStartX.current;
-    if (dx > 60 && isSwiping.current) { setReplyTo(msg); setEditState(null); }
+    if (dx > 60 && isSwiping.current) {
+      setReplyTo(msg);
+      setEditState(null);
+      didJustSwipe.current = true;
+    }
     isSwiping.current = false;
     setSwipingId(null);
     setSwipeOffsets(p => ({ ...p, [msg.id]: 0 }));
@@ -530,6 +541,14 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                 className={`flex items-end gap-2 w-full ${isMine ? 'justify-end' : 'justify-start'} ${isSameAuthor ? 'mt-0.5' : 'mt-3'}`}
                 style={{ userSelect: 'none', WebkitUserSelect: 'none' } as React.CSSProperties}
                 onContextMenu={(e) => openCtxMenu(e, msg)}
+                onClick={(e) => {
+                  if (didTriggerMenu.current || didJustSwipe.current) {
+                    didTriggerMenu.current = false;
+                    didJustSwipe.current = false;
+                    return;
+                  }
+                  openCtxMenu(e, msg);
+                }}
                 onTouchStart={(e) => onTouchStart(e, msg)}
                 onTouchMove={(e) => onTouchMove(e, msg.id)}
                 onTouchEnd={(e) => onTouchEnd(e, msg)}
@@ -668,7 +687,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
                     {/* Image or Video */}
                     {msg.imageUrl && !isPoll && (
-                      <div className="mb-2 -mx-1 -mt-1 overflow-hidden rounded-xl">
+                      <div className="mb-2 -mx-1 -mt-1 overflow-hidden rounded-xl" onClick={(e) => e.stopPropagation()}>
                         {msg.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? (
                           <video
                             src={msg.imageUrl}
@@ -685,17 +704,21 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
                     {/* Audio message */}
                     {isAudio && (
-                      <AudioPlayer url={msg.audioUrl!} duration={msg.audioDuration} isMine={isMine} />
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <AudioPlayer url={msg.audioUrl!} duration={msg.audioDuration} isMine={isMine} />
+                      </div>
                     )}
 
                     {/* Poll */}
                     {isPoll && msg.poll && (
+                      <div onClick={(e) => e.stopPropagation()}>
                       <PollMessage
                         poll={msg.poll}
                         isMine={isMine}
                         onVote={handlePollVote}
                         onViewVotes={handleViewVotes}
                       />
+                      </div>
                     )}
 
                     {/* Text */}
