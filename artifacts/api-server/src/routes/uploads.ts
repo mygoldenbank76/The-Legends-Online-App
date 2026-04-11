@@ -1,29 +1,18 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
 import path from "path";
-import fs from "fs";
+import { randomUUID } from "crypto";
 import { requireAuth } from "../lib/auth";
+import { objectStorageClient } from "../lib/objectStorage";
 
 const router: IRouter = Router();
 
-const uploadDir = path.join(process.cwd(), "uploads");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname) || ".bin";
-    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-  },
-});
+// ── Multer memory storage (no disk) ────────────────────────────────────────
+const memStorage = multer.memoryStorage();
 
 const imageUpload = multer({
-  storage,
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB to support videos
+  storage: memStorage,
+  limits: { fileSize: 100 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith("image/") || file.mimetype.startsWith("video/")) {
       cb(null, true);
@@ -34,55 +23,96 @@ const imageUpload = multer({
 });
 
 const audioUpload = multer({
-  storage,
+  storage: memStorage,
   limits: { fileSize: 25 * 1024 * 1024 },
-  // Accept all audio/video formats (browsers may report different mimetypes for recordings)
-  fileFilter: (_req, _file, cb) => {
-    cb(null, true);
-  },
+  fileFilter: (_req, _file, cb) => { cb(null, true); },
 });
 
 const documentUpload = multer({
-  storage,
+  storage: memStorage,
   limits: { fileSize: 50 * 1024 * 1024 },
 });
 
-router.post("/uploads/image", requireAuth, imageUpload.single("file"), (req, res): void => {
-  if (!req.file) {
-    res.status(400).json({ error: "No file uploaded" });
-    return;
+// ── Helpers ─────────────────────────────────────────────────────────────────
+const BUCKET_ID = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID!;
+const UPLOAD_PREFIX = "telechat-uploads";
+
+async function uploadToGcs(
+  buffer: Buffer,
+  originalname: string,
+  mimetype: string
+): Promise<string> {
+  const ext = path.extname(originalname) || ".bin";
+  const objectId = `${Date.now()}-${randomUUID()}${ext}`;
+  const objectName = `${UPLOAD_PREFIX}/${objectId}`;
+
+  const bucket = objectStorageClient.bucket(BUCKET_ID);
+  const file = bucket.file(objectName);
+
+  await file.save(buffer, {
+    contentType: mimetype,
+    resumable: false,
+  });
+
+  return objectId;
+}
+
+// ── Upload endpoints ─────────────────────────────────────────────────────────
+router.post("/uploads/image", requireAuth, imageUpload.single("file"), async (req, res): Promise<void> => {
+  if (!req.file) { res.status(400).json({ error: "No file uploaded" }); return; }
+  try {
+    const objectId = await uploadToGcs(req.file.buffer, req.file.originalname, req.file.mimetype);
+    res.json({ url: `/api/uploads/gcs/${objectId}` });
+  } catch (e) {
+    console.error("GCS upload error", e);
+    res.status(500).json({ error: "Upload failed" });
   }
-  const url = `/api/uploads/${req.file.filename}`;
-  res.json({ url });
 });
 
-router.post("/uploads/audio", requireAuth, audioUpload.single("file"), (req, res): void => {
-  if (!req.file) {
-    res.status(400).json({ error: "No file uploaded" });
-    return;
+router.post("/uploads/audio", requireAuth, audioUpload.single("file"), async (req, res): Promise<void> => {
+  if (!req.file) { res.status(400).json({ error: "No file uploaded" }); return; }
+  try {
+    const objectId = await uploadToGcs(req.file.buffer, req.file.originalname, req.file.mimetype);
+    res.json({ url: `/api/uploads/gcs/${objectId}` });
+  } catch (e) {
+    console.error("GCS upload error", e);
+    res.status(500).json({ error: "Upload failed" });
   }
-  const url = `/api/uploads/${req.file.filename}`;
-  res.json({ url });
 });
 
-router.post("/uploads/document", requireAuth, documentUpload.single("file"), (req, res): void => {
-  if (!req.file) {
-    res.status(400).json({ error: "No file uploaded" });
-    return;
+router.post("/uploads/document", requireAuth, documentUpload.single("file"), async (req, res): Promise<void> => {
+  if (!req.file) { res.status(400).json({ error: "No file uploaded" }); return; }
+  try {
+    const objectId = await uploadToGcs(req.file.buffer, req.file.originalname, req.file.mimetype);
+    res.json({ url: `/api/uploads/gcs/${objectId}`, name: req.file.originalname, size: req.file.size });
+  } catch (e) {
+    console.error("GCS upload error", e);
+    res.status(500).json({ error: "Upload failed" });
   }
-  const url = `/api/uploads/${req.file.filename}`;
-  res.json({ url, name: req.file.originalname, size: req.file.size });
 });
 
-router.get("/uploads/:filename", (req, res): void => {
-  const rawFilename = Array.isArray(req.params.filename) ? req.params.filename[0] : req.params.filename;
-  const filename = path.basename(rawFilename);
-  const filePath = path.join(uploadDir, filename);
-  if (!fs.existsSync(filePath)) {
-    res.status(404).json({ error: "File not found" });
-    return;
+// ── Serve from GCS ──────────────────────────────────────────────────────────
+router.get("/uploads/gcs/:objectId", async (req, res): Promise<void> => {
+  const objectId = req.params.objectId;
+  const objectName = `${UPLOAD_PREFIX}/${objectId}`;
+  try {
+    const bucket = objectStorageClient.bucket(BUCKET_ID);
+    const file = bucket.file(objectName);
+    const [exists] = await file.exists();
+    if (!exists) { res.status(404).json({ error: "File not found" }); return; }
+
+    const [metadata] = await file.getMetadata();
+    const contentType = (metadata.contentType as string) || "application/octet-stream";
+
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    if (metadata.size) res.setHeader("Content-Length", String(metadata.size));
+
+    file.createReadStream().pipe(res);
+  } catch (e) {
+    console.error("GCS serve error", e);
+    res.status(500).json({ error: "Failed to serve file" });
   }
-  res.sendFile(filePath);
 });
 
 export default router;
