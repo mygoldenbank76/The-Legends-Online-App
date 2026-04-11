@@ -135,6 +135,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressInputTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didTriggerMenu = useRef(false);
   const didJustSwipe = useRef(false);
   const swipeStartX = useRef(0);
@@ -350,6 +351,45 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     setLinkUrl('');
     setTimeout(() => textareaRef.current?.focus(), 0);
   };
+
+  const handleCopy = useCallback(async () => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = selectionRange?.start ?? ta.selectionStart ?? 0;
+    const end = selectionRange?.end ?? ta.selectionEnd ?? 0;
+    if (start === end) return;
+    const selected = content.slice(start, end);
+    try { await navigator.clipboard.writeText(selected); } catch { /* ignore */ }
+  }, [content, selectionRange]);
+
+  const handlePaste = useCallback(async () => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) return;
+      const start = ta.selectionStart ?? content.length;
+      const end = ta.selectionEnd ?? content.length;
+      const newText = content.slice(0, start) + text + content.slice(end);
+      setContent(newText);
+      const newCursor = start + text.length;
+      setTimeout(() => { ta.focus(); ta.setSelectionRange(newCursor, newCursor); }, 0);
+    } catch { /* permission denied or no clipboard */ }
+  }, [content]);
+
+  // Intercept long-press on the input to block native Android selection toolbar
+  const handleInputTouchStart = useCallback((e: React.TouchEvent) => {
+    if (longPressInputTimer.current) clearTimeout(longPressInputTimer.current);
+    longPressInputTimer.current = setTimeout(() => {
+      // Block the contextmenu event that follows a long-press on Android
+      const block = (ce: Event) => { ce.preventDefault(); ce.stopPropagation(); };
+      document.addEventListener('contextmenu', block, { once: true, capture: true });
+    }, 280);
+  }, []);
+
+  const handleInputTouchEnd = useCallback(() => {
+    if (longPressInputTimer.current) { clearTimeout(longPressInputTimer.current); longPressInputTimer.current = null; }
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (mentionQuery !== null && mentionSuggestions.length > 0) {
@@ -1089,6 +1129,8 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           onLinkCancel={handleLinkCancel}
           onFormat={handleFormat}
           onLinkRequest={handleLinkRequest}
+          onCopy={handleCopy}
+          onPaste={handlePaste}
         />
         <div className="flex items-end gap-2 px-3 py-3">
           {/* + Attachment button */}
@@ -1134,8 +1176,13 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   onKeyDown={handleKeyDown}
                   onSelect={handleTextSelect}
                   onBlur={() => { if (!linkMode) setTimeout(() => setSelectionRange(null), 150); }}
+                  onContextMenu={e => e.preventDefault()}
+                  onTouchStart={handleInputTouchStart}
+                  onTouchEnd={handleInputTouchEnd}
+                  onTouchMove={handleInputTouchEnd}
                   placeholder={editState ? uiT.chat.editPlaceholder : uiT.chat.placeholder}
                   className="min-h-[40px] max-h-[120px] border-0 focus-visible:ring-0 resize-none py-2.5 px-0 bg-transparent shadow-none text-sm"
+                  style={{ WebkitTouchCallout: 'none' } as React.CSSProperties}
                   rows={1}
                 />
               </div>
