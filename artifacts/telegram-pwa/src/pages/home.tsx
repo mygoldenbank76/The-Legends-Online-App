@@ -381,25 +381,6 @@ function ShopPlaceholder() {
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
-      {/* Barre supérieure */}
-      <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 glass border-b border-border/40">
-        <div className="flex items-center gap-2">
-          <ShoppingBag className="w-4 h-4 text-primary" />
-          <span className="text-sm font-semibold text-primary">Golden Vibe</span>
-        </div>
-        <a
-          href={SHOP_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors px-2 py-1 rounded-lg hover:bg-white/5"
-        >
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-          </svg>
-          Ouvrir
-        </a>
-      </div>
-
       {/* Zone iframe */}
       <div className="relative flex-1 min-h-0 w-full overflow-hidden">
         {/* Spinner de chargement */}
