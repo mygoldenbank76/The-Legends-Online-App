@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import {
   db, usersTable, messagesTable, reactionsTable,
   conversationParticipantsTable, conversationsTable,
-  pollsTable, pollOptionsTable,
+  pollsTable, pollOptionsTable, conversationPinsTable,
 } from "@workspace/db";
 import { eq, and, lt, desc, inArray } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
@@ -321,19 +321,33 @@ router.post("/messages/:messageId/pin", requireAuth, async (req, res): Promise<v
   const [msg] = await db.select().from(messagesTable).where(eq(messagesTable.id, messageId));
   if (!msg) { res.status(404).json({ error: "Message not found" }); return; }
 
-  const [conv] = await db.select().from(conversationsTable).where(eq(conversationsTable.id, msg.conversationId));
-  if (!conv) { res.status(404).json({ error: "Conversation not found" }); return; }
+  const existingPin = await db.select().from(conversationPinsTable)
+    .where(and(eq(conversationPinsTable.conversationId, msg.conversationId), eq(conversationPinsTable.messageId, messageId)));
 
-  const newPinnedId = conv.pinnedMessageId === messageId ? null : messageId;
-  await db.update(conversationsTable).set({ pinnedMessageId: newPinnedId }).where(eq(conversationsTable.id, msg.conversationId));
+  let action: 'pinned' | 'unpinned';
+  if (existingPin.length > 0) {
+    await db.delete(conversationPinsTable)
+      .where(and(eq(conversationPinsTable.conversationId, msg.conversationId), eq(conversationPinsTable.messageId, messageId)));
+    action = 'unpinned';
+  } else {
+    await db.insert(conversationPinsTable).values({ conversationId: msg.conversationId, messageId }).onConflictDoNothing();
+    action = 'pinned';
+  }
+
+  const allPins = await db.select().from(conversationPinsTable)
+    .where(eq(conversationPinsTable.conversationId, msg.conversationId))
+    .orderBy(conversationPinsTable.pinnedAt);
+
+  const pinnedMessageIds = allPins.map(p => p.messageId);
 
   io.to(`conversation:${msg.conversationId}`).emit("message_pinned", {
     conversationId: msg.conversationId,
-    pinnedMessageId: newPinnedId,
+    pinnedMessageIds,
     messageId,
+    action,
   });
 
-  res.json({ success: true });
+  res.json({ success: true, pinnedMessageIds });
 });
 
 // POST reactions

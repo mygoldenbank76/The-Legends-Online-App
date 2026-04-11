@@ -150,6 +150,7 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
   const [pollCreatorOpen, setPollCreatorOpen] = useState(false);
   const [groupInfoOpen, setGroupInfoOpen] = useState(false);
   const [voiceActive, setVoiceActive] = useState(false);
+  const [pinnedIdx, setPinnedIdx] = useState(0);
 
   // Poll votes viewer state
   const [pollVotes, setPollVotes] = useState<{ optionText: string; voters: { id: number; displayName: string }[] }[] | null>(null);
@@ -397,8 +398,28 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
   };
 
   // ── Derived ───────────────────────────────────────────────
-  const pinnedMsgId = (conversation as { pinnedMessageId?: number | null } | undefined)?.pinnedMessageId;
-  const pinnedMsg = rawMessages?.find(m => m.id === pinnedMsgId) as Msg | undefined;
+  const pinnedMessageIds: number[] = (conversation as any)?.pinnedMessageIds ?? [];
+  const safePinnedIdx = pinnedMessageIds.length > 0 ? pinnedIdx % pinnedMessageIds.length : 0;
+  const pinnedMsgId = pinnedMessageIds[safePinnedIdx];
+  const pinnedMsg = pinnedMsgId != null ? (rawMessages?.find(m => m.id === pinnedMsgId) as Msg | undefined) : undefined;
+
+  const scrollToPinnedMsg = (msgId: number) => {
+    const el = document.getElementById(`msg-${msgId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('ring-2', 'ring-primary', 'ring-offset-0', 'rounded-2xl');
+      setTimeout(() => el.classList.remove('ring-2', 'ring-primary', 'ring-offset-0', 'rounded-2xl'), 1500);
+    }
+  };
+
+  const handlePinnedBannerClick = () => {
+    if (!pinnedMessageIds.length) return;
+    const currentMsgId = pinnedMessageIds[safePinnedIdx];
+    scrollToPinnedMsg(currentMsgId);
+    if (pinnedMessageIds.length > 1) {
+      setPinnedIdx(prev => (prev + 1) % pinnedMessageIds.length);
+    }
+  };
   const title = conversation?.name || conversation?.participants?.find((p: any) => p.id !== user?.id)?.displayName || 'Chat';
   const avatarUrl = conversation?.type === 'direct' ? conversation?.participants?.find((p: any) => p.id !== user?.id)?.avatar : undefined;
   const otherUser = conversation?.participants?.find((p: any) => p.id !== user?.id) as any;
@@ -450,15 +471,23 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
         </button>
       </div>
 
-      {/* ── Pinned message ── */}
-      {pinnedMsg && !pinnedMsg.isDeleted && (
-        <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-primary/10 border-b border-primary/20 text-xs">
+      {/* ── Pinned messages ── */}
+      {pinnedMessageIds.length > 0 && pinnedMsg && !pinnedMsg.isDeleted && (
+        <div
+          onClick={handlePinnedBannerClick}
+          className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-primary/10 border-b border-primary/20 text-xs cursor-pointer hover:bg-primary/15 transition-colors"
+        >
           <Pin className="w-3 h-3 text-primary flex-shrink-0" />
           <div className="flex-1 min-w-0">
-            <span className="text-primary font-medium">Message épinglé · </span>
-            <span className="text-muted-foreground truncate">{pinnedMsg.content || '📷 Image'}</span>
+            <span className="text-primary font-medium">
+              Message épinglé{pinnedMessageIds.length > 1 ? ` ${safePinnedIdx + 1}/${pinnedMessageIds.length}` : ''} · 
+            </span>
+            <span className="text-muted-foreground"> {pinnedMsg.content || '📷 Image'}</span>
           </div>
-          <button onClick={() => handlePin(pinnedMsg)} className="text-muted-foreground hover:text-foreground p-1">
+          <button
+            onClick={(e) => { e.stopPropagation(); handlePin(pinnedMsg); }}
+            className="text-muted-foreground hover:text-foreground p-1 flex-shrink-0"
+          >
             <X className="w-3 h-3" />
           </button>
         </div>
@@ -482,7 +511,7 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
             const swipeOffset = swipeOffsets[msg.id] || 0;
             const translation = translations.find(t => t.msgId === msg.id)?.text ?? null;
             const isTranslating = translatingId === msg.id;
-            const isPinned = pinnedMsgId === msg.id;
+            const isPinned = pinnedMessageIds.includes(msg.id);
             const msgTime = format(new Date(msg.createdAt), 'HH:mm', { locale: fr });
             const isPoll = !!msg.poll;
             const isAudio = !!msg.audioUrl;
@@ -881,8 +910,8 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
                 )}
 
                 <SheetItem
-                  icon={pinnedMsgId === ctxMenu.msgId ? <PinOff size={18} /> : <Pin size={18} />}
-                  label={pinnedMsgId === ctxMenu.msgId ? uiT.chat.unpin : uiT.chat.pin}
+                  icon={pinnedMessageIds.includes(ctxMenu.msgId) ? <PinOff size={18} /> : <Pin size={18} />}
+                  label={pinnedMessageIds.includes(ctxMenu.msgId) ? uiT.chat.unpin : uiT.chat.pin}
                   onClick={() => ctxMsg && handlePin(ctxMsg)}
                   divider
                 />

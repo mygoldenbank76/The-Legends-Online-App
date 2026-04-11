@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, conversationsTable, conversationParticipantsTable, messagesTable, reactionsTable } from "@workspace/db";
+import { db, usersTable, conversationsTable, conversationParticipantsTable, messagesTable, reactionsTable, conversationPinsTable } from "@workspace/db";
 import { eq, and, inArray, desc, sql, ne } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 import { formatUser } from "./users";
@@ -197,9 +197,15 @@ router.get("/conversations/:conversationId", requireAuth, async (req, res): Prom
     .from(usersTable)
     .where(inArray(usersTable.id, participants.map(p => p.userId)));
 
+  const pins = await db.select()
+    .from(conversationPinsTable)
+    .where(eq(conversationPinsTable.conversationId, conversationId))
+    .orderBy(conversationPinsTable.pinnedAt);
+
   res.json({
     ...conv,
     participants: participantUsers.map(formatUser),
+    pinnedMessageIds: pins.map(p => p.messageId),
     createdAt: conv.createdAt.toISOString(),
   });
 });
