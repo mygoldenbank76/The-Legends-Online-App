@@ -37,6 +37,7 @@ const TAB_ORDER: Tab[] = ['groups', 'messages', 'shop', 'settings'];
 
 export default function Home() {
   const { user, logout, refetchUser } = useAuth();
+  const { t } = usePreferences();
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<Tab>('groups');
   const [activeConvId, setActiveConvId] = useState<number | undefined>();
@@ -234,7 +235,7 @@ export default function Home() {
               <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
                 <Zap className="w-8 h-8 text-primary" />
               </div>
-              <p className="text-base font-medium">Sélectionne une conversation</p>
+              <p className="text-base font-medium">{t.home.selectConversation}</p>
             </div>
           )}
         </div>
@@ -375,6 +376,7 @@ function TabContent({
 
 /* ── Shop — iframe via proxy serveur (évite X-Frame-Options) ── */
 function ShopPlaceholder() {
+  const { t } = usePreferences();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const SHOP_URL = 'https://www.goldenvibeofficiel.com';
@@ -392,7 +394,7 @@ function ShopPlaceholder() {
             </div>
             <div className="flex flex-col items-center gap-1">
               <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-              <span className="text-xs text-muted-foreground mt-1">Chargement du shop…</span>
+              <span className="text-xs text-muted-foreground mt-1">{t.home.loadingShop}</span>
             </div>
           </div>
         )}
