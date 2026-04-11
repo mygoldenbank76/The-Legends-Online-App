@@ -159,6 +159,8 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const [prevMsgCount, setPrevMsgCount] = useState(0);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
+  const [linkMode, setLinkMode] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
 
   // New UI states
   const [attachmentSheetOpen, setAttachmentSheetOpen] = useState(false);
@@ -308,19 +310,45 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     setSelectionRange(start !== end ? { start, end } : null);
   };
 
-  const handleFormat = (fmt: FormatType, url?: string) => {
+  const handleFormat = (fmt: FormatType) => {
     const ta = textareaRef.current;
     if (!ta) return;
     const start = selectionRange?.start ?? ta.selectionStart ?? 0;
     const end = selectionRange?.end ?? ta.selectionEnd ?? 0;
     if (start === end) return;
-    const { newText, newEnd } = applyFormat(content, start, end, fmt, url);
+    const { newText, newEnd } = applyFormat(content, start, end, fmt);
     setContent(newText);
     setSelectionRange(null);
-    setTimeout(() => {
-      ta.focus();
-      ta.setSelectionRange(newEnd, newEnd);
-    }, 0);
+    setTimeout(() => { ta.focus(); ta.setSelectionRange(newEnd, newEnd); }, 0);
+  };
+
+  const handleLinkRequest = () => {
+    setLinkMode(true);
+    setLinkUrl('');
+  };
+
+  const handleLinkConfirm = () => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = selectionRange?.start ?? ta.selectionStart ?? 0;
+    const end = selectionRange?.end ?? ta.selectionEnd ?? 0;
+    const url = linkUrl.trim()
+      ? (linkUrl.startsWith('http') ? linkUrl : `https://${linkUrl}`)
+      : '';
+    if (start !== end && url) {
+      const { newText, newEnd } = applyFormat(content, start, end, 'link', url);
+      setContent(newText);
+      setTimeout(() => { ta.focus(); ta.setSelectionRange(newEnd, newEnd); }, 0);
+    }
+    setLinkMode(false);
+    setLinkUrl('');
+    setSelectionRange(null);
+  };
+
+  const handleLinkCancel = () => {
+    setLinkMode(false);
+    setLinkUrl('');
+    setTimeout(() => textareaRef.current?.focus(), 0);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -1049,8 +1077,19 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       </AnimatePresence>
 
       {/* ── Input bar — Base44 style ── */}
-      <div className="flex-shrink-0 px-3 py-3 glass border-t border-border/50">
-        <div className="flex items-end gap-2">
+      <div className="flex-shrink-0 glass border-t border-border/50">
+        {/* Formatting toolbar — shown BELOW messages, ABOVE the input row */}
+        <FormattingToolbar
+          show={!!selectionRange || linkMode}
+          linkMode={linkMode}
+          linkUrl={linkUrl}
+          onLinkUrlChange={setLinkUrl}
+          onLinkConfirm={handleLinkConfirm}
+          onLinkCancel={handleLinkCancel}
+          onFormat={handleFormat}
+          onLinkRequest={handleLinkRequest}
+        />
+        <div className="flex items-end gap-2 px-3 py-3">
           {/* + Attachment button */}
           {!voiceActive && (
             <button
@@ -1070,12 +1109,6 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             />
           ) : (
             <>
-              {/* Formatting toolbar — shown when text is selected */}
-              <FormattingToolbar
-                show={!!selectionRange}
-                onFormat={handleFormat}
-              />
-
               {/* Text input */}
               <div className="flex-1 glass rounded-2xl border border-border/50 focus-within:border-primary/40 transition-colors flex items-end">
                 <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
@@ -1099,7 +1132,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   onChange={handleContentChange}
                   onKeyDown={handleKeyDown}
                   onSelect={handleTextSelect}
-                  onBlur={() => setTimeout(() => setSelectionRange(null), 150)}
+                  onBlur={() => { if (!linkMode) setTimeout(() => setSelectionRange(null), 150); }}
                   placeholder={editState ? uiT.chat.editPlaceholder : uiT.chat.placeholder}
                   className="min-h-[40px] max-h-[120px] border-0 focus-visible:ring-0 resize-none py-2.5 px-0 bg-transparent shadow-none text-sm"
                   rows={1}
