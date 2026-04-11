@@ -553,6 +553,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
   const ctxMsg = messages?.find(m => m.id === ctxMenu?.msgId);
   const isMineCtx = ctxMsg?.senderId === user?.id;
+  const canDeleteCtx = isMineCtx || !!user?.isAdmin;
 
   return (
     <div className="relative w-full h-full overflow-hidden">
@@ -1159,7 +1160,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   <SheetItem icon={<Pencil size={18} />} label={uiT.chat.edit} onClick={() => ctxMsg && handleEdit(ctxMsg)} divider />
                 )}
 
-                {isMineCtx && (
+                {canDeleteCtx && (
                   deleteConfirm === ctxMenu.msgId ? (
                     <div className="flex items-center gap-3 px-4 py-3.5 border-t border-white/5" onClick={(e) => e.stopPropagation()}>
                       <span className="text-sm text-red-400 flex-1">{uiT.chat.confirmDelete}</span>

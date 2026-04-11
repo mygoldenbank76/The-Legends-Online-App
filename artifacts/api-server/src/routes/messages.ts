@@ -383,7 +383,11 @@ router.delete("/messages/:messageId", requireAuth, async (req, res): Promise<voi
 
   const [msg] = await db.select().from(messagesTable).where(eq(messagesTable.id, messageId));
   if (!msg) { res.status(404).json({ error: "Message not found" }); return; }
-  if (msg.senderId !== userId) { res.status(403).json({ error: "Not authorized" }); return; }
+
+  if (msg.senderId !== userId) {
+    const [requestingUser] = await db.select({ isAdmin: usersTable.isAdmin }).from(usersTable).where(eq(usersTable.id, userId));
+    if (!requestingUser?.isAdmin) { res.status(403).json({ error: "Not authorized" }); return; }
+  }
 
   const conversationId = msg.conversationId;
 
