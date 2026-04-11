@@ -10,6 +10,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth-context';
 import { useSocket } from '@/lib/socket-context';
 import { usePreferences } from '@/lib/preferences-context';
+import { translateGroupName } from '@/lib/i18n';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -109,7 +110,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const { user } = useAuth();
   const { socket, joinConversation, emitTyping, typingUsers } = useSocket();
   const queryClient = useQueryClient();
-  const { translateLanguage, t: uiT } = usePreferences();
+  const { translateLanguage, t: uiT, appLanguage } = usePreferences();
 
   const { data: rawMessages, isLoading } = useListMessages(conversationId);
   const { data: conversation } = useGetConversation(conversationId);
@@ -521,7 +522,8 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       setPinnedIdx(prev => (prev + 1) % pinnedMessageIds.length);
     }
   };
-  const title = conversation?.name || conversation?.participants?.find((p: any) => p.id !== user?.id)?.displayName || 'Chat';
+  const rawTitle = conversation?.name || conversation?.participants?.find((p: any) => p.id !== user?.id)?.displayName || 'Chat';
+  const title = conversation?.type === 'group' ? translateGroupName(rawTitle, appLanguage) : rawTitle;
   const avatarUrl = conversation?.type === 'direct' ? conversation?.participants?.find((p: any) => p.id !== user?.id)?.avatar : undefined;
   const otherUser = conversation?.participants?.find((p: any) => p.id !== user?.id) as any;
   const isOnline = otherUser?.isOnline;
