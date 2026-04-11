@@ -993,9 +993,11 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             <span className="text-xs text-muted-foreground italic">
               {(() => {
                 const typers = typingUsers.filter(u => u.conversationId === conversationId);
-                if (typers.length === 1) return `${typers[0].displayName} est en train d'écrire…`;
-                if (typers.length === 2) return `${typers[0].displayName} et ${typers[1].displayName} écrivent…`;
-                return `${typers.length} personnes écrivent…`;
+                if (typers.length === 1)
+                  return uiT.chat.typingOne.replace('{name}', typers[0].displayName);
+                if (typers.length === 2)
+                  return uiT.chat.typingTwo.replace('{a}', typers[0].displayName).replace('{b}', typers[1].displayName);
+                return uiT.chat.typingMany.replace('{n}', String(typers.length));
               })()}
             </span>
           </motion.div>

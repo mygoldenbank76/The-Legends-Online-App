@@ -68,6 +68,9 @@ type Dict = {
     cancelDelete: string;
     placeholder: string;
     editPlaceholder: string;
+    typingOne: string;
+    typingTwo: string;
+    typingMany: string;
   };
   groupInfo: {
     members: string;
@@ -179,6 +182,9 @@ export const i18n: Record<AppLang, Dict> = {
       cancelDelete: 'Annuler',
       placeholder: 'Écrire un message...',
       editPlaceholder: 'Modifier…',
+      typingOne: '{name} écrit…',
+      typingTwo: '{a} et {b} écrivent…',
+      typingMany: '{n} personnes écrivent…',
     },
     groupInfo: {
       members: 'membres',
@@ -289,6 +295,9 @@ export const i18n: Record<AppLang, Dict> = {
       cancelDelete: 'Cancel',
       placeholder: 'Write a message...',
       editPlaceholder: 'Edit…',
+      typingOne: '{name} is typing…',
+      typingTwo: '{a} and {b} are typing…',
+      typingMany: '{n} people are typing…',
     },
     groupInfo: {
       members: 'members',
@@ -402,6 +411,9 @@ export const i18n: Record<AppLang, Dict> = {
       cancelDelete: 'Cancelar',
       placeholder: 'Escribe un mensaje...',
       editPlaceholder: 'Editar…',
+      typingOne: '{name} está escribiendo…',
+      typingTwo: '{a} y {b} están escribiendo…',
+      typingMany: '{n} personas están escribiendo…',
     },
     groupInfo: {
       members: 'miembros',
@@ -515,6 +527,9 @@ export const i18n: Record<AppLang, Dict> = {
       cancelDelete: 'إلغاء',
       placeholder: 'اكتب رسالة...',
       editPlaceholder: 'تعديل...',
+      typingOne: '{name} يكتب…',
+      typingTwo: '{a} و {b} يكتبان…',
+      typingMany: '{n} أشخاص يكتبون…',
     },
     groupInfo: {
       members: 'أعضاء',
@@ -628,6 +643,9 @@ export const i18n: Record<AppLang, Dict> = {
       cancelDelete: 'Cancelar',
       placeholder: 'Escreva uma mensagem...',
       editPlaceholder: 'Editar…',
+      typingOne: '{name} está digitando…',
+      typingTwo: '{a} e {b} estão digitando…',
+      typingMany: '{n} pessoas estão digitando…',
     },
     groupInfo: {
       members: 'membros',
@@ -741,6 +759,9 @@ export const i18n: Record<AppLang, Dict> = {
       cancelDelete: 'Abbrechen',
       placeholder: 'Nachricht schreiben...',
       editPlaceholder: 'Bearbeiten…',
+      typingOne: '{name} schreibt…',
+      typingTwo: '{a} und {b} schreiben…',
+      typingMany: '{n} Personen schreiben…',
     },
     groupInfo: {
       members: 'Mitglieder',

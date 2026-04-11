@@ -90,15 +90,34 @@ io.on("connection", async (socket) => {
     }
   });
 
-  // Typing indicator
-  socket.on("typing", ({ conversationId, isTyping }: { conversationId: number; isTyping: boolean }) => {
+  // Typing indicator — emit directly to all member sockets (bypasses room state issues)
+  socket.on("typing", async ({ conversationId, isTyping }: { conversationId: number; isTyping: boolean }) => {
     if (!userId) return;
-    socket.to(`conversation:${conversationId}`).emit("typing", {
+    const payload = {
       userId,
-      displayName: socket.data.displayName ?? "Quelqu'un",
+      displayName: socket.data.displayName ?? "...",
       conversationId,
       isTyping,
-    });
+    };
+    try {
+      const members = await db
+        .select({ userId: conversationParticipantsTable.userId })
+        .from(conversationParticipantsTable)
+        .where(eq(conversationParticipantsTable.conversationId, conversationId));
+
+      for (const member of members) {
+        if (member.userId === userId) continue; // don't echo back to sender
+        const sockets = userSockets.get(member.userId);
+        if (sockets) {
+          for (const sid of sockets) {
+            io.to(sid).emit("typing", payload);
+          }
+        }
+      }
+    } catch {
+      // Fallback to room broadcast if DB query fails
+      socket.to(`conversation:${conversationId}`).emit("typing", payload);
+    }
   });
 
   socket.on("disconnect", () => {
