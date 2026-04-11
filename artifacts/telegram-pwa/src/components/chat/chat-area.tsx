@@ -9,6 +9,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth-context';
 import { useSocket } from '@/lib/socket-context';
+import { usePreferences } from '@/lib/preferences-context';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -70,8 +71,8 @@ type ChatAreaProps = { conversationId: number; onBack?: () => void };
 type CtxMenu = { msgId: number } | null;
 type TranslateEntry = { msgId: number; text: string };
 
-async function translateText(text: string): Promise<string> {
-  const r = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=autodetect|fr`);
+async function translateText(text: string, targetLang: string): Promise<string> {
+  const r = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=autodetect|${targetLang}`);
   const d = await r.json();
   const translated = d.responseData?.translatedText;
   if (!translated || translated === text || d.responseStatus !== 200) {
@@ -106,6 +107,7 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
   const { user } = useAuth();
   const { socket, joinConversation } = useSocket();
   const queryClient = useQueryClient();
+  const { translateLanguage, t: uiT } = usePreferences();
 
   const { data: rawMessages, isLoading } = useListMessages(conversationId);
   const { data: conversation } = useGetConversation(conversationId);
@@ -349,7 +351,7 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
       setTranslations(p => p.filter(t => t.msgId !== msg.id)); return;
     }
     setTranslatingId(msg.id);
-    try { const text = await translateText(msg.content); setTranslations(p => [...p, { msgId: msg.id, text }]); }
+    try { const text = await translateText(msg.content, translateLanguage); setTranslations(p => [...p, { msgId: msg.id, text }]); }
     catch { }
     finally { setTranslatingId(null); }
   };
@@ -781,7 +783,7 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={editState ? 'Modifier…' : 'Écrire un message...'}
+                  placeholder={editState ? uiT.chat.editPlaceholder : uiT.chat.placeholder}
                   className="min-h-[40px] max-h-[120px] border-0 focus-visible:ring-0 resize-none py-2.5 px-0 bg-transparent shadow-none text-sm"
                   rows={1}
                 />
@@ -853,12 +855,12 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
               </div>
 
               <div className="glass-strong rounded-2xl overflow-hidden">
-                <SheetItem icon={<Reply size={18} />} label="Répondre" onClick={() => ctxMsg && handleReply(ctxMsg)} />
+                <SheetItem icon={<Reply size={18} />} label={uiT.chat.reply} onClick={() => ctxMsg && handleReply(ctxMsg)} />
 
                 {ctxMsg.content && (
                   <SheetItem
                     icon={<Copy size={18} />}
-                    label="Copier"
+                    label={uiT.chat.copy}
                     onClick={() => {
                       if (ctxMsg?.content) {
                         navigator.clipboard.writeText(ctxMsg.content).catch(() => {});
@@ -872,7 +874,7 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
                 {ctxMsg.content && (
                   <SheetItem
                     icon={translatingId === ctxMenu.msgId ? <Loader2 size={18} className="animate-spin" /> : <Languages size={18} />}
-                    label={translations.find(t => t.msgId === ctxMenu.msgId) ? 'Masquer traduction' : 'Traduire'}
+                    label={translations.find(t => t.msgId === ctxMenu.msgId) ? uiT.chat.hideTranslation : uiT.chat.translate}
                     onClick={() => ctxMsg && handleTranslate(ctxMsg)}
                     divider
                   />
@@ -880,30 +882,30 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
 
                 <SheetItem
                   icon={pinnedMsgId === ctxMenu.msgId ? <PinOff size={18} /> : <Pin size={18} />}
-                  label={pinnedMsgId === ctxMenu.msgId ? 'Désépingler' : 'Épingler'}
+                  label={pinnedMsgId === ctxMenu.msgId ? uiT.chat.unpin : uiT.chat.pin}
                   onClick={() => ctxMsg && handlePin(ctxMsg)}
                   divider
                 />
 
                 {isMineCtx && ctxMsg.content && !ctxMsg.poll && (
-                  <SheetItem icon={<Pencil size={18} />} label="Modifier" onClick={() => ctxMsg && handleEdit(ctxMsg)} divider />
+                  <SheetItem icon={<Pencil size={18} />} label={uiT.chat.edit} onClick={() => ctxMsg && handleEdit(ctxMsg)} divider />
                 )}
 
                 {isMineCtx && (
                   deleteConfirm === ctxMenu.msgId ? (
                     <div className="flex items-center gap-3 px-4 py-3.5 border-t border-white/5" onClick={(e) => e.stopPropagation()}>
-                      <span className="text-sm text-red-400 flex-1">Confirmer la suppression ?</span>
+                      <span className="text-sm text-red-400 flex-1">{uiT.chat.confirmDelete}</span>
                       <button onClick={() => handleDeleteConfirm(ctxMenu.msgId)} className="text-xs text-red-400 font-semibold hover:text-red-300 px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20">
-                        Supprimer
+                        {uiT.chat.delete}
                       </button>
                       <button onClick={() => setDeleteConfirm(null)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1">
-                        Annuler
+                        {uiT.chat.cancelDelete}
                       </button>
                     </div>
                   ) : (
                     <SheetItem
                       icon={<Trash2 size={18} />}
-                      label="Supprimer"
+                      label={uiT.chat.delete}
                       onClick={() => setDeleteConfirm(ctxMenu.msgId)}
                       divider
                       danger

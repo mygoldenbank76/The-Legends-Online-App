@@ -8,6 +8,7 @@ import Register from "@/pages/register";
 import Home from "@/pages/home";
 import { AuthProvider } from "@/lib/auth-context";
 import { SocketProvider } from "@/lib/socket-context";
+import { PreferencesProvider } from "@/lib/preferences-context";
 
 const queryClient = new QueryClient();
 
@@ -27,11 +28,13 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <AuthProvider>
-            <SocketProvider>
-              <AppRouter />
-            </SocketProvider>
-          </AuthProvider>
+          <PreferencesProvider>
+            <AuthProvider>
+              <SocketProvider>
+                <AppRouter />
+              </SocketProvider>
+            </AuthProvider>
+          </PreferencesProvider>
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

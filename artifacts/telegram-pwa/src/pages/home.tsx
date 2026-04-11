@@ -5,16 +5,18 @@ import { ConversationList } from '@/components/chat/conversation-list';
 import { useAuth } from '@/lib/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AnimatedBackground } from '@/components/animated-background';
-import { Users, MessageSquare, ShoppingBag, Settings, Zap, LogOut } from 'lucide-react';
+import { Users, MessageSquare, ShoppingBag, Settings, Zap, LogOut, Globe, Languages, ChevronDown } from 'lucide-react';
+import { usePreferences } from '@/lib/preferences-context';
+import { SUPPORTED_APP_LANGUAGES, SUPPORTED_TRANSLATE_LANGUAGES } from '@/lib/i18n';
 
 type Tab = 'groups' | 'messages' | 'shop' | 'settings';
 
-const NAV_ITEMS: { id: Tab; icon: typeof Users; label: string }[] = [
-  { id: 'groups',   icon: Users,         label: 'Groupes'    },
-  { id: 'messages', icon: MessageSquare, label: 'Messages'   },
-  { id: 'shop',     icon: ShoppingBag,   label: 'Shop'       },
-  { id: 'settings', icon: Settings,      label: 'Paramètres' },
-];
+const NAV_ICONS: Record<Tab, typeof Users> = {
+  groups: Users,
+  messages: MessageSquare,
+  shop: ShoppingBag,
+  settings: Settings,
+};
 
 const TAB_ORDER: Tab[] = ['groups', 'messages', 'shop', 'settings'];
 
@@ -201,22 +203,28 @@ function DesktopHeader({ user, onLogout }: { user: { displayName: string }; onLo
 
 /* ── Desktop tab pills ── */
 function DesktopTabs({ activeTab, onSelect }: { activeTab: Tab; onSelect: (t: Tab) => void }) {
+  const { t } = usePreferences();
+  const tabs: Tab[] = ['groups', 'messages', 'shop', 'settings'];
   return (
     <div className="flex-shrink-0 flex gap-1 px-3 py-2 border-b border-border/30">
-      {NAV_ITEMS.map(({ id, icon: Icon, label }) => (
-        <button
-          key={id}
-          onClick={() => onSelect(id)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-            activeTab === id
-              ? 'bg-primary/15 text-primary border border-primary/20'
-              : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-          }`}
-        >
-          <Icon className="w-3.5 h-3.5" />
-          {label}
-        </button>
-      ))}
+      {tabs.map((id) => {
+        const Icon = NAV_ICONS[id];
+        const label = t.tabs[id];
+        return (
+          <button
+            key={id}
+            onClick={() => onSelect(id)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              activeTab === id
+                ? 'bg-primary/15 text-primary border border-primary/20'
+                : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+            }`}
+          >
+            <Icon className="w-3.5 h-3.5" />
+            {label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -242,20 +250,25 @@ function MobileHeader({ user }: { user: { displayName: string } }) {
 
 /* ── Mobile bottom nav ── */
 function MobileBottomNav({ activeTab, onSelect }: { activeTab: Tab; onSelect: (t: Tab) => void }) {
+  const { t } = usePreferences();
+  const tabs: Tab[] = ['groups', 'messages', 'shop', 'settings'];
   return (
     <nav className="flex-shrink-0 glass border-t border-border/50 flex items-stretch safe-area-bottom">
-      {NAV_ITEMS.map(({ id, icon: Icon, label }) => (
-        <button
-          key={id}
-          onClick={() => onSelect(id)}
-          className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-all ${
-            activeTab === id ? 'text-primary' : 'text-muted-foreground'
-          }`}
-        >
-          <Icon className="w-5 h-5" />
-          <span className="text-[10px] font-medium">{label}</span>
-        </button>
-      ))}
+      {tabs.map((id) => {
+        const Icon = NAV_ICONS[id];
+        return (
+          <button
+            key={id}
+            onClick={() => onSelect(id)}
+            className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-all ${
+              activeTab === id ? 'text-primary' : 'text-muted-foreground'
+            }`}
+          >
+            <Icon className="w-5 h-5" />
+            <span className="text-[10px] font-medium">{t.tabs[id]}</span>
+          </button>
+        );
+      })}
     </nav>
   );
 }
@@ -394,8 +407,15 @@ function SettingsPage({
   user: { displayName: string; username: string; avatar?: string | null };
   onLogout: () => void;
 }) {
+  const { t, appLanguage, setAppLanguage, translateLanguage, setTranslateLanguage } = usePreferences();
+  const [openLangMenu, setOpenLangMenu] = useState<'app' | 'translate' | null>(null);
+
+  const currentAppLang = SUPPORTED_APP_LANGUAGES.find(l => l.code === appLanguage);
+  const currentTranslateLang = SUPPORTED_TRANSLATE_LANGUAGES.find(l => l.code === translateLanguage);
+
   return (
-    <div className="flex flex-col h-full p-4 gap-4">
+    <div className="flex flex-col h-full overflow-y-auto p-4 gap-4">
+      {/* Profile card */}
       <div className="glass rounded-2xl p-4 flex items-center gap-4">
         <div className="w-14 h-14 rounded-2xl bg-primary/20 flex items-center justify-center">
           <span className="text-2xl font-bold text-primary">{user.displayName.substring(0, 2).toUpperCase()}</span>
@@ -406,13 +426,93 @@ function SettingsPage({
         </div>
       </div>
 
+      {/* Preferences section */}
+      <div>
+        <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider px-1 mb-2">{t.settings.preferences}</p>
+        <div className="glass rounded-2xl overflow-hidden divide-y divide-white/5">
+
+          {/* App language */}
+          <div className="relative">
+            <button
+              onClick={() => setOpenLangMenu(openLangMenu === 'app' ? null : 'app')}
+              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 transition-colors text-left"
+            >
+              <div className="w-8 h-8 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
+                <Globe className="w-4 h-4 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">{t.settings.appLanguage}</p>
+                <p className="text-xs text-muted-foreground">{t.settings.appLanguageDesc}</p>
+              </div>
+              <div className="flex items-center gap-1.5 text-sm text-primary font-medium">
+                <span>{currentAppLang?.flag}</span>
+                <span className="hidden sm:inline">{currentAppLang?.label}</span>
+                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${openLangMenu === 'app' ? 'rotate-180' : ''}`} />
+              </div>
+            </button>
+            {openLangMenu === 'app' && (
+              <div className="glass-strong border-t border-white/5 py-1">
+                {SUPPORTED_APP_LANGUAGES.map(lang => (
+                  <button
+                    key={lang.code}
+                    onClick={() => { setAppLanguage(lang.code); setOpenLangMenu(null); }}
+                    className={`w-full flex items-center gap-3 px-5 py-2.5 text-sm transition-colors hover:bg-white/5 ${appLanguage === lang.code ? 'text-primary font-semibold' : 'text-foreground'}`}
+                  >
+                    <span className="text-base">{lang.flag}</span>
+                    <span>{lang.label}</span>
+                    {appLanguage === lang.code && <span className="ml-auto text-primary text-xs">✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Translation language */}
+          <div className="relative">
+            <button
+              onClick={() => setOpenLangMenu(openLangMenu === 'translate' ? null : 'translate')}
+              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 transition-colors text-left"
+            >
+              <div className="w-8 h-8 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
+                <Languages className="w-4 h-4 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">{t.settings.translateLanguage}</p>
+                <p className="text-xs text-muted-foreground">{t.settings.translateLanguageDesc}</p>
+              </div>
+              <div className="flex items-center gap-1.5 text-sm text-primary font-medium">
+                <span>{currentTranslateLang?.flag}</span>
+                <span className="hidden sm:inline">{currentTranslateLang?.label}</span>
+                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${openLangMenu === 'translate' ? 'rotate-180' : ''}`} />
+              </div>
+            </button>
+            {openLangMenu === 'translate' && (
+              <div className="glass-strong border-t border-white/5 py-1">
+                {SUPPORTED_TRANSLATE_LANGUAGES.map(lang => (
+                  <button
+                    key={lang.code}
+                    onClick={() => { setTranslateLanguage(lang.code); setOpenLangMenu(null); }}
+                    className={`w-full flex items-center gap-3 px-5 py-2.5 text-sm transition-colors hover:bg-white/5 ${translateLanguage === lang.code ? 'text-primary font-semibold' : 'text-foreground'}`}
+                  >
+                    <span className="text-base">{lang.flag}</span>
+                    <span>{lang.label}</span>
+                    {translateLanguage === lang.code && <span className="ml-auto text-primary text-xs">✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Logout */}
       <div className="glass rounded-2xl overflow-hidden">
         <button
           onClick={onLogout}
           className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-red-500/10 transition-colors text-red-400 text-left"
         >
           <LogOut className="w-5 h-5" />
-          <span className="font-medium">Se déconnecter</span>
+          <span className="font-medium">{t.settings.logout}</span>
         </button>
       </div>
     </div>
