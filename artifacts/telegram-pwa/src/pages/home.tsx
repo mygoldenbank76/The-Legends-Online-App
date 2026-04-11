@@ -5,8 +5,9 @@ import { ConversationList } from '@/components/chat/conversation-list';
 import { useAuth } from '@/lib/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AnimatedBackground } from '@/components/animated-background';
-import { Users, MessageSquare, ShoppingBag, Settings, Zap, LogOut, Globe, Languages, ChevronDown, Shield, X, ChevronRight } from 'lucide-react';
+import { Users, MessageSquare, ShoppingBag, Settings, Zap, LogOut, Globe, Languages, ChevronDown, Shield, X, ChevronRight, Pencil } from 'lucide-react';
 import { AdminPanel } from '@/components/admin/admin-panel';
+import { ProfileEditorSheet } from '@/components/profile/profile-editor-sheet';
 import { usePreferences } from '@/lib/preferences-context';
 import { SUPPORTED_APP_LANGUAGES, SUPPORTED_TRANSLATE_LANGUAGES } from '@/lib/i18n';
 
@@ -22,7 +23,7 @@ const NAV_ICONS: Record<Tab, typeof Users> = {
 const TAB_ORDER: Tab[] = ['groups', 'messages', 'shop', 'settings'];
 
 export default function Home() {
-  const { user, logout } = useAuth();
+  const { user, logout, refetchUser } = useAuth();
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<Tab>('groups');
   const [activeConvId, setActiveConvId] = useState<number | undefined>();
@@ -97,6 +98,7 @@ export default function Home() {
               onSelectConv={handleSelectConv}
               isMobile={false}
               onLogout={logout}
+              onRefetchUser={refetchUser}
               user={user}
             />
           </div>
@@ -134,6 +136,7 @@ export default function Home() {
                       onSelectConv={handleSelectConv}
                       isMobile
                       onLogout={logout}
+                      onRefetchUser={refetchUser}
                       user={user}
                     />
                   </motion.div>
@@ -276,14 +279,15 @@ function MobileBottomNav({ activeTab, onSelect }: { activeTab: Tab; onSelect: (t
 
 /* ── Tab content switcher ── */
 function TabContent({
-  tab, activeConvId, onSelectConv, isMobile, onLogout, user,
+  tab, activeConvId, onSelectConv, isMobile, onLogout, onRefetchUser, user,
 }: {
   tab: Tab;
   activeConvId?: number;
   onSelectConv: (id: number) => void;
   isMobile: boolean;
   onLogout: () => void;
-  user: { id: number; displayName: string; username: string; avatar?: string | null };
+  onRefetchUser: () => void;
+  user: { id: number; displayName: string; username: string; avatar?: string | null; bio?: string | null };
 }) {
   if (tab === 'groups') {
     return (
@@ -309,7 +313,7 @@ function TabContent({
     return <ShopPlaceholder />;
   }
   if (tab === 'settings') {
-    return <SettingsPage user={user} onLogout={onLogout} />;
+    return <SettingsPage user={user} onLogout={onLogout} onRefetchUser={onRefetchUser} />;
   }
   return null;
 }
@@ -403,30 +407,57 @@ function ShopPlaceholder() {
 
 /* ── Settings page ── */
 function SettingsPage({
-  user, onLogout,
+  user, onLogout, onRefetchUser,
 }: {
-  user: { displayName: string; username: string; avatar?: string | null; isAdmin?: boolean };
+  user: { displayName: string; username: string; avatar?: string | null; bio?: string | null; isAdmin?: boolean };
   onLogout: () => void;
+  onRefetchUser: () => void;
 }) {
   const { t, appLanguage, setAppLanguage, translateLanguage, setTranslateLanguage } = usePreferences();
   const [openLangMenu, setOpenLangMenu] = useState<'app' | 'translate' | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showProfileEditor, setShowProfileEditor] = useState(false);
 
   const currentAppLang = SUPPORTED_APP_LANGUAGES.find(l => l.code === appLanguage);
   const currentTranslateLang = SUPPORTED_TRANSLATE_LANGUAGES.find(l => l.code === translateLanguage);
 
   return (
     <div className="flex flex-col h-full overflow-y-auto p-4 gap-4">
-      {/* Profile card */}
-      <div className="glass rounded-2xl p-4 flex items-center gap-4">
-        <div className="w-14 h-14 rounded-2xl bg-primary/20 flex items-center justify-center">
-          <span className="text-2xl font-bold text-primary">{user.displayName.substring(0, 2).toUpperCase()}</span>
+      {/* Profile card — clickable to edit */}
+      <button
+        onClick={() => setShowProfileEditor(true)}
+        className="glass rounded-2xl p-4 flex items-center gap-4 w-full text-left hover:bg-white/5 transition-colors group"
+      >
+        <div className="relative flex-shrink-0">
+          <div className="w-16 h-16 rounded-2xl bg-primary/20 overflow-hidden flex items-center justify-center">
+            {user.avatar ? (
+              <img src={user.avatar} alt="avatar" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-2xl font-bold text-primary">{user.displayName.substring(0, 2).toUpperCase()}</span>
+            )}
+          </div>
+          <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <Pencil className="w-2.5 h-2.5 text-white" />
+          </div>
         </div>
-        <div>
-          <p className="font-bold text-base">{user.displayName}</p>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-base leading-tight">{user.displayName}</p>
           <p className="text-sm text-muted-foreground">@{user.username}</p>
+          {user.bio && (
+            <p className="text-xs text-muted-foreground/70 mt-1 truncate">{user.bio}</p>
+          )}
         </div>
-      </div>
+        <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+      </button>
+
+      {/* Profile editor sheet */}
+      {showProfileEditor && (
+        <ProfileEditorSheet
+          user={user}
+          onClose={() => setShowProfileEditor(false)}
+          onSaved={() => { onRefetchUser(); setShowProfileEditor(false); }}
+        />
+      )}
 
       {/* Preferences section */}
       <div>

@@ -10,6 +10,7 @@ type AuthContextType = {
   login: ReturnType<typeof useLogin>['mutateAsync'];
   register: ReturnType<typeof useRegister>['mutateAsync'];
   logout: () => void;
+  refetchUser: () => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -84,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login: loginMutation.mutateAsync,
         register: registerMutation.mutateAsync,
         logout: handleLogout,
+        refetchUser: refetch,
       }}
     >
       {children}

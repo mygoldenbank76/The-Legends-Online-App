@@ -13,6 +13,7 @@ function formatUser(user: typeof usersTable.$inferSelect) {
     username: user.username,
     displayName: user.displayName,
     avatar: user.avatar,
+    bio: user.bio || null,
     isOnline: user.isOnline,
     isAdmin: user.isAdmin,
     isBanned: user.isBanned,
