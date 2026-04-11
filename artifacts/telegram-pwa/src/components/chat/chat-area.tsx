@@ -401,6 +401,9 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
     ? `vu ${format(new Date(otherUser.lastSeen), 'HH:mm', { locale: fr })}`
     : 'hors ligne';
 
+  const isGroup = conversation?.type === 'group';
+  const memberCount = (conversation as any)?.participants?.length ?? 0;
+
   const ctxMsg = messages?.find(m => m.id === ctxMenu?.msgId);
   const isMineCtx = ctxMsg?.senderId === user?.id;
 
@@ -427,10 +430,10 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
         </div>
         <div className="flex flex-col flex-1 min-w-0">
           <span className="font-semibold text-sm leading-tight text-foreground truncate">{title}</span>
-          <span className={`text-xs leading-tight ${isOnline ? 'text-green-400' : 'text-muted-foreground'}`}>
-            {isOnline ? 'en ligne' : (conversation?.type === 'group'
-              ? `${(conversation as any)?.participants?.length ?? 0} membres`
-              : lastSeen)}
+          <span className={`text-xs leading-tight ${!isGroup && isOnline ? 'text-green-400' : 'text-muted-foreground'}`}>
+            {isGroup
+              ? `${memberCount} membre${memberCount !== 1 ? 's' : ''}`
+              : (isOnline ? 'en ligne' : lastSeen)}
           </span>
         </div>
         <button
@@ -484,6 +487,7 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
             return (
               <div
                 key={msg.id}
+                id={`msg-${msg.id}`}
                 className={`flex items-end gap-2 ${isMine ? 'justify-end' : 'justify-start'} ${isSameAuthor ? 'mt-0.5' : 'mt-3'}`}
               >
                 {/* Avatar */}
@@ -548,16 +552,42 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
                       : 'bg-card text-card-foreground border border-border rounded-bl-sm'
                     }`}
                   >
-                    {/* Reply preview inside bubble */}
-                    {msg.replyTo && (
-                      <div className={`mb-2 rounded-lg overflow-hidden border-l-[3px] border-primary pl-2 pr-2 py-1 text-xs
-                        ${isMine ? 'bg-black/10' : 'bg-background/60'}`}>
-                        <p className="font-semibold text-primary text-[11px] mb-0.5 truncate">
-                          {msg.replyTo.senderId === user?.id ? 'Vous' : msg.replyTo.sender?.displayName}
-                        </p>
-                        <p className={`truncate ${isMine ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                          {msg.replyTo.content || (msg.replyTo.audioUrl ? '🎤 Message vocal' : '📷 Image')}
-                        </p>
+                    {/* Reply preview inside bubble — WhatsApp style */}
+                    {msg.replyTo && !msg.replyTo.isDeleted && (
+                      <div
+                        className={`mb-2 -mx-1 rounded-xl overflow-hidden flex cursor-pointer
+                          ${isMine ? 'bg-white/10' : 'bg-black/10'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const el = document.getElementById(`msg-${msg.replyTo!.id}`);
+                          el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }}
+                      >
+                        {/* Accent bar */}
+                        <div className={`w-1 flex-shrink-0 ${isMine ? 'bg-white/60' : 'bg-primary'}`} />
+                        {/* Content */}
+                        <div className="flex-1 min-w-0 px-2.5 py-1.5">
+                          <p className={`text-[11px] font-bold leading-none mb-1 truncate
+                            ${isMine ? 'text-white/90' : 'text-primary'}`}>
+                            {msg.replyTo.senderId === user?.id ? 'Vous' : msg.replyTo.sender?.displayName}
+                          </p>
+                          <p className={`text-xs leading-snug line-clamp-2
+                            ${isMine ? 'text-white/70' : 'text-muted-foreground'}`}>
+                            {msg.replyTo.audioUrl
+                              ? '🎤 Message vocal'
+                              : msg.replyTo.imageUrl
+                              ? '📷 Image'
+                              : msg.replyTo.content || ''}
+                          </p>
+                        </div>
+                        {/* Thumbnail if image */}
+                        {msg.replyTo.imageUrl && (
+                          <img
+                            src={msg.replyTo.imageUrl}
+                            alt="reply"
+                            className="w-12 h-12 object-cover flex-shrink-0"
+                          />
+                        )}
                       </div>
                     )}
 
