@@ -70,7 +70,11 @@ export function AttachmentSheet({ open, onClose, onCamera, onGallery, onDocument
                 {items.map(item => (
                   <button
                     key={item.key}
-                    onClick={() => { handlers[item.key](); onClose(); }}
+                    onClick={() => {
+                      onClose();
+                      // Delay to let the sheet animate out before triggering native pickers
+                      setTimeout(() => handlers[item.key](), 250);
+                    }}
                     className="flex flex-col items-center gap-2 group"
                   >
                     <div className={`w-14 h-14 rounded-2xl ${item.bg} flex items-center justify-center shadow-lg group-active:scale-95 transition-transform`}>

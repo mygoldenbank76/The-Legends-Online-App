@@ -1,5 +1,6 @@
 import { httpServer } from "./app";
 import { logger } from "./lib/logger";
+import { runSeed } from "./seed";
 
 const rawPort = process.env["PORT"];
 
@@ -22,4 +23,7 @@ httpServer.listen(port, (err?: Error) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  // Run seed on startup (idempotent — creates users/groups if not present)
+  runSeed().catch((e) => logger.warn({ err: e }, "Seed warning"));
 });

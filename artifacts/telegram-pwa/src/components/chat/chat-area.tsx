@@ -213,6 +213,18 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
     if (e.key === 'Escape') { setEditState(null); setReplyTo(null); setContent(''); }
   };
 
+  // ── Auth helper for manual fetch (must be before file/voice handlers) ─────
+  const authFetch = useCallback((url: string, opts: RequestInit = {}) => {
+    const token = localStorage.getItem('telechat_token') || '';
+    return fetch(url, {
+      ...opts,
+      headers: {
+        ...(opts.headers || {}),
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  }, []);
+
   // ── File handlers ──────────────────────────────────────────
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -233,7 +245,8 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
       setUploadingImg(true);
       const formData = new FormData();
       formData.append('file', file);
-      const res = await fetch('/api/uploads/document', { method: 'POST', credentials: 'include', body: formData });
+      const res = await authFetch('/api/uploads/document', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
       const { url, name } = await res.json();
       await sendMsg.mutateAsync({ conversationId, data: { content: `📎 ${name || 'Document'}`, imageUrl: url, replyToId: replyTo?.id } });
       setReplyTo(null); invalidate(); scrollBottom(80);
@@ -247,14 +260,15 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
       const formData = new FormData();
       const ext = audioBlob.type.includes('webm') ? '.webm' : audioBlob.type.includes('mp4') ? '.mp4' : '.ogg';
       formData.append('file', audioBlob, `voice${ext}`);
-      const res = await fetch('/api/uploads/audio', { method: 'POST', credentials: 'include', body: formData });
+      const res = await authFetch('/api/uploads/audio', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
       const { url } = await res.json();
       await sendMsg.mutateAsync({ conversationId, data: { audioUrl: url, audioDuration: Math.round(duration), replyToId: replyTo?.id } as any });
       setReplyTo(null);
       setVoiceActive(false);
       invalidate(); scrollBottom(80);
     } catch (err) { console.error('Voice send error:', err); throw err; }
-  }, [conversationId, sendMsg, replyTo, invalidate, scrollBottom]);
+  }, [authFetch, conversationId, sendMsg, replyTo, invalidate, scrollBottom]);
 
   // ── Poll creation ──────────────────────────────────────────
   const handlePollCreate = useCallback(async (poll: {
@@ -273,23 +287,29 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
   // ── Poll vote ──────────────────────────────────────────────
   const handlePollVote = useCallback(async (pollId: number, optionIds: number[]) => {
     try {
-      await fetch(`/api/polls/${pollId}/vote`, {
+      await authFetch(`/api/polls/${pollId}/vote`, {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ optionIds }),
       });
       invalidate();
     } catch (err) { console.error(err); throw err; }
-  }, [invalidate]);
+  }, [authFetch, invalidate]);
 
   const handleViewVotes = useCallback(async (pollId: number) => {
     try {
-      const res = await fetch(`/api/polls/${pollId}/votes`, { credentials: 'include' });
+      const res = await authFetch(`/api/polls/${pollId}/votes`);
+      if (!res.ok) {
+        if (res.status === 403) {
+          // Poll is anonymous — shouldn't show "Voir les votes" but just in case
+          setPollVotes([]);
+        }
+        return;
+      }
       const data = await res.json();
-      setPollVotes(data);
+      if (Array.isArray(data)) setPollVotes(data);
     } catch (err) { console.error(err); }
-  }, []);
+  }, [authFetch]);
 
   // ── Context menu ──────────────────────────────────────────
   const openCtxMenu = (e: React.MouseEvent | { clientX: number; clientY: number }, msg: Msg) => {

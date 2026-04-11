@@ -1,0 +1,80 @@
+import { db, usersTable, conversationsTable, conversationParticipantsTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
+import { hashPassword } from "./lib/auth";
+
+const GROUPS = [
+  "Discussion générale",
+  "Hash Delight",
+  "Weed Lounge",
+  "Extracts Porn",
+  "Food Cosmic",
+  "Blends Info",
+  "Divertissement",
+];
+
+const SEED_USERS = [
+  { username: "alice", displayName: "Alice", password: "password123" },
+  { username: "bob", displayName: "Bob", password: "password123" },
+];
+
+export async function runSeed() {
+  try {
+    // 1. Ensure seed users exist
+    const userIds: number[] = [];
+    for (const u of SEED_USERS) {
+      let [existing] = await db.select().from(usersTable).where(eq(usersTable.username, u.username));
+      if (!existing) {
+        const hash = await hashPassword(u.password);
+        const [created] = await db.insert(usersTable).values({
+          username: u.username,
+          displayName: u.displayName,
+          passwordHash: hash,
+        }).returning();
+        existing = created;
+        console.log(`[seed] Created user: ${u.username}`);
+      }
+      userIds.push(existing.id);
+    }
+
+    // 2. Ensure all 7 groups exist (idempotent)
+    for (const groupName of GROUPS) {
+      // Check if group already exists
+      const existing = await db.select().from(conversationsTable)
+        .where(and(
+          eq(conversationsTable.type, "group"),
+          eq(conversationsTable.name, groupName)
+        ));
+
+      let groupId: number;
+      if (existing.length === 0) {
+        const [conv] = await db.insert(conversationsTable).values({
+          type: "group",
+          name: groupName,
+        }).returning();
+        groupId = conv.id;
+        console.log(`[seed] Created group: ${groupName}`);
+      } else {
+        groupId = existing[0].id;
+      }
+
+      // Add all seed users as participants (idempotent)
+      for (const userId of userIds) {
+        const [alreadyIn] = await db.select().from(conversationParticipantsTable)
+          .where(and(
+            eq(conversationParticipantsTable.conversationId, groupId),
+            eq(conversationParticipantsTable.userId, userId)
+          ));
+        if (!alreadyIn) {
+          await db.insert(conversationParticipantsTable).values({
+            conversationId: groupId,
+            userId,
+          });
+        }
+      }
+    }
+
+    console.log("[seed] Seed complete");
+  } catch (err) {
+    console.error("[seed] Error during seed:", err);
+  }
+}
