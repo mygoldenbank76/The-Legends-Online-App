@@ -29,6 +29,9 @@ import { VoiceRecorder } from './voice-recorder';
 import { GroupInfoSheet } from './group-info-sheet';
 import { UserProfileSheet } from './user-profile-sheet';
 import { LinkPreviewCard } from './link-preview';
+import { FormattingToolbar } from './formatting-toolbar';
+import { RichText, applyFormat } from './rich-text';
+import type { FormatType } from './rich-text';
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡', '🔥'];
 const PICKER_EMOJIS = ['😀','😂','🤣','😊','😍','🥰','😘','😋','😎','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😣','😥','😮','🤐','😯','😪','😫','🥱','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','☹️','🙁','😖','😞','😟','😤','😢','😭','😦','😧','😨','😩','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','😡','😠','🤬','😷','🤒','🤕','🤢','🤮','🤧','😇','🥳','🥺','🤠','🤡','🤥','🤫','🤭','🧐','🤓','😈','👿','👹','👺','💀','👻','👽','👾','🤖'];
@@ -155,6 +158,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const [swipingId, setSwipingId] = useState<number | null>(null);
   const [prevMsgCount, setPrevMsgCount] = useState(0);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
 
   // New UI states
   const [attachmentSheetOpen, setAttachmentSheetOpen] = useState(false);
@@ -296,13 +300,27 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   };
 
   // Render message text with @mentions highlighted
-  const renderWithMentions = (text: string) => {
-    const parts = text.split(/(@\S+)/g);
-    return parts.map((part, i) =>
-      part.startsWith('@') && part.length > 1
-        ? <span key={i} className="font-bold underline decoration-dotted underline-offset-2 bg-white/20 rounded px-0.5 py-px">{part}</span>
-        : <span key={i}>{part}</span>
-    );
+  const handleTextSelect = () => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart ?? 0;
+    const end = ta.selectionEnd ?? 0;
+    setSelectionRange(start !== end ? { start, end } : null);
+  };
+
+  const handleFormat = (fmt: FormatType, url?: string) => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = selectionRange?.start ?? ta.selectionStart ?? 0;
+    const end = selectionRange?.end ?? ta.selectionEnd ?? 0;
+    if (start === end) return;
+    const { newText, newEnd } = applyFormat(content, start, end, fmt, url);
+    setContent(newText);
+    setSelectionRange(null);
+    setTimeout(() => {
+      ta.focus();
+      ta.setSelectionRange(newEnd, newEnd);
+    }, 0);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -860,7 +878,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
                     {/* Text */}
                     {msg.content && !isPoll && (
-                      <div className="whitespace-pre-wrap break-words leading-snug">{renderWithMentions(msg.content)}</div>
+                      <div className="whitespace-pre-wrap break-words leading-snug">
+                        <RichText text={msg.content} isMine={isMine} />
+                      </div>
                     )}
 
                     {/* Translation */}
@@ -1050,6 +1070,12 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             />
           ) : (
             <>
+              {/* Formatting toolbar — shown when text is selected */}
+              <FormattingToolbar
+                show={!!selectionRange}
+                onFormat={handleFormat}
+              />
+
               {/* Text input */}
               <div className="flex-1 glass rounded-2xl border border-border/50 focus-within:border-primary/40 transition-colors flex items-end">
                 <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
@@ -1072,6 +1098,8 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   value={content}
                   onChange={handleContentChange}
                   onKeyDown={handleKeyDown}
+                  onSelect={handleTextSelect}
+                  onBlur={() => setTimeout(() => setSelectionRange(null), 150)}
                   placeholder={editState ? uiT.chat.editPlaceholder : uiT.chat.placeholder}
                   className="min-h-[40px] max-h-[120px] border-0 focus-visible:ring-0 resize-none py-2.5 px-0 bg-transparent shadow-none text-sm"
                   rows={1}
