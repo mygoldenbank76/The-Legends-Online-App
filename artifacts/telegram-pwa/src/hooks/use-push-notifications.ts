@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { authFetch } from '@/lib/auth-fetch';
+import { getAuthHeaders } from '@/lib/auth-fetch';
+
+function apiFetch(url: string, options: RequestInit = {}) {
+  return fetch(url, { ...options, headers: { ...getAuthHeaders(), ...(options.headers as object) } });
+}
 
 export type PushPermission = 'default' | 'granted' | 'denied' | 'unsupported';
 
@@ -32,7 +36,7 @@ export function usePushNotifications(): UsePushNotifications {
   // Fetch VAPID public key once
   useEffect(() => {
     if (!isSupported) return;
-    authFetch('/api/push/vapid-key')
+    apiFetch('/api/push/vapid-key')
       .then((r) => r.json())
       .then((d) => setVapidKey(d.publicKey ?? null))
       .catch(() => {});
@@ -72,7 +76,7 @@ export function usePushNotifications(): UsePushNotifications {
         keys: { p256dh: string; auth: string };
       };
 
-      await authFetch('/api/push/subscribe', {
+      await apiFetch('/api/push/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ endpoint, keys }),
@@ -93,7 +97,7 @@ export function usePushNotifications(): UsePushNotifications {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
       if (sub) {
-        await authFetch('/api/push/unsubscribe', {
+        await apiFetch('/api/push/unsubscribe', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ endpoint: sub.endpoint }),
