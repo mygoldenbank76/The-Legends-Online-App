@@ -134,6 +134,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const swipeStartX = useRef(0);
   const swipeStartY = useRef(0);
   const isSwiping = useRef(false);
+  // Guard: timestamp when this conversation was opened — prevents ghost-touch
+  // from the navigation tap immediately triggering the long-press menu
+  const conversationOpenedAt = useRef<number>(Date.now());
 
   const [content, setContent] = useState('');
   const [sending, setSending] = useState(false);
@@ -191,6 +194,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   }, [messages, prevMsgCount, scrollBottom]);
 
   useEffect(() => { scrollBottom(120); }, [conversationId, scrollBottom]);
+
+  // Reset ghost-touch guard whenever we open a different conversation
+  useEffect(() => { conversationOpenedAt.current = Date.now(); }, [conversationId]);
 
   useEffect(() => {
     if (conversationId && messages && messages.length > 0) markRead.mutate({ conversationId });
@@ -444,6 +450,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     isSwiping.current = false;
     didTriggerMenu.current = false;
     didJustSwipe.current = false;
+    // Guard against ghost-touch from the navigation tap that opened this conversation
+    const msSinceOpen = Date.now() - conversationOpenedAt.current;
+    if (msSinceOpen < 600) return;
     longPressTimer.current = setTimeout(() => {
       if (!isSwiping.current) {
         didTriggerMenu.current = true;
