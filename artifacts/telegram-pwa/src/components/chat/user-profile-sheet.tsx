@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, MessageSquare, Loader2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getAuthHeaders } from '@/lib/auth-fetch';
+import { usePreferences } from '@/lib/preferences-context';
 
 type UserInfo = {
   id: number;
@@ -10,6 +11,7 @@ type UserInfo = {
   username?: string;
   avatar?: string | null;
   bio?: string | null;
+  isOnline?: boolean;
 };
 
 type Props = {
@@ -19,8 +21,27 @@ type Props = {
   onOpenConversation: (convId: number) => void;
 };
 
+async function translateText(text: string, targetLang: string): Promise<string> {
+  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=autodetect|${targetLang}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  return data?.responseData?.translatedText ?? text;
+}
+
 export function UserProfileSheet({ user, currentUserId, onClose, onOpenConversation }: Props) {
   const [loading, setLoading] = useState(false);
+  const { t, appLanguage } = usePreferences();
+  const [translatedBio, setTranslatedBio] = useState<string | null>(null);
+  const [bioLoading, setBioLoading] = useState(false);
+
+  useEffect(() => {
+    if (!user.bio) { setTranslatedBio(null); return; }
+    setBioLoading(true);
+    translateText(user.bio, appLanguage)
+      .then(translated => setTranslatedBio(translated === user.bio ? null : translated))
+      .catch(() => setTranslatedBio(null))
+      .finally(() => setBioLoading(false));
+  }, [user.bio, appLanguage]);
 
   const handleSendMessage = async () => {
     if (user.id === currentUserId) return;
@@ -43,6 +64,7 @@ export function UserProfileSheet({ user, currentUserId, onClose, onOpenConversat
   };
 
   const initials = user.displayName.substring(0, 2).toUpperCase();
+  const displayedBio = translatedBio ?? user.bio;
 
   return (
     <AnimatePresence>
@@ -81,24 +103,38 @@ export function UserProfileSheet({ user, currentUserId, onClose, onOpenConversat
 
           {/* Profile content */}
           <div className="flex flex-col items-center px-6 gap-4">
-            {/* Avatar */}
-            <Avatar className="w-20 h-20 ring-2 ring-primary/30">
-              <AvatarImage src={user.avatar || ''} />
-              <AvatarFallback className="bg-primary/20 text-primary text-2xl font-bold">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
+            {/* Avatar with online indicator */}
+            <div className="relative">
+              <Avatar className="w-20 h-20 ring-2 ring-primary/30">
+                <AvatarImage src={user.avatar || ''} />
+                <AvatarFallback className="bg-primary/20 text-primary text-2xl font-bold">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              {user.isOnline && (
+                <span className="absolute bottom-0.5 right-0.5 w-4 h-4 bg-green-500 border-2 border-background rounded-full" />
+              )}
+            </div>
 
-            {/* Name & username */}
+            {/* Name & username & status */}
             <div className="text-center">
               <p className="text-lg font-bold leading-tight">{user.displayName}</p>
               <p className="text-sm text-muted-foreground">@{user.username}</p>
+              {user.id !== currentUserId && (
+                <p className={`text-xs mt-0.5 ${user.isOnline ? 'text-green-400' : 'text-muted-foreground'}`}>
+                  {user.isOnline ? t.chat.online : t.chat.offline}
+                </p>
+              )}
             </div>
 
             {/* Bio */}
-            {user.bio && (
+            {displayedBio && (
               <div className="glass rounded-xl px-4 py-3 w-full text-center">
-                <p className="text-sm text-muted-foreground/90 italic">"{user.bio}"</p>
+                {bioLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin mx-auto text-muted-foreground" />
+                ) : (
+                  <p className="text-sm text-muted-foreground/90 italic">"{displayedBio}"</p>
+                )}
               </div>
             )}
 
@@ -114,7 +150,7 @@ export function UserProfileSheet({ user, currentUserId, onClose, onOpenConversat
                 ) : (
                   <MessageSquare className="w-4 h-4" />
                 )}
-                {loading ? 'Ouverture…' : 'Envoyer un message'}
+                {loading ? t.profile.opening : t.profile.sendMessage}
               </button>
             )}
           </div>

@@ -165,7 +165,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const [pollVotes, setPollVotes] = useState<{ optionText: string; voters: { id: number; displayName: string }[] }[] | null>(null);
 
   // User profile sheet (click on avatar/name in group)
-  const [profileUser, setProfileUser] = useState<{ id: number; displayName: string; username?: string; avatar?: string | null; bio?: string | null } | null>(null);
+  const [profileUser, setProfileUser] = useState<{ id: number; displayName: string; username?: string; avatar?: string | null; bio?: string | null; isOnline?: boolean } | null>(null);
 
   // @mention state
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
@@ -580,7 +580,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           <span className={`text-xs leading-tight ${!isGroup && isOnline ? 'text-green-400' : 'text-muted-foreground'}`}>
             {isGroup
               ? `${memberCount} membre${memberCount !== 1 ? 's' : ''}`
-              : (isOnline ? 'en ligne' : lastSeen)}
+              : (isOnline ? uiT.chat.online : lastSeen)}
           </span>
         </div>
         <button
@@ -681,7 +681,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                         className="focus:outline-none"
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (conversation?.type === 'group' && msg.sender) setProfileUser(msg.sender);
+                          if (conversation?.type === 'group' && msg.sender) {
+                            const participant = (conversation as any)?.participants?.find((p: any) => p.id === msg.sender?.id);
+                            setProfileUser({ ...msg.sender, isOnline: participant?.isOnline ?? false });
+                          }
                         }}
                       >
                         <Avatar className="w-7 h-7">
@@ -731,7 +734,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       className="text-[11px] text-primary font-semibold mb-0.5 ml-1 text-left hover:underline focus:outline-none"
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (msg.sender) setProfileUser(msg.sender);
+                        if (msg.sender) {
+                          const participant = (conversation as any)?.participants?.find((p: any) => p.id === msg.sender?.id);
+                          setProfileUser({ ...msg.sender, isOnline: participant?.isOnline ?? false });
+                        }
                       }}
                     >
                       {msg.sender?.displayName}

@@ -73,6 +73,7 @@ type Dict = {
     typingMany: string;
     lastSeen: string;
     offline: string;
+    online: string;
   };
   groupInfo: {
     members: string;
@@ -132,6 +133,8 @@ type Dict = {
     save: string;
     saving: string;
     saved: string;
+    sendMessage: string;
+    opening: string;
   };
   home: {
     selectConversation: string;
@@ -189,6 +192,7 @@ export const i18n: Record<AppLang, Dict> = {
       typingMany: '{n} personnes écrivent…',
       lastSeen: 'vu à {time}',
       offline: 'hors ligne',
+      online: 'en ligne',
     },
     groupInfo: {
       members: 'membres',
@@ -248,6 +252,8 @@ export const i18n: Record<AppLang, Dict> = {
       save: 'Enregistrer les modifications',
       saving: 'Enregistrement…',
       saved: 'Enregistré !',
+      sendMessage: 'Envoyer un message',
+      opening: 'Ouverture…',
     },
     home: {
       selectConversation: 'Sélectionne une conversation',
@@ -304,6 +310,7 @@ export const i18n: Record<AppLang, Dict> = {
       typingMany: '{n} people are typing…',
       lastSeen: 'seen at {time}',
       offline: 'offline',
+      online: 'online',
     },
     groupInfo: {
       members: 'members',
@@ -363,6 +370,8 @@ export const i18n: Record<AppLang, Dict> = {
       save: 'Save changes',
       saving: 'Saving…',
       saved: 'Saved!',
+      sendMessage: 'Send a message',
+      opening: 'Opening…',
     },
     home: {
       selectConversation: 'Select a conversation',
@@ -422,6 +431,7 @@ export const i18n: Record<AppLang, Dict> = {
       typingMany: '{n} personas están escribiendo…',
       lastSeen: 'visto a las {time}',
       offline: 'desconectado',
+      online: 'en línea',
     },
     groupInfo: {
       members: 'miembros',
@@ -481,6 +491,8 @@ export const i18n: Record<AppLang, Dict> = {
       save: 'Guardar cambios',
       saving: 'Guardando…',
       saved: '¡Guardado!',
+      sendMessage: 'Enviar un mensaje',
+      opening: 'Abriendo…',
     },
     home: {
       selectConversation: 'Selecciona una conversación',
@@ -540,6 +552,7 @@ export const i18n: Record<AppLang, Dict> = {
       typingMany: '{n} أشخاص يكتبون…',
       lastSeen: 'شوهد في {time}',
       offline: 'غير متصل',
+      online: 'متصل',
     },
     groupInfo: {
       members: 'أعضاء',
@@ -599,6 +612,8 @@ export const i18n: Record<AppLang, Dict> = {
       save: 'حفظ التغييرات',
       saving: 'جارٍ الحفظ…',
       saved: 'تم الحفظ!',
+      sendMessage: 'إرسال رسالة',
+      opening: 'جارٍ الفتح…',
     },
     home: {
       selectConversation: 'اختر محادثة',
@@ -658,6 +673,7 @@ export const i18n: Record<AppLang, Dict> = {
       typingMany: '{n} pessoas estão digitando…',
       lastSeen: 'visto às {time}',
       offline: 'offline',
+      online: 'online',
     },
     groupInfo: {
       members: 'membros',
@@ -717,6 +733,8 @@ export const i18n: Record<AppLang, Dict> = {
       save: 'Salvar alterações',
       saving: 'Salvando…',
       saved: 'Salvo!',
+      sendMessage: 'Enviar mensagem',
+      opening: 'Abrindo…',
     },
     home: {
       selectConversation: 'Selecione uma conversa',
@@ -776,6 +794,7 @@ export const i18n: Record<AppLang, Dict> = {
       typingMany: '{n} Personen schreiben…',
       lastSeen: 'gesehen um {time}',
       offline: 'offline',
+      online: 'online',
     },
     groupInfo: {
       members: 'Mitglieder',
@@ -835,6 +854,8 @@ export const i18n: Record<AppLang, Dict> = {
       save: 'Änderungen speichern',
       saving: 'Speichern…',
       saved: 'Gespeichert!',
+      sendMessage: 'Nachricht senden',
+      opening: 'Öffnen…',
     },
     home: {
       selectConversation: 'Gespräch auswählen',
