@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback } from 'react';
-import { Mic, Square, Trash2, Send, Loader2 } from 'lucide-react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { Square, Trash2, Send, Loader2 } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 type Props = {
   onSend: (audioBlob: Blob, duration: number) => Promise<void>;
@@ -14,108 +14,128 @@ function formatTime(seconds: number): string {
 }
 
 export function VoiceRecorder({ onSend, onCancel }: Props) {
-  const [recording, setRecording] = useState(false);
+  const [phase, setPhase] = useState<'recording' | 'preview'>('recording');
   const [elapsed, setElapsed] = useState(0);
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(0);
+  const audioBlobRef = useRef<Blob | null>(null);
+  const durationRef = useRef<number>(0);
 
-  const startRecording = useCallback(async () => {
+  // Auto-start recording on mount
+  useEffect(() => {
+    startRecording();
+    return () => {
+      // Cleanup on unmount
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+    };
+  }, []);
+
+  const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream, {
-        mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4',
-      });
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : MediaRecorder.isTypeSupported('audio/mp4')
+        ? 'audio/mp4'
+        : '';
+
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : {});
       chunksRef.current = [];
-      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      mr.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: mr.mimeType });
-        setAudioBlob(blob);
-        stream.getTracks().forEach(t => t.stop());
+
+      mr.ondataavailable = e => {
+        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
       };
+
+      mr.onstop = () => {
+        const type = mr.mimeType || 'audio/webm';
+        const blob = new Blob(chunksRef.current, { type });
+        audioBlobRef.current = blob;
+        durationRef.current = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        stream.getTracks().forEach(t => t.stop());
+        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+        setPhase('preview');
+      };
+
       mr.start(100);
       mediaRecorderRef.current = mr;
       startTimeRef.current = Date.now();
       setElapsed(0);
-      setRecording(true);
+      setPhase('recording');
+
       timerRef.current = setInterval(() => {
         setElapsed(Math.floor((Date.now() - startTimeRef.current) / 1000));
       }, 500);
     } catch (e) {
-      console.error('Microphone access denied', e);
-      alert('Accès au microphone refusé. Veuillez autoriser le microphone dans les paramètres de votre navigateur.');
+      console.error('Microphone error:', e);
+      setError('Accès au microphone refusé');
+    }
+  };
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
     }
   }, []);
 
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && recording) {
+  const cancelAll = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
-      setRecording(false);
-      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     }
-  }, [recording]);
-
-  const cancelRecording = useCallback(() => {
-    if (mediaRecorderRef.current && recording) {
-      mediaRecorderRef.current.stop();
-      setRecording(false);
-      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-    }
-    setAudioBlob(null);
-    setElapsed(0);
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    audioBlobRef.current = null;
     onCancel();
-  }, [recording, onCancel]);
+  }, [onCancel]);
 
   const sendVoice = useCallback(async () => {
-    if (!audioBlob) return;
+    const blob = audioBlobRef.current;
+    if (!blob || sending) return;
     setSending(true);
     try {
-      await onSend(audioBlob, elapsed);
-      setAudioBlob(null);
-      setElapsed(0);
+      await onSend(blob, durationRef.current || elapsed);
     } catch (e) {
-      console.error(e);
-    } finally {
+      console.error('Send error:', e);
+      setError('Erreur lors de l\'envoi');
       setSending(false);
     }
-  }, [audioBlob, elapsed, onSend]);
+  }, [sending, elapsed, onSend]);
 
-  if (!recording && !audioBlob) {
+  if (error) {
     return (
-      <motion.button
-        key="mic-idle"
-        onClick={startRecording}
-        initial={{ scale: 0.5, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.5, opacity: 0 }}
-        transition={{ duration: 0.15 }}
-        className="flex-shrink-0 w-10 h-10 rounded-xl bg-primary/20 border border-primary/30 hover:bg-primary/30 text-primary transition-colors flex items-center justify-center mb-0.5"
-      >
-        <Mic className="w-4 h-4" />
-      </motion.button>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+        className="flex-1 flex items-center gap-2 glass rounded-2xl border border-red-500/30 px-3 py-2">
+        <span className="text-red-400 text-xs flex-1">{error}</span>
+        <button onClick={cancelAll} className="text-xs text-muted-foreground hover:text-foreground transition-colors underline">
+          Fermer
+        </button>
+      </motion.div>
     );
   }
 
-  if (recording) {
+  if (phase === 'recording') {
     return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="flex-1 flex items-center gap-2 glass rounded-2xl border border-red-500/30 px-3 py-2"
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+        className="flex-1 flex items-center gap-2 glass rounded-2xl border border-red-500/40 px-3 py-2"
       >
-        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+        <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
         <span className="text-red-400 text-sm font-mono flex-1">{formatTime(elapsed)}</span>
-        <span className="text-xs text-muted-foreground">En cours...</span>
-        <button onClick={cancelRecording} className="text-muted-foreground hover:text-red-400 transition-colors p-1">
+        <span className="text-xs text-muted-foreground hidden sm:inline">Enregistrement...</span>
+        <button onClick={cancelAll} className="text-muted-foreground hover:text-red-400 transition-colors p-1" title="Annuler">
           <Trash2 className="w-4 h-4" />
         </button>
         <button
           onClick={stopRecording}
           className="w-9 h-9 rounded-xl bg-red-500/20 border border-red-500/30 hover:bg-red-500/30 text-red-400 flex items-center justify-center flex-shrink-0 transition-colors"
+          title="Arrêter"
         >
           <Square className="w-4 h-4" fill="currentColor" />
         </button>
@@ -124,20 +144,23 @@ export function VoiceRecorder({ onSend, onCancel }: Props) {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
       className="flex-1 flex items-center gap-2 glass rounded-2xl border border-primary/30 px-3 py-2"
     >
-      <Mic className="w-4 h-4 text-primary flex-shrink-0" />
-      <span className="text-sm text-foreground flex-1">Message vocal · {formatTime(elapsed)}</span>
-      <button onClick={cancelRecording} className="text-muted-foreground hover:text-red-400 transition-colors p-1">
+      <div className="flex gap-0.5 flex-1 items-center">
+        {Array.from({ length: 18 }).map((_, i) => (
+          <div key={i} className="w-0.5 bg-primary/50 rounded-full flex-shrink-0"
+            style={{ height: `${8 + Math.sin(i * 0.7) * 8}px` }} />
+        ))}
+        <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">{formatTime(durationRef.current || elapsed)}</span>
+      </div>
+      <button onClick={cancelAll} className="text-muted-foreground hover:text-red-400 transition-colors p-1 flex-shrink-0">
         <Trash2 className="w-4 h-4" />
       </button>
       <button
         onClick={sendVoice}
         disabled={sending}
-        className="w-9 h-9 rounded-xl bg-primary/20 border border-primary/30 hover:bg-primary/30 text-primary flex items-center justify-center flex-shrink-0 transition-colors"
+        className="w-9 h-9 rounded-xl bg-primary/20 border border-primary/30 hover:bg-primary/30 text-primary flex items-center justify-center flex-shrink-0 transition-colors disabled:opacity-50"
       >
         {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
       </button>

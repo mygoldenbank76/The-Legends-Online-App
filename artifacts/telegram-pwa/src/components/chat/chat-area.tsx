@@ -387,9 +387,9 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
       {/* Hidden file inputs */}
-      <input type="file" ref={galleryInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
-      <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleFileChange} />
-      <input type="file" ref={documentInputRef} className="hidden" onChange={handleDocumentChange} />
+      <input type="file" ref={galleryInputRef} className="hidden" accept="image/*,video/*" onChange={handleFileChange} />
+      <input type="file" ref={cameraInputRef} className="hidden" accept="image/*,video/*" capture="environment" onChange={handleFileChange} />
+      <input type="file" ref={documentInputRef} className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar,.7z,application/*,text/plain" onChange={handleDocumentChange} />
 
       {/* ── Header ── */}
       <div className="flex-shrink-0 h-14 glass border-b border-border/50 flex items-center px-3 z-10 gap-3">
@@ -494,7 +494,7 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
 
                 {/* Bubble wrapper */}
                 <div
-                  className={`max-w-[80%] relative ${hasReactions ? 'mb-5' : ''}`}
+                  className="max-w-[80%] relative"
                   style={{
                     transform: `translateX(${swipeOffset}px)`,
                     transition: swipingId === msg.id ? 'none' : 'transform 0.2s ease-out',
@@ -588,38 +588,34 @@ export function ChatArea({ conversationId, onBack }: ChatAreaProps) {
                       </div>
                     )}
 
-                    {/* Time + edited — HH:mm format like Base44 */}
-                    {!isPoll && (
-                      <div className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${isMine ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>
+                    {/* Bottom row: reactions (left) + time (right) — inside bubble like Base44 */}
+                    <div className={`flex items-end justify-between gap-2 mt-1.5 ${isPoll ? 'mt-2' : ''}`}>
+                      {/* Reactions inside bubble */}
+                      {hasReactions ? (
+                        <div className="flex flex-wrap gap-1">
+                          {Object.entries(reactionCounts).map(([emoji, count]) => (
+                            <button
+                              key={emoji}
+                              onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, emoji); }}
+                              className={`rounded-full px-1.5 py-0.5 text-xs flex items-center gap-0.5 transition-colors
+                                ${hasReacted(emoji)
+                                  ? (isMine ? 'bg-white/20 text-white border border-white/30' : 'bg-primary/20 border border-primary/40 text-primary')
+                                  : (isMine ? 'bg-white/10 border border-white/20 text-primary-foreground/80' : 'bg-black/10 border border-border text-foreground hover:bg-black/20')}`}
+                            >
+                              <span>{emoji}</span>
+                              <span className="font-bold text-[10px]">{count as number}</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : <div />}
+
+                      {/* Time + edited */}
+                      <div className={`text-[10px] flex items-center gap-1 flex-shrink-0 ${isMine ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>
                         {msg.editedAt && <span className="italic opacity-80">modifié</span>}
                         <span>{msgTime}</span>
                       </div>
-                    )}
-                    {isPoll && (
-                      <div className={`text-[10px] mt-2 flex items-center justify-end ${isMine ? 'text-primary-foreground/50' : 'text-muted-foreground'}`}>
-                        {msgTime}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Reactions row */}
-                  {hasReactions && (
-                    <div className={`absolute -bottom-5 flex gap-1 ${isMine ? 'right-0' : 'left-0'}`}>
-                      {Object.entries(reactionCounts).map(([emoji, count]) => (
-                        <button
-                          key={emoji}
-                          onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, emoji); }}
-                          className={`rounded-full px-1.5 py-0.5 text-xs flex items-center gap-0.5 shadow border transition-colors
-                            ${hasReacted(emoji)
-                              ? 'bg-primary/20 border-primary/40 text-primary'
-                              : 'bg-card border-border text-foreground hover:bg-muted'}`}
-                        >
-                          <span>{emoji}</span>
-                          <span className="font-medium text-[10px]">{count as number}</span>
-                        </button>
-                      ))}
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
             );

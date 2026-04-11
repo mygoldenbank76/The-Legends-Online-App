@@ -59,6 +59,9 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     newSocket.on('user_status', () => {
       queryClient.invalidateQueries({ queryKey: getListConversationsQueryKey() });
     });
+    newSocket.on('poll_updated', (data: { messageId: number; conversationId: number }) => {
+      invalidateMessages(data.conversationId);
+    });
 
     setSocket(newSocket);
     return () => { newSocket.disconnect(); };
