@@ -1395,7 +1395,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           ) : (
             <>
               {/* ── Text input field ─────────────────────────────────── */}
-              <div className="flex-1 glass rounded-r-2xl border border-border/50 focus-within:border-primary/40 transition-colors flex items-end overflow-hidden">
+              <div className="flex-1 glass rounded-2xl border border-border/50 focus-within:border-primary/40 transition-colors flex items-end overflow-hidden">
 
                 {/* Left icon: GIF (idle) ↔ Emoji (typing) */}
                 <AnimatePresence mode="wait" initial={false}>
@@ -1449,7 +1449,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   onTouchEnd={handleInputTouchEnd}
                   onTouchMove={handleInputTouchEnd}
                   placeholder={editState ? uiT.chat.editPlaceholder : uiT.chat.placeholder}
-                  className="flex-1 min-h-[40px] max-h-[120px] border-0 focus-visible:ring-0 resize-none py-2.5 px-0 bg-transparent shadow-none text-sm"
+                  className="flex-1 min-h-[40px] max-h-[120px] border-0 focus-visible:ring-0 resize-none py-2.5 px-0 bg-transparent shadow-none text-sm rounded-none"
                   style={{ WebkitTouchCallout: 'none' } as React.CSSProperties}
                   rows={1}
                 />
