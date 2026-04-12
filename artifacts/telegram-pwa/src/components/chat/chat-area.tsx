@@ -1191,7 +1191,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       exit={{ opacity: 0, x: -8 }}
                       transition={{ duration: 0.13 }}
                       onClick={() => setGifOpen(v => !v)}
-                      className={`flex-shrink-0 ml-3 mr-1 self-center text-[11px] font-bold tracking-wider rounded-xl px-[7px] py-[3px] border-[1.5px] transition-colors leading-tight
+                      className={`flex-shrink-0 ml-3 mr-3 self-center rounded-full px-1.5 py-0.5 text-xs font-bold border transition-colors
                         ${gifOpen
                           ? 'bg-primary/20 border-primary text-primary'
                           : 'border-foreground/40 text-foreground/60 hover:border-primary hover:text-primary'
@@ -1207,16 +1207,16 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -8 }}
                       transition={{ duration: 0.13 }}
-                      className="flex-shrink-0 self-center ml-3 mr-1"
+                      className="flex-shrink-0 self-center ml-3 mr-3"
                     >
                       <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
                         <PopoverTrigger asChild>
-                          <button className={`flex items-center justify-center rounded-xl border-[1.5px] px-[7px] py-[3px] transition-colors
+                          <button className={`flex items-center justify-center rounded-full p-1 border transition-colors
                             ${emojiOpen
                               ? 'bg-primary/20 border-primary text-primary'
                               : 'border-foreground/40 text-foreground/60 hover:border-primary hover:text-primary'
                             }`}>
-                            <Smile className="w-[14px] h-[14px]" />
+                            <Smile className="w-3 h-3" />
                           </button>
                         </PopoverTrigger>
                         <PopoverContent className="w-72 p-2 glass-strong border-border/50" align="start" side="top">
