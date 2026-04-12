@@ -78,8 +78,35 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         queryClient.invalidateQueries({ queryKey: key });
       }
 
-      // Always refresh the sidebar conversation list (unread badge, last message preview)
-      queryClient.invalidateQueries({ queryKey: getListConversationsQueryKey() });
+      // ── Directly update the conversation list cache (instant, no refetch) ──
+      const listKey = getListConversationsQueryKey();
+      const listData = queryClient.getQueryData<any[]>(listKey);
+      if (Array.isArray(listData)) {
+        queryClient.setQueryData(listKey, (old: any[]) => {
+          if (!Array.isArray(old)) return old;
+          const updated = old.map(conv => {
+            if (conv.id !== convId) return conv;
+            return {
+              ...conv,
+              lastMessage: msg,
+              updatedAt: msg.createdAt,
+              // Increment unread only if this message is from someone else
+              unreadCount: msg.senderId !== user?.id
+                ? (conv.unreadCount ?? 0) + 1
+                : conv.unreadCount,
+            };
+          });
+          // Re-sort by most recent message
+          return [...updated].sort((a, b) => {
+            const aT = a.lastMessage?.createdAt ?? a.updatedAt ?? '';
+            const bT = b.lastMessage?.createdAt ?? b.updatedAt ?? '';
+            return bT.localeCompare(aT);
+          });
+        });
+      } else {
+        // List not in cache yet — fall back to invalidation
+        queryClient.invalidateQueries({ queryKey: listKey });
+      }
     };
 
     // ── Invalidate helper (for events where we don't have the full payload) ──

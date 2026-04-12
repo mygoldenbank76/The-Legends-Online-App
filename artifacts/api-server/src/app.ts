@@ -50,6 +50,19 @@ io.on("connection", async (socket) => {
         .from(usersTable).where(eq(usersTable.id, userId));
       socket.data.displayName = user?.displayName ?? "Quelqu'un";
     } catch { socket.data.displayName = "Quelqu'un"; }
+
+    // Auto-join ALL conversation rooms for this user on connect.
+    // This ensures new_message events are received for every conversation,
+    // not only those the user has explicitly opened in the UI.
+    try {
+      const userConvs = await db
+        .select({ conversationId: conversationParticipantsTable.conversationId })
+        .from(conversationParticipantsTable)
+        .where(eq(conversationParticipantsTable.userId, userId));
+      for (const { conversationId } of userConvs) {
+        socket.join(`conversation:${conversationId}`);
+      }
+    } catch { /* non-critical — manual join_conversation still works as fallback */ }
   }
 
   socket.on("join_conversation", async (conversationId: number) => {
