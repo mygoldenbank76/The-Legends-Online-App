@@ -1211,12 +1211,12 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     >
                       <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
                         <PopoverTrigger asChild>
-                          <button className={`flex items-center justify-center rounded-full p-1 border transition-colors
+                          <button className={`flex items-center justify-center rounded-full px-1.5 py-0.5 border transition-colors
                             ${emojiOpen
                               ? 'bg-primary/20 border-primary text-primary'
                               : 'border-foreground/40 text-foreground/60 hover:border-primary hover:text-primary'
                             }`}>
-                            <Smile className="w-3 h-3" />
+                            <Smile className="w-[12px] h-[12px]" />
                           </button>
                         </PopoverTrigger>
                         <PopoverContent className="w-72 p-2 glass-strong border-border/50" align="start" side="top">
