@@ -291,6 +291,26 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     }, delay);
   }, []);
 
+  // Re-scroll to bottom when the virtual keyboard opens/closes
+  // so the last message is never cut off behind the input bar
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onViewportResize = () => {
+      const el = scrollRef.current;
+      if (!el) return;
+      // If user is within 300px of the bottom, keep them pinned to bottom
+      if (el.scrollHeight - el.scrollTop - el.clientHeight < 300) {
+        // Small delay to let the layout finish resizing first
+        requestAnimationFrame(() => {
+          if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        });
+      }
+    };
+    vv.addEventListener('resize', onViewportResize);
+    return () => vv.removeEventListener('resize', onViewportResize);
+  }, []);
+
   useEffect(() => {
     const count = messages?.length ?? 0;
     // Only auto-scroll on new messages (after initial load is done)
