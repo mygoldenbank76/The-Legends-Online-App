@@ -150,9 +150,19 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
         </button>
 
         {count > 1 ? (
-          <span className="text-white text-sm font-semibold bg-black/50 px-3 py-1 rounded-full" style={{ pointerEvents: 'none' }}>
-            {idx + 1} / {count}
-          </span>
+          <div className="flex items-center gap-1.5" style={{ pointerEvents: 'none' }}>
+            {urls.map((_, i) => (
+              <div
+                key={i}
+                className="rounded-full transition-all duration-300"
+                style={{
+                  width: i === idx ? 18 : 6,
+                  height: 6,
+                  background: i === idx ? '#fff' : 'rgba(255,255,255,0.45)',
+                }}
+              />
+            ))}
+          </div>
         ) : <span />}
 
         <button
@@ -233,30 +243,6 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
         )}
       </div>
 
-      {/* ── Indicateur de page (points) en bas — albums seulement ── */}
-      {count > 1 && (
-        <div
-          className="absolute bottom-0 left-0 right-0 z-20 flex items-center justify-center gap-1.5 pb-safe"
-          style={{
-            paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 14px)',
-            paddingTop: 10,
-            background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 100%)',
-            pointerEvents: 'none',
-          }}
-        >
-          {urls.map((_, i) => (
-            <div
-              key={i}
-              className="rounded-full transition-all duration-300"
-              style={{
-                width: i === idx ? 18 : 6,
-                height: 6,
-                background: i === idx ? '#fff' : 'rgba(255,255,255,0.4)',
-              }}
-            />
-          ))}
-        </div>
-      )}
     </motion.div>
   );
 }
