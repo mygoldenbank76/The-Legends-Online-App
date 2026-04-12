@@ -1133,18 +1133,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           onPaste={handlePaste}
         />
         <div className="flex items-end gap-2 px-3 py-3">
-          {/* + Attachment button */}
-          {!voiceActive && (
-            <button
-              onClick={() => setAttachmentSheetOpen(true)}
-              disabled={uploadingImg}
-              className="flex-shrink-0 w-10 h-10 rounded-xl bg-primary/20 border border-primary/30 hover:bg-primary/30 text-primary transition-colors flex items-center justify-center mb-0.5"
-            >
-              {uploadingImg ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
-            </button>
-          )}
-
-          {/* Voice recorder — replaces input when active */}
+          {/* Voice recorder — replaces entire row when active */}
           {voiceActive ? (
             <VoiceRecorder
               onSend={handleVoiceSend}
@@ -1152,23 +1141,54 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             />
           ) : (
             <>
-              {/* Text input */}
-              <div className="flex-1 glass rounded-2xl border border-border/50 focus-within:border-primary/40 transition-colors flex items-end">
-                <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
-                  <PopoverTrigger asChild>
-                    <button className="flex-shrink-0 p-2.5 mb-0.5 text-muted-foreground hover:text-foreground transition-colors">
-                      <Smile className="w-5 h-5" />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-72 p-2 glass-strong border-border/50" align="start" side="top">
-                    <div className="grid grid-cols-8 gap-0.5">
-                      {PICKER_EMOJIS.map(e => (
-                        <button key={e} onClick={() => { setContent(p => p + e); setEmojiOpen(false); }}
-                          className="text-xl hover:bg-white/10 rounded p-1 transition-colors leading-none">{e}</button>
-                      ))}
-                    </div>
-                  </PopoverContent>
-                </Popover>
+              {/* ── Text input field ─────────────────────────────────── */}
+              <div className="flex-1 glass rounded-2xl border border-border/50 focus-within:border-primary/40 transition-colors flex items-end overflow-hidden">
+
+                {/* Left icon: GIF (idle) ↔ Emoji (typing) */}
+                <AnimatePresence mode="wait" initial={false}>
+                  {!(content.trim() || editState) ? (
+                    /* GIF button */
+                    <motion.button
+                      key="gif"
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -8 }}
+                      transition={{ duration: 0.13 }}
+                      className="flex-shrink-0 mx-2 mb-2 self-end text-[10px] font-bold text-muted-foreground border border-muted-foreground/40 rounded-md px-1 py-0.5 hover:text-foreground hover:border-foreground/50 transition-colors leading-none"
+                      onClick={() => {/* GIF — bientôt disponible */}}
+                    >
+                      GIF
+                    </motion.button>
+                  ) : (
+                    /* Emoji picker */
+                    <motion.div
+                      key="emoji"
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -8 }}
+                      transition={{ duration: 0.13 }}
+                      className="flex-shrink-0 self-end"
+                    >
+                      <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
+                        <PopoverTrigger asChild>
+                          <button className="p-2.5 mb-0.5 text-muted-foreground hover:text-foreground transition-colors">
+                            <Smile className="w-5 h-5" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-72 p-2 glass-strong border-border/50" align="start" side="top">
+                          <div className="grid grid-cols-8 gap-0.5">
+                            {PICKER_EMOJIS.map(e => (
+                              <button key={e} onClick={() => { setContent(p => p + e); setEmojiOpen(false); }}
+                                className="text-xl hover:bg-white/10 rounded p-1 transition-colors leading-none">{e}</button>
+                            ))}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Textarea */}
                 <Textarea
                   ref={textareaRef}
                   value={content}
@@ -1181,13 +1201,24 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   onTouchEnd={handleInputTouchEnd}
                   onTouchMove={handleInputTouchEnd}
                   placeholder={editState ? uiT.chat.editPlaceholder : uiT.chat.placeholder}
-                  className="min-h-[40px] max-h-[120px] border-0 focus-visible:ring-0 resize-none py-2.5 px-0 bg-transparent shadow-none text-sm"
+                  className="flex-1 min-h-[40px] max-h-[120px] border-0 focus-visible:ring-0 resize-none py-2.5 px-0 bg-transparent shadow-none text-sm"
                   style={{ WebkitTouchCallout: 'none' } as React.CSSProperties}
                   rows={1}
                 />
+
+                {/* Right icon inside field: + attachment */}
+                <button
+                  onClick={() => setAttachmentSheetOpen(true)}
+                  disabled={uploadingImg}
+                  className="flex-shrink-0 p-2.5 mb-0.5 self-end text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {uploadingImg
+                    ? <Loader2 className="w-5 h-5 animate-spin" />
+                    : <Plus className="w-5 h-5" />}
+                </button>
               </div>
 
-              {/* Send or Mic */}
+              {/* ── Right action button (outside field): Mic / Send ── */}
               <AnimatePresence mode="wait">
                 {content.trim() || editState ? (
                   <motion.button
