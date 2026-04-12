@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, X, Send, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { ArrowLeft, X, Send, ChevronLeft, ChevronRight, Plus, Bold, Italic, Underline, Strikethrough, Eye } from 'lucide-react';
+import { applyFormat } from './rich-text';
+import type { FormatType } from './rich-text';
 
 export type MediaQuality = 'SD' | 'HD';
 
@@ -71,8 +73,22 @@ export function MediaPickerModal({ initialFiles, onClose, onSend, addMoreInputRe
   const [caption, setCaption] = useState('');
   const [quality, setQuality] = useState<MediaQuality>('HD');
   const [sending, setSending] = useState(false);
+  const [hasSelection, setHasSelection] = useState(false);
   const stripRef = useRef<HTMLDivElement>(null);
   const captionRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleFormat = useCallback((fmt: FormatType) => {
+    const ta = captionRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart ?? 0;
+    const end = ta.selectionEnd ?? 0;
+    const { newText, newStart, newEnd } = applyFormat(caption, start, end, fmt);
+    setCaption(newText);
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(newStart, newEnd);
+    });
+  }, [caption]);
 
   // Cleanup object URLs on unmount
   useEffect(() => {
@@ -264,6 +280,39 @@ export function MediaPickerModal({ initialFiles, onClose, onSend, addMoreInputRe
         </div>
       </div>
 
+      {/* ── Formatting toolbar (appears when text is selected) ── */}
+      <AnimatePresence>
+        {hasSelection && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.13 }}
+            className="flex-shrink-0 flex items-center justify-around px-2 py-1 overflow-hidden"
+            style={{ background: 'rgba(30,20,50,0.95)', borderTop: '1px solid rgba(255,255,255,0.08)' }}
+          >
+            {([
+              { fmt: 'bold' as FormatType, icon: <Bold className="w-4 h-4" />, label: 'Gras' },
+              { fmt: 'italic' as FormatType, icon: <Italic className="w-4 h-4" />, label: 'Italique' },
+              { fmt: 'underline' as FormatType, icon: <Underline className="w-4 h-4" />, label: 'Souligner' },
+              { fmt: 'strike' as FormatType, icon: <Strikethrough className="w-4 h-4" />, label: 'Barrer' },
+              { fmt: 'spoiler' as FormatType, icon: <Eye className="w-4 h-4" />, label: 'Spoiler' },
+            ]).map(({ fmt, icon, label }) => (
+              <button
+                key={fmt}
+                onMouseDown={e => { e.preventDefault(); handleFormat(fmt); }}
+                onTouchEnd={e => { e.preventDefault(); handleFormat(fmt); }}
+                className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-white/80 hover:bg-white/10 hover:text-white active:scale-95 transition-all"
+                title={label}
+              >
+                {icon}
+                <span className="text-[9px] leading-none">{label}</span>
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Caption + Send ── */}
       <div
         className="flex-shrink-0 flex items-end gap-2 px-3 py-2 pb-safe"
@@ -274,6 +323,11 @@ export function MediaPickerModal({ initialFiles, onClose, onSend, addMoreInputRe
             ref={captionRef}
             value={caption}
             onChange={e => setCaption(e.target.value)}
+            onSelect={e => {
+              const ta = e.currentTarget;
+              setHasSelection((ta.selectionEnd ?? 0) > (ta.selectionStart ?? 0));
+            }}
+            onBlur={() => setHasSelection(false)}
             placeholder="Ajouter une légende..."
             rows={1}
             className="w-full bg-transparent text-white placeholder:text-white/40 text-sm resize-none outline-none leading-relaxed"

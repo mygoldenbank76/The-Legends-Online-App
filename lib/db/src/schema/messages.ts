@@ -12,6 +12,7 @@ export const messagesTable = pgTable("messages", {
   audioDuration: integer("audio_duration"),
   pollId: integer("poll_id"),
   linkPreview: jsonb("link_preview"),
+  mediaAlbum: jsonb("media_album"),
   replyToId: integer("reply_to_id"),
   editedAt: timestamp("edited_at", { withTimezone: true }),
   isDeleted: boolean("is_deleted").notNull().default(false),

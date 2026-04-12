@@ -58,6 +58,7 @@ async function buildMessage(messageId: number, requestingUserId?: number): Promi
     sender: sender ? formatUser(sender) : undefined,
     content: msg.isDeleted ? null : msg.content,
     imageUrl: msg.isDeleted ? null : msg.imageUrl,
+    mediaAlbum: msg.isDeleted ? null : (msg.mediaAlbum as string[] | null),
     audioUrl: msg.isDeleted ? null : msg.audioUrl,
     audioDuration: msg.isDeleted ? null : msg.audioDuration,
     poll: msg.isDeleted ? null : poll,
@@ -84,6 +85,7 @@ type FormattedMessage = {
   sender?: ReturnType<typeof formatUser>;
   content: string | null;
   imageUrl: string | null;
+  mediaAlbum?: string[] | null;
   audioUrl?: string | null;
   audioDuration?: number | null;
   poll?: any;
@@ -232,9 +234,10 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
   const conversationId = parseInt(rawId, 10);
   if (isNaN(conversationId)) { res.status(400).json({ error: "Invalid conversation ID" }); return; }
 
-  const { content, imageUrl, audioUrl, audioDuration, replyToId, poll } = req.body as {
+  const { content, imageUrl, mediaAlbum, audioUrl, audioDuration, replyToId, poll } = req.body as {
     content?: string;
     imageUrl?: string;
+    mediaAlbum?: string[];
     audioUrl?: string;
     audioDuration?: number;
     replyToId?: number;
@@ -247,8 +250,8 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
     };
   };
 
-  if (content == null && imageUrl == null && audioUrl == null && poll == null) {
-    res.status(400).json({ error: "Message must have content, imageUrl, audioUrl, or poll" });
+  if (content == null && imageUrl == null && mediaAlbum == null && audioUrl == null && poll == null) {
+    res.status(400).json({ error: "Message must have content, imageUrl, mediaAlbum, audioUrl, or poll" });
     return;
   }
 
@@ -278,6 +281,7 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
     senderId: userId,
     content: content ?? null,
     imageUrl: imageUrl ?? null,
+    mediaAlbum: (mediaAlbum && mediaAlbum.length > 0 ? mediaAlbum : null) as string[] | null,
     audioUrl: audioUrl ?? null,
     audioDuration: audioDuration ?? null,
     pollId: pollId ?? null,

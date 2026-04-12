@@ -92,6 +92,62 @@ async function translateText(text: string, targetLang: string): Promise<string> 
   return translated;
 }
 
+// ── Album grid (Telegram-style multi-media layout) ────────────────────────
+function AlbumGrid({ urls }: { urls: string[] }) {
+  const count = urls.length;
+
+  const rows = count <= 2 ? 1 : count <= 4 ? 2 : 3;
+  const gridH = rows === 1 ? 160 : rows === 2 ? 220 : 280;
+
+  return (
+    <div
+      className="mb-2 -mx-1 -mt-1 rounded-xl overflow-hidden"
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: count === 1 ? '1fr' : 'repeat(2, 1fr)',
+        gridTemplateRows: `repeat(${rows === 1 ? 1 : rows}, 1fr)`,
+        gap: 2,
+        height: gridH,
+        maxWidth: 280,
+      }}
+    >
+      {urls.slice(0, Math.min(count, 6)).map((url, i) => {
+        const isVideo = url.match(/\.(mp4|webm|mov|avi|mkv)$/i);
+        const isLastShown = i === 5 && count > 6;
+        return (
+          <div
+            key={i}
+            className="relative overflow-hidden bg-black"
+            style={{
+              gridColumn: count === 1 ? '1 / -1' : undefined,
+              gridRow: count === 1 ? '1 / -1' : undefined,
+            }}
+          >
+            {isVideo ? (
+              <video src={url} className="w-full h-full object-cover" muted playsInline onClick={(e) => { e.stopPropagation(); (e.currentTarget as HTMLVideoElement).paused ? e.currentTarget.play() : e.currentTarget.pause(); }} />
+            ) : (
+              <img src={url} alt="" className="w-full h-full object-cover" />
+            )}
+            {isVideo && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="w-8 h-8 rounded-full bg-black/50 flex items-center justify-center">
+                  <div className="w-0 h-0 border-y-[6px] border-y-transparent border-l-[10px] border-l-white ml-0.5" />
+                </div>
+              </div>
+            )}
+            {isLastShown && (
+              <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                <span className="text-white text-xl font-bold">+{count - 5}</span>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function SheetItem({
   icon, label, onClick, divider = false, danger = false,
 }: {
@@ -668,15 +724,22 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     setMediaPicker(null);
     try {
       setUploadingImg(true);
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const res = await uploadImage.mutateAsync({ data: { file } });
-        forceScrollRef.current = true;
-        // Caption only on the last file (Telegram behaviour)
-        const msgCaption = i === files.length - 1 ? (caption || undefined) : undefined;
+      // Upload all files in parallel, then send ONE album message
+      const urls = await Promise.all(
+        files.map(file => uploadImage.mutateAsync({ data: { file } }).then(r => r.url))
+      );
+      forceScrollRef.current = true;
+      if (urls.length === 1) {
+        // Single file → classic imageUrl message
         await sendMsg.mutateAsync({
           conversationId,
-          data: { imageUrl: res.url, content: msgCaption, replyToId: replyTo?.id },
+          data: { imageUrl: urls[0], content: caption || undefined, replyToId: replyTo?.id },
+        });
+      } else {
+        // Multiple files → one album message with mediaAlbum JSON field
+        await sendMsg.mutateAsync({
+          conversationId,
+          data: { mediaAlbum: urls, content: caption || undefined, replyToId: replyTo?.id } as any,
         });
       }
       setReplyTo(null);
@@ -1217,8 +1280,13 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       </div>
                     )}
 
-                    {/* Image or Video */}
-                    {msg.imageUrl && !isPoll && (
+                    {/* Media Album (multiple images/videos — Telegram grid style) */}
+                    {(msg as any).mediaAlbum && Array.isArray((msg as any).mediaAlbum) && (msg as any).mediaAlbum.length > 0 && !isPoll && (
+                      <AlbumGrid urls={(msg as any).mediaAlbum} />
+                    )}
+
+                    {/* Single Image or Video */}
+                    {msg.imageUrl && !(msg as any).mediaAlbum && !isPoll && (
                       <div className="mb-2 -mx-1 -mt-1 overflow-hidden rounded-xl" onClick={(e) => e.stopPropagation()}>
                         {msg.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? (
                           <video
