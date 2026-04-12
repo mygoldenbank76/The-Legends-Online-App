@@ -18,6 +18,26 @@ type SocketContextType = {
   typingUsers: TypingUser[];
 };
 
+// Minimal shape of a message delivered by socket (matches server FormattedMessage)
+type SocketMsg = {
+  id: number;
+  conversationId: number;
+  senderId: number;
+  content: string | null;
+  imageUrl: string | null;
+  audioUrl?: string | null;
+  audioDuration?: number | null;
+  poll?: any;
+  linkPreview: any;
+  replyTo: any;
+  editedAt: string | null;
+  isDeleted: boolean;
+  status?: string;
+  reactions: any[];
+  createdAt: string;
+  sender?: any;
+};
+
 const SocketContext = createContext<SocketContextType | undefined>(undefined);
 
 export function SocketProvider({ children }: { children: ReactNode }) {
@@ -25,7 +45,6 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
-  // timeout refs: userId-convId -> setTimeout id
   const typingTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   useEffect(() => {
@@ -42,6 +61,28 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       path: '/socket.io',
     });
 
+    // ── Inject a message directly into the cache (no round-trip refetch) ──
+    const injectMessage = (msg: SocketMsg) => {
+      const convId = msg.conversationId;
+      const key = getListMessagesQueryKey(convId);
+      const existing = queryClient.getQueryData(key);
+
+      if (Array.isArray(existing)) {
+        queryClient.setQueryData(key, (old: SocketMsg[]) => {
+          if (!Array.isArray(old)) return old;
+          if (old.some(m => m.id === msg.id)) return old; // dedup
+          return [...old, msg];
+        });
+      } else {
+        // Cache doesn't exist yet (conversation never opened) — fall back to invalidation
+        queryClient.invalidateQueries({ queryKey: key });
+      }
+
+      // Always refresh the sidebar conversation list (unread badge, last message preview)
+      queryClient.invalidateQueries({ queryKey: getListConversationsQueryKey() });
+    };
+
+    // ── Invalidate helper (for events where we don't have the full payload) ──
     const invalidateMessages = (conversationId: number) => {
       queryClient.invalidateQueries({ queryKey: getListMessagesQueryKey(conversationId) });
       queryClient.invalidateQueries({ queryKey: getListConversationsQueryKey() });
@@ -50,9 +91,12 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     newSocket.on('connect', () => console.log('Socket connected:', newSocket.id));
     newSocket.on('connect_error', (err) => console.warn('Socket error:', err.message));
 
-    newSocket.on('new_message', (msg: { conversationId: number }) => {
-      invalidateMessages(msg.conversationId);
+    // new_message carries the full FormattedMessage — inject directly, no refetch
+    newSocket.on('new_message', (msg: SocketMsg) => {
+      injectMessage(msg);
     });
+
+    // For reactions/edits/deletes we still refetch (smaller payloads, less frequent)
     newSocket.on('message_reaction', (msg: { conversationId: number }) => {
       invalidateMessages(msg.conversationId);
     });
@@ -76,11 +120,9 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
     // ── Read receipts ────────────────────────────────────────────────────────
     newSocket.on('messages_read', (data: { conversationId: number }) => {
-      // Sender's messages were just read — refresh to update status icons
       invalidateMessages(data.conversationId);
     });
     newSocket.on('messages_delivered', (data: { conversationId: number }) => {
-      // Sender's messages are now delivered — refresh status
       invalidateMessages(data.conversationId);
     });
 
@@ -88,7 +130,6 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     newSocket.on('typing', (data: { userId: number; displayName: string; conversationId: number; isTyping: boolean }) => {
       const key = `${data.userId}-${data.conversationId}`;
 
-      // Clear any existing timeout for this user
       const existing = typingTimeouts.current.get(key);
       if (existing) clearTimeout(existing);
 
@@ -97,7 +138,6 @@ export function SocketProvider({ children }: { children: ReactNode }) {
           const filtered = prev.filter(u => !(u.userId === data.userId && u.conversationId === data.conversationId));
           return [...filtered, { userId: data.userId, displayName: data.displayName, conversationId: data.conversationId }];
         });
-        // Auto-remove after 4s if no update
         const tid = setTimeout(() => {
           setTypingUsers(prev => prev.filter(u => !(u.userId === data.userId && u.conversationId === data.conversationId)));
           typingTimeouts.current.delete(key);
