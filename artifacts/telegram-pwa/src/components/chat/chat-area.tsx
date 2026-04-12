@@ -369,25 +369,39 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // on the next message list update, regardless of current scroll position.
   const forceScrollRef = useRef(false);
 
+  // Track the ID of the most recent (last) message to distinguish real-time
+  // new messages from old messages loaded by pagination (which are prepended).
+  const lastMsgIdRef = useRef<number | null>(null);
+
   useEffect(() => {
     const count = messages?.length ?? 0;
+    const currentLastId = messages && messages.length > 0 ? messages[messages.length - 1].id : null;
+
     // Only auto-scroll on new messages (after initial load is done)
     if (scrollReadyConvRef.current === conversationId && count !== prevMsgCount) {
       const delta = count - prevMsgCount;
       setPrevMsgCount(count);
+
+      // Did the last message ID change? → truly new messages received
+      // Same last message ID → old messages loaded by pagination (prepended at start)
+      const isReallyNew = currentLastId !== lastMsgIdRef.current && delta > 0;
+      lastMsgIdRef.current = currentLastId;
+
       const el = scrollRef.current;
       if (forceScrollRef.current) {
         // User just sent something — always scroll to bottom (Telegram behaviour)
         forceScrollRef.current = false;
         scrollBottom(30);
-      } else if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 200) {
+      } else if (isReallyNew && el && el.scrollHeight - el.scrollTop - el.clientHeight < 200) {
         // Someone else sent and user was near the bottom — keep them there
         scrollBottom(30);
-      } else if (delta > 0) {
+      } else if (isReallyNew) {
         // User is scrolled up reading history — show unread badge on the scroll button
         setUnreadCount(c => c + delta);
       }
+      // else: old messages loaded by pagination — no scroll, no badge
     } else if (count !== prevMsgCount) {
+      lastMsgIdRef.current = currentLastId;
       setPrevMsgCount(count);
     }
   }, [messages, prevMsgCount, conversationId, scrollBottom]);
