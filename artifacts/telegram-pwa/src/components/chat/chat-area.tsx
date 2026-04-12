@@ -328,6 +328,19 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     setSelectionRange(start !== end ? { start, end } : null);
   };
 
+  // Also listen to native selectionchange for reliable mobile selection detection
+  useEffect(() => {
+    const onSelChange = () => {
+      const ta = textareaRef.current;
+      if (!ta || document.activeElement !== ta) return;
+      const start = ta.selectionStart ?? 0;
+      const end = ta.selectionEnd ?? 0;
+      setSelectionRange(start !== end ? { start, end } : null);
+    };
+    document.addEventListener('selectionchange', onSelChange);
+    return () => document.removeEventListener('selectionchange', onSelChange);
+  }, []);
+
   const handleFormat = (fmt: FormatType) => {
     const ta = textareaRef.current;
     if (!ta) return;
@@ -1178,10 +1191,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       exit={{ opacity: 0, x: -8 }}
                       transition={{ duration: 0.13 }}
                       onClick={() => setGifOpen(v => !v)}
-                      className={`flex-shrink-0 mx-2 mb-[9px] self-end text-[11px] font-extrabold rounded-lg px-1.5 py-0.5 leading-none transition-colors border
+                      className={`flex-shrink-0 ml-3 mr-1 self-center text-[11px] font-bold tracking-wider rounded-[6px] px-[7px] py-[3px] border-[1.5px] transition-colors leading-tight
                         ${gifOpen
-                          ? 'bg-primary/20 border-primary/50 text-primary'
-                          : 'border-muted-foreground/40 text-muted-foreground hover:border-primary/50 hover:text-primary'
+                          ? 'bg-primary/20 border-primary text-primary'
+                          : 'border-foreground/50 text-foreground/70 hover:border-primary hover:text-primary'
                         }`}
                     >
                       GIF
