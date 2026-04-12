@@ -331,16 +331,25 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     return () => vv.removeEventListener('resize', onViewportResize);
   }, []);
 
+  // Set to true when the LOCAL user sends something — guarantees a scroll-to-bottom
+  // on the next message list update, regardless of current scroll position.
+  const forceScrollRef = useRef(false);
+
   useEffect(() => {
     const count = messages?.length ?? 0;
     // Only auto-scroll on new messages (after initial load is done)
     if (scrollReadyConvRef.current === conversationId && count !== prevMsgCount) {
       setPrevMsgCount(count);
-      // Only scroll down if user is near the bottom (within 200px)
       const el = scrollRef.current;
-      if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 200) {
-        scrollBottom(50);
+      if (forceScrollRef.current) {
+        // User just sent something — always scroll to bottom (Telegram behaviour)
+        forceScrollRef.current = false;
+        scrollBottom(30);
+      } else if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 200) {
+        // Someone else sent and user was near the bottom — keep them there
+        scrollBottom(30);
       }
+      // else: user is scrolled up reading history — don't disturb them
     } else if (count !== prevMsgCount) {
       setPrevMsgCount(count);
     }
@@ -380,9 +389,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     if (typingStopTimeout.current) clearTimeout(typingStopTimeout.current);
     emitTyping(conversationId, false);
     try {
+      forceScrollRef.current = true;
       await sendMsg.mutateAsync({ conversationId, data: { content: trimmed, replyToId: replyId } });
-      invalidate(); scrollBottom(80);
-    } catch { setContent(trimmed); }
+      invalidate();
+    } catch { setContent(trimmed); forceScrollRef.current = false; }
     finally { setSending(false); }
   }, [content, sending, editState, replyTo, conversationId, sendMsg, editMsg, invalidate, scrollBottom, emitTyping]);
 
@@ -393,9 +403,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     setReplyTo(null);
     setSending(true);
     try {
+      forceScrollRef.current = true;
       await sendMsg.mutateAsync({ conversationId, data: { imageUrl: gif.url, replyToId: replyId } });
-      invalidate(); scrollBottom(80);
-    } catch (e) { console.error(e); }
+      invalidate();
+    } catch (e) { console.error(e); forceScrollRef.current = false; }
     finally { setSending(false); }
   }, [sending, replyTo, conversationId, sendMsg, invalidate, scrollBottom]);
 
@@ -583,8 +594,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     try {
       setUploadingImg(true);
       const res = await uploadImage.mutateAsync({ data: { file } });
+      forceScrollRef.current = true;
       await sendMsg.mutateAsync({ conversationId, data: { imageUrl: res.url, replyToId: replyTo?.id } });
-      setReplyTo(null); invalidate(); scrollBottom(80);
+      setReplyTo(null); invalidate();
     } catch (err) { console.error(err); }
     finally { setUploadingImg(false); if (e.target) e.target.value = ''; }
   };
@@ -599,8 +611,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       const res = await authFetch('/api/uploads/document', { method: 'POST', body: formData });
       if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
       const { url, name } = await res.json();
+      forceScrollRef.current = true;
       await sendMsg.mutateAsync({ conversationId, data: { content: `📎 ${name || 'Document'}`, imageUrl: url, replyToId: replyTo?.id } });
-      setReplyTo(null); invalidate(); scrollBottom(80);
+      setReplyTo(null); invalidate();
     } catch (err) { console.error(err); }
     finally { setUploadingImg(false); if (e.target) e.target.value = ''; }
   };
@@ -614,10 +627,11 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       const res = await authFetch('/api/uploads/audio', { method: 'POST', body: formData });
       if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
       const { url } = await res.json();
+      forceScrollRef.current = true;
       await sendMsg.mutateAsync({ conversationId, data: { audioUrl: url, audioDuration: Math.round(duration), replyToId: replyTo?.id } as any });
       setReplyTo(null);
       setVoiceActive(false);
-      invalidate(); scrollBottom(80);
+      invalidate();
     } catch (err) { console.error('Voice send error:', err); throw err; }
   }, [authFetch, conversationId, sendMsg, replyTo, invalidate, scrollBottom]);
 
@@ -630,9 +644,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     isQuiz: boolean;
   }) => {
     try {
+      forceScrollRef.current = true;
       await sendMsg.mutateAsync({ conversationId, data: { poll } as any });
-      invalidate(); scrollBottom(80);
-    } catch (err) { console.error(err); }
+      invalidate();
+    } catch (err) { console.error(err); forceScrollRef.current = false; }
   }, [conversationId, sendMsg, invalidate, scrollBottom]);
 
   // ── Poll vote ──────────────────────────────────────────────
