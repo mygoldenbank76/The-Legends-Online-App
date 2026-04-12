@@ -267,6 +267,11 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // ── Scroll ─────────────────────────────────────────────────
   const [scrollReady, setScrollReady] = useState(false);
   const scrollReadyConvRef = useRef<number | null>(null);
+  // During the "settle" period after initial load, images/videos are still loading
+  // and their heights change — we re-scroll to bottom each time.
+  const msgsWrapRef   = useRef<HTMLDivElement>(null);
+  const settlingRef   = useRef(false);
+  const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Reset visibility when conversation changes
   useEffect(() => {
@@ -283,7 +288,27 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
     setScrollReady(true);
+    // Start the settle period — images/videos haven't rendered yet,
+    // their heights will grow as they load, pushing the bottom further down.
+    // The ResizeObserver below will re-scroll to bottom on each height change.
+    settlingRef.current = true;
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+    settleTimerRef.current = setTimeout(() => { settlingRef.current = false; }, 5000);
   });
+
+  // Re-scroll to bottom whenever the messages wrapper grows in height
+  // (e.g. images/GIFs loading) — but only during the settle window.
+  useEffect(() => {
+    const wrap = msgsWrapRef.current;
+    if (!wrap || !scrollReady) return;
+    const ro = new ResizeObserver(() => {
+      if (settlingRef.current && scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    });
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, [scrollReady, conversationId]);
 
   const scrollBottom = useCallback((delay = 0) => {
     setTimeout(() => {
@@ -914,7 +939,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         {isLoading && (
           <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
         )}
-        <div className="flex flex-col gap-0.5 pb-2">
+        <div ref={msgsWrapRef} className="flex flex-col gap-0.5 pb-2">
           {messages?.map((msg, index) => {
             const isMine = msg.senderId === user?.id;
             const prevMsg = messages[index - 1];
