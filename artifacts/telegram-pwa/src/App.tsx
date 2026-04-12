@@ -6,6 +6,7 @@ import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
 import Home from "@/pages/home";
+import JoinGroup from "@/pages/join";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { SocketProvider } from "@/lib/socket-context";
 import { PreferencesProvider } from "@/lib/preferences-context";
@@ -61,6 +62,7 @@ function AppRouter() {
       <Switch>
         <Route path="/login" component={Login} />
         <Route path="/register" component={Register} />
+        <Route path="/join/:id" component={JoinGroup} />
         <Route path="/" component={Home} />
         <Route component={NotFound} />
       </Switch>

@@ -114,8 +114,14 @@ export default function Login() {
       localStorage.setItem('telechat_token', result.token);
       localStorage.setItem('telechat_app_lang', lang);
       toast({ title: t.welcome });
-      // Use BASE_URL so this works correctly on both dev and deployed environments
-      window.location.href = import.meta.env.BASE_URL || '/';
+      const base = (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
+      const joinConv = sessionStorage.getItem('telechat_join_conv');
+      if (joinConv) {
+        sessionStorage.removeItem('telechat_join_conv');
+        window.location.href = `${base}/?conv=${joinConv}&type=group`;
+      } else {
+        window.location.href = `${base}/`;
+      }
     } catch (error: any) {
       toast({ variant: 'destructive', title: t.errFailed, description: error.message || t.errDesc });
     } finally {
