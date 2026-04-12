@@ -46,7 +46,7 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
   const title = conversation?.type === 'group' ? translateGroupName(rawTitle, appLanguage) : rawTitle;
   const initial = title.substring(0, 1).toUpperCase();
   const memberCount = conversation?.participants?.length ?? 0;
-  const groupLink = `legends://group/${conversation.id.toString().padStart(24, '0').replace(/(.{8})/g, '$1-').slice(0, -1)}`;
+  const groupLink = `https://thelegendsonline.social/join/${conversation.id}`;
 
   const mediaMessages = messages.filter(m => m.imageUrl);
   const voiceMessages = messages.filter(m => m.audioUrl);
