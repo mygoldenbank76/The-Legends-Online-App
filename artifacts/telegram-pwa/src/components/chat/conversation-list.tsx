@@ -1,6 +1,12 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useListConversations, getListConversationsQueryKey } from '@workspace/api-client-react';
+import {
+  useListConversations,
+  getListConversationsQueryKey,
+  getGetConversationQueryKey,
+  getListMessagesQueryKey,
+  listMessages,
+} from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { fr, enUS, es, ar, pt, de } from 'date-fns/locale';
@@ -37,6 +43,51 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const didLongPress = useRef(false);
 
+  // ── Optimisation 1 : pré-peupler le cache getConversation dès que la liste arrive ──
+  // Affichage INSTANTANÉ du titre/avatar dès l'ouverture d'une conversation.
+  // Les données complètes (participants…) sont rechargées en arrière-plan.
+  useEffect(() => {
+    if (!allConvs.length) return;
+    allConvs.forEach(summary => {
+      const key = getGetConversationQueryKey(summary.id);
+      const state = queryClient.getQueryState(key);
+      // Si on a déjà des données fraîches ET des participants complets, on garde
+      const hasFullData = (state?.data as any)?.participants?.length > 0;
+      if (hasFullData) return;
+      // Pré-remplir le cache avec les données de la liste pour affichage immédiat
+      queryClient.setQueryData(key, {
+        id: summary.id,
+        type: summary.type,
+        name: summary.name ?? null,
+        pinnedMessageId: summary.pinnedMessageId ?? null,
+        // DMs: inclure otherUser comme participant
+        // Groupes: tableau vide — les participants complets viendront du vrai fetch
+        participants: summary.otherUser ? [summary.otherUser] : [],
+        createdAt: summary.updatedAt,
+      });
+      // Marquer immédiatement comme périmé → background refetch dès qu'un composant
+      // s'abonne, sans bloquer l'affichage (stale-while-revalidate)
+      queryClient.invalidateQueries({ queryKey: key });
+    });
+  }, [allConvs, queryClient]);
+
+  // ── Optimisation 2 : prefetch messages dès le pointerDown ──
+  // Le doigt commence à appuyer → on démarre le chargement des messages immédiatement.
+  // Quand le doigt se lève (~100-200ms plus tard), les messages sont déjà en cache.
+  const prefetchMessages = useCallback((convId: number) => {
+    const key = getListMessagesQueryKey(convId);
+    const state = queryClient.getQueryState(key);
+    // Prefetch seulement si le cache est vide ou périmé (> 5 min)
+    const isStale = !state?.dataUpdatedAt || Date.now() - state.dataUpdatedAt > 1000 * 60 * 5;
+    if (isStale) {
+      queryClient.prefetchQuery({
+        queryKey: key,
+        queryFn: () => listMessages(convId),
+        staleTime: 1000 * 60 * 5,
+      });
+    }
+  }, [queryClient]);
+
   const conversations = filterType === 'all'
     ? allConvs
     : allConvs.filter(c =>
@@ -55,13 +106,15 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
       setOpenId(null);
       return;
     }
+    // Lancer le prefetch des messages immédiatement — avant que le doigt se lève
+    prefetchMessages(convId);
     pointerStart.current = { x: e.clientX, y: e.clientY };
     didLongPress.current = false;
     longPressTimer.current = setTimeout(() => {
       didLongPress.current = true;
       setOpenId(convId);
     }, LONG_PRESS_MS);
-  }, [openId]);
+  }, [openId, prefetchMessages]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!pointerStart.current) return;
