@@ -1395,7 +1395,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           ) : (
             <>
               {/* ── Text input field ─────────────────────────────────── */}
-              <div className="flex-1 glass rounded-2xl border border-border/50 focus-within:border-primary/40 transition-colors flex items-end overflow-hidden">
+              <div className="flex-1 glass rounded-r-2xl border border-border/50 focus-within:border-primary/40 transition-colors flex items-end overflow-hidden">
 
                 {/* Left icon: GIF (idle) ↔ Emoji (typing) */}
                 <AnimatePresence mode="wait" initial={false}>
