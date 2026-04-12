@@ -107,13 +107,13 @@ function MediaThumb({
       onClick={(e) => { e.stopPropagation(); onClick(); }}
     >
       {vid ? (
-        <video src={url} className="w-full h-full object-cover" muted playsInline preload="metadata" />
+        <video src={url} className="w-full h-full object-cover" style={{ background: '#000' }} muted playsInline preload="metadata" />
       ) : (
         <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
       )}
       {vid && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-          <div className="w-10 h-10 rounded-full bg-black/55 flex items-center justify-center shadow-lg">
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-full bg-black/65 flex items-center justify-center shadow-lg">
             <div className="w-0 h-0 border-y-[7px] border-y-transparent border-l-[12px] border-l-white ml-1" />
           </div>
         </div>
