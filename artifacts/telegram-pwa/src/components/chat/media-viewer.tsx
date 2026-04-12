@@ -21,18 +21,10 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
   const touchStartRef = useRef<{ x: number; y: number; t: number } | null>(null);
   const pinchStartRef = useRef<number | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const stripRef = useRef<HTMLDivElement>(null);
 
   const url = urls[idx] ?? '';
   const isVid = isVideo(url);
   const count = urls.length;
-
-  // Scroll strip to active thumb
-  useEffect(() => {
-    if (!stripRef.current) return;
-    const thumb = stripRef.current.children[idx] as HTMLElement;
-    if (thumb) thumb.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-  }, [idx]);
 
   // Autoplay video when navigating
   useEffect(() => {
@@ -133,41 +125,48 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
 
   return (
     <motion.div
-      className="fixed inset-0 z-[600] flex flex-col bg-black select-none"
+      className="fixed inset-0 z-[600] bg-black select-none"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.18 }}
     >
-      {/* ── Top bar ── */}
+      {/* ── Top bar (overlay flottant) ── */}
       <div
-        className="flex-shrink-0 flex items-center justify-between px-3 py-2 pt-safe"
-        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)', position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }}
+        className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-3"
+        style={{
+          paddingTop: 'max(env(safe-area-inset-top, 0px), 12px)',
+          paddingBottom: 12,
+          background: 'linear-gradient(to bottom, rgba(0,0,0,0.65) 0%, transparent 100%)',
+          pointerEvents: 'none',
+        }}
       >
         <button
           onClick={onClose}
-          className="w-9 h-9 flex items-center justify-center rounded-full bg-black/40 hover:bg-black/60 transition-colors"
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 transition-colors"
+          style={{ pointerEvents: 'auto' }}
         >
           <X className="w-5 h-5 text-white" />
         </button>
 
-        {count > 1 && (
-          <span className="text-white text-sm font-semibold bg-black/40 px-3 py-1 rounded-full">
+        {count > 1 ? (
+          <span className="text-white text-sm font-semibold bg-black/50 px-3 py-1 rounded-full" style={{ pointerEvents: 'none' }}>
             {idx + 1} / {count}
           </span>
-        )}
+        ) : <span />}
 
         <button
           onClick={downloadUrl}
-          className="w-9 h-9 flex items-center justify-center rounded-full bg-black/40 hover:bg-black/60 transition-colors"
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 transition-colors"
+          style={{ pointerEvents: 'auto' }}
         >
           <Download className="w-4 h-4 text-white" />
         </button>
       </div>
 
-      {/* ── Main media area ── */}
+      {/* ── Full-screen media area ── */}
       <div
-        className="flex-1 relative overflow-hidden flex items-center justify-center"
+        className="absolute inset-0 flex items-center justify-center overflow-hidden"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -189,18 +188,19 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
                 controls
                 playsInline
                 autoPlay
-                className="max-w-full max-h-full"
-                style={{ maxHeight: 'calc(100vh - 140px)', objectFit: 'contain' }}
+                className="w-full h-full"
+                style={{ objectFit: 'contain', maxWidth: '100vw', maxHeight: '100dvh' }}
                 onClick={e => e.stopPropagation()}
               />
             ) : (
               <motion.img
                 src={url}
                 alt=""
-                className="max-w-full max-h-full"
+                className="w-full h-full"
                 style={{
-                  maxHeight: 'calc(100vh - 140px)',
                   objectFit: 'contain',
+                  maxWidth: '100vw',
+                  maxHeight: '100dvh',
                   scale,
                   x: imgOffset.x,
                   y: imgOffset.y,
@@ -218,7 +218,7 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
         {count > 1 && idx > 0 && (
           <button
             onClick={(e) => { e.stopPropagation(); goTo(idx - 1); }}
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors z-10 hidden sm:flex"
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors z-10 hidden sm:flex"
           >
             <ChevronLeft className="w-6 h-6 text-white" />
           </button>
@@ -226,43 +226,35 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
         {count > 1 && idx < count - 1 && (
           <button
             onClick={(e) => { e.stopPropagation(); goTo(idx + 1); }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors z-10 hidden sm:flex"
+            className="absolute right-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors z-10 hidden sm:flex"
           >
             <ChevronRight className="w-6 h-6 text-white" />
           </button>
         )}
       </div>
 
-      {/* ── Thumbnail strip (albums only) ── */}
+      {/* ── Indicateur de page (points) en bas — albums seulement ── */}
       {count > 1 && (
         <div
-          className="flex-shrink-0 py-3"
-          style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 100%)' }}
+          className="absolute bottom-0 left-0 right-0 z-20 flex items-center justify-center gap-1.5 pb-safe"
+          style={{
+            paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 14px)',
+            paddingTop: 10,
+            background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 100%)',
+            pointerEvents: 'none',
+          }}
         >
-          <div
-            ref={stripRef}
-            className="flex items-center gap-1.5 px-4 overflow-x-auto"
-            style={{ touchAction: 'pan-x', scrollbarWidth: 'none' }}
-          >
-            {urls.map((u, i) => (
-              <button
-                key={i}
-                onClick={() => goTo(i)}
-                className={`flex-shrink-0 rounded-lg overflow-hidden transition-all ${
-                  i === idx
-                    ? 'ring-2 ring-white scale-110 shadow-lg'
-                    : 'opacity-50 hover:opacity-80'
-                }`}
-                style={{ width: 52, height: 52 }}
-              >
-                {isVideo(u) ? (
-                  <video src={u} className="w-full h-full object-cover" muted playsInline />
-                ) : (
-                  <img src={u} alt="" className="w-full h-full object-cover" />
-                )}
-              </button>
-            ))}
-          </div>
+          {urls.map((_, i) => (
+            <div
+              key={i}
+              className="rounded-full transition-all duration-300"
+              style={{
+                width: i === idx ? 18 : 6,
+                height: 6,
+                background: i === idx ? '#fff' : 'rgba(255,255,255,0.4)',
+              }}
+            />
+          ))}
         </div>
       )}
     </motion.div>
