@@ -1360,29 +1360,33 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
               exit={{ opacity: 0, y: 10, scale: 0.97 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
             >
-              <div className="border border-white/[0.09] rounded-2xl overflow-hidden shadow-xl backdrop-blur-[40px] max-h-56 overflow-y-auto" style={{ background: 'rgba(18,24,40,0.97)' }}>
-                <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-white/5">
+              <div className="border border-white/[0.09] rounded-2xl shadow-xl backdrop-blur-[40px]" style={{ background: 'rgba(18,24,40,0.97)' }}>
+                {/* Header — outside the scroll area so it stays fixed */}
+                <div className="flex items-center px-4 pt-3 pb-2 border-b border-white/5 rounded-t-2xl" style={{ background: 'rgba(18,24,40,0.97)' }}>
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-primary/70">Mentions</span>
                 </div>
-                {mentionSuggestions.map((p, idx) => (
-                  <button
-                    key={p.id}
-                    onMouseDown={(e) => { e.preventDefault(); handleMentionSelect(p); }}
-                    onTouchStart={(e) => { e.preventDefault(); handleMentionSelect(p); }}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-primary/10 active:bg-primary/20 transition-colors text-left ${idx > 0 ? 'border-t border-white/5' : ''}`}
-                  >
-                    <Avatar className="w-8 h-8 flex-shrink-0">
-                      <AvatarImage src={p.avatar || ''} />
-                      <AvatarFallback className="bg-primary/20 text-primary text-xs">
-                        {(p.displayName || '?').substring(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">{p.displayName}</div>
-                      {p.username && <div className="text-xs text-primary/60 truncate">@{p.username}</div>}
-                    </div>
-                  </button>
-                ))}
+                {/* Scrollable list */}
+                <div className="max-h-52 overflow-y-auto rounded-b-2xl">
+                  {mentionSuggestions.map((p, idx) => (
+                    <button
+                      key={p.id}
+                      onMouseDown={(e) => { e.preventDefault(); handleMentionSelect(p); }}
+                      onTouchStart={(e) => { e.preventDefault(); handleMentionSelect(p); }}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-primary/10 active:bg-primary/20 transition-colors text-left ${idx > 0 ? 'border-t border-white/5' : ''}`}
+                    >
+                      <Avatar className="w-8 h-8 flex-shrink-0">
+                        <AvatarImage src={p.avatar || ''} />
+                        <AvatarFallback className="bg-primary/20 text-primary text-xs">
+                          {(p.displayName || '?').substring(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">{p.displayName}</div>
+                        {p.username && <div className="text-xs text-primary/60 truncate">@{p.username}</div>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             </motion.div>
           )}
