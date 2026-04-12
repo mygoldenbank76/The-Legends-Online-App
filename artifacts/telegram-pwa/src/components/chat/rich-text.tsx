@@ -165,17 +165,32 @@ function findNextSpecial(text: string, from: number): number {
 
 function SpoilerSpan({ children }: { children: React.ReactNode }) {
   const [revealed, setRevealed] = useState(false);
+
+  if (revealed) {
+    return (
+      <span
+        onClick={(e) => { e.stopPropagation(); e.preventDefault(); setRevealed(false); }}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => { e.stopPropagation(); }}
+        className="cursor-pointer rounded px-0.5 select-text"
+        style={{ background: 'rgba(255,255,255,0.18)' }}
+      >
+        {children}
+      </span>
+    );
+  }
+
   return (
     <span
-      onClick={() => setRevealed(r => !r)}
-      className="cursor-pointer rounded px-0.5 transition-all select-none"
-      style={{
-        background: revealed ? 'transparent' : 'currentColor',
-        color: revealed ? 'inherit' : 'transparent',
-        userSelect: revealed ? 'text' : 'none',
-      }}
+      onClick={(e) => { e.stopPropagation(); e.preventDefault(); setRevealed(true); }}
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); setRevealed(true); }}
+      className="spoiler-wrap cursor-pointer select-none"
     >
-      {children}
+      {/* Hidden text — occupies exact layout space but invisible */}
+      <span className="spoiler-text">{children}</span>
+      {/* Animated overlay — same size as the text */}
+      <span className="spoiler-anim" aria-hidden="true" />
     </span>
   );
 }
