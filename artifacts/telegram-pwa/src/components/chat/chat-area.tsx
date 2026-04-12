@@ -5,6 +5,7 @@ import {
   useMarkConversationRead, useAddReaction, useUploadImage,
   useEditMessage, useDeleteMessage, usePinMessage,
   getListMessagesQueryKey, getListConversationsQueryKey, getGetConversationQueryKey,
+  listMessages,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth-context';
@@ -127,9 +128,72 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const deleteMsg = useDeleteMessage();
   const pinMsg = usePinMessage();
 
-  const messages = (rawMessages as Msg[] | undefined)?.filter(m => !m.isDeleted);
-
+  // Refs (declared early so they can be used in callbacks below)
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Pagination state — older messages prepended when scrolling to top
+  const [olderMessages, setOlderMessages] = useState<Msg[]>([]);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const prevConvIdRef = useRef<number | null>(null);
+
+  // Reset pagination when conversation changes
+  useEffect(() => {
+    if (prevConvIdRef.current !== conversationId) {
+      setOlderMessages([]);
+      setHasMore(true);
+      setLoadingMore(false);
+      prevConvIdRef.current = conversationId;
+    }
+  }, [conversationId]);
+
+  // Merge: older pages first, then real-time messages, deduplicated by id
+  const recentIds = new Set((rawMessages as Msg[] | undefined)?.map(m => m.id) ?? []);
+  const dedupedOlder = olderMessages.filter(m => !recentIds.has(m.id));
+  const allMessages = [...dedupedOlder, ...((rawMessages as Msg[] | undefined) ?? [])];
+  const messages = allMessages.filter(m => !m.isDeleted);
+
+  // Load older messages when sentinel becomes visible
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore || isLoading) return;
+    const oldestId = messages[0]?.id;
+    if (!oldestId) return;
+    setLoadingMore(true);
+    try {
+      const container = scrollRef.current;
+      const prevScrollHeight = container?.scrollHeight ?? 0;
+      const batch = await listMessages(conversationId, { before: oldestId, limit: 50 });
+      if (!batch || batch.length === 0) { setHasMore(false); return; }
+      if (batch.length < 50) setHasMore(false);
+      setOlderMessages(prev => {
+        const existingIds = new Set(prev.map(m => m.id));
+        const newBatch = (batch as Msg[]).filter(m => !existingIds.has(m.id));
+        return [...newBatch, ...prev];
+      });
+      // Restore scroll position after prepend
+      requestAnimationFrame(() => {
+        if (container) {
+          container.scrollTop = container.scrollHeight - prevScrollHeight;
+        }
+      });
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [conversationId, loadingMore, hasMore, isLoading, messages]);
+
+  // IntersectionObserver on sentinel
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMore(); },
+      { root: scrollRef.current, threshold: 0.1 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loadMore]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
@@ -750,6 +814,20 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
       {/* ── Messages ── */}
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 pt-4 pb-2 bg-background">
+        {/* Sentinel — triggers loading older messages on scroll to top */}
+        <div ref={sentinelRef} className="h-1" />
+        {/* Spinner while loading older messages */}
+        {loadingMore && (
+          <div className="flex justify-center py-3">
+            <Loader2 className="w-5 h-5 animate-spin text-primary/60" />
+          </div>
+        )}
+        {/* No-more-messages indicator */}
+        {!hasMore && !isLoading && messages.length > 0 && (
+          <div className="flex justify-center py-2">
+            <span className="text-[10px] text-muted-foreground/50 select-none">— début de la conversation —</span>
+          </div>
+        )}
         {isLoading && (
           <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
         )}
