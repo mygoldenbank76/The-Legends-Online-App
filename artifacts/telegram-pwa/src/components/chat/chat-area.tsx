@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   useListMessages, useGetConversation, useSendMessage,
@@ -265,6 +265,26 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   }, [socket, conversationId, joinConversation]);
 
   // ── Scroll ─────────────────────────────────────────────────
+  const [scrollReady, setScrollReady] = useState(false);
+  const scrollReadyConvRef = useRef<number | null>(null);
+
+  // Reset visibility when conversation changes
+  useEffect(() => {
+    setScrollReady(false);
+    scrollReadyConvRef.current = null;
+  }, [conversationId]);
+
+  // Initial scroll — synchronous (before paint) to avoid flash
+  useLayoutEffect(() => {
+    if (!messages || messages.length === 0 || isLoading) return;
+    if (scrollReadyConvRef.current === conversationId) return;
+    scrollReadyConvRef.current = conversationId;
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+    setScrollReady(true);
+  });
+
   const scrollBottom = useCallback((delay = 0) => {
     setTimeout(() => {
       if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -273,10 +293,18 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
   useEffect(() => {
     const count = messages?.length ?? 0;
-    if (count !== prevMsgCount) { setPrevMsgCount(count); scrollBottom(50); }
-  }, [messages, prevMsgCount, scrollBottom]);
-
-  useEffect(() => { scrollBottom(120); }, [conversationId, scrollBottom]);
+    // Only auto-scroll on new messages (after initial load is done)
+    if (scrollReadyConvRef.current === conversationId && count !== prevMsgCount) {
+      setPrevMsgCount(count);
+      // Only scroll down if user is near the bottom (within 200px)
+      const el = scrollRef.current;
+      if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 200) {
+        scrollBottom(50);
+      }
+    } else if (count !== prevMsgCount) {
+      setPrevMsgCount(count);
+    }
+  }, [messages, prevMsgCount, conversationId, scrollBottom]);
 
   // Reset ghost-touch guard whenever we open a different conversation
   useEffect(() => { conversationOpenedAt.current = Date.now(); }, [conversationId]);
@@ -813,7 +841,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       )}
 
       {/* ── Messages ── */}
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 pt-4 pb-2 bg-background">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 pt-4 pb-2 bg-background" style={{ visibility: scrollReady || isLoading ? 'visible' : 'hidden' }}>
         {/* Sentinel — triggers loading older messages on scroll to top */}
         <div ref={sentinelRef} className="h-1" />
         {/* Spinner while loading older messages */}
