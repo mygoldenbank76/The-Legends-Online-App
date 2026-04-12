@@ -32,6 +32,8 @@ import { LinkPreviewCard } from './link-preview';
 import { FormattingToolbar } from './formatting-toolbar';
 import { RichText, applyFormat } from './rich-text';
 import type { FormatType } from './rich-text';
+import { GifPicker } from './gif-picker';
+import type { GifResult } from './gif-picker';
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡', '🔥'];
 const PICKER_EMOJIS = ['😀','😂','🤣','😊','😍','🥰','😘','😋','😎','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😣','😥','😮','🤐','😯','😪','😫','🥱','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','☹️','🙁','😖','😞','😟','😤','😢','😭','😦','😧','😨','😩','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','😡','😠','🤬','😷','🤒','🤕','🤢','🤮','🤧','😇','🥳','🥺','🤠','🤡','🤥','🤫','🤭','🧐','🤓','😈','👿','👹','👺','💀','👻','👽','👾','🤖'];
@@ -168,6 +170,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const [pollCreatorOpen, setPollCreatorOpen] = useState(false);
   const [groupInfoOpen, setGroupInfoOpen] = useState(false);
   const [voiceActive, setVoiceActive] = useState(false);
+  const [gifOpen, setGifOpen] = useState(false);
   const [pinnedIdx, setPinnedIdx] = useState(0);
 
   // Poll votes viewer state
@@ -252,6 +255,19 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     finally { setSending(false); }
   }, [content, sending, editState, replyTo, conversationId, sendMsg, editMsg, invalidate, scrollBottom, emitTyping]);
 
+  // ── GIF send ──────────────────────────────────────────────
+  const handleGifSelect = useCallback(async (gif: GifResult) => {
+    if (sending) return;
+    const replyId = replyTo?.id;
+    setReplyTo(null);
+    setSending(true);
+    try {
+      await sendMsg.mutateAsync({ conversationId, data: { imageUrl: gif.url, replyToId: replyId } });
+      invalidate(); scrollBottom(80);
+    } catch (e) { console.error(e); }
+    finally { setSending(false); }
+  }, [sending, replyTo, conversationId, sendMsg, invalidate, scrollBottom]);
+
   // ── @mention helpers ──────────────────────────────────────
   const participants: Array<{ id: number; displayName: string; username?: string; avatar?: string | null }> =
     (conversation as any)?.participants ?? [];
@@ -269,6 +285,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setContent(value);
+    if (value.trim()) setGifOpen(false);
     const cursor = e.target.selectionStart ?? value.length;
     const textBeforeCursor = value.slice(0, cursor);
     const match = textBeforeCursor.match(/@(\w*)$/);
@@ -1117,7 +1134,13 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       </AnimatePresence>
 
       {/* ── Input bar — Base44 style ── */}
-      <div className="flex-shrink-0 glass border-t border-border/50">
+      <div className="flex-shrink-0 glass border-t border-border/50 relative">
+        {/* GIF picker — floats above the input bar */}
+        <GifPicker
+          open={gifOpen}
+          onClose={() => setGifOpen(false)}
+          onSelect={handleGifSelect}
+        />
         {/* Formatting toolbar — shown BELOW messages, ABOVE the input row */}
         <FormattingToolbar
           visible={!voiceActive}
@@ -1154,8 +1177,12 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -8 }}
                       transition={{ duration: 0.13 }}
-                      className="flex-shrink-0 mx-2 mb-2 self-end text-[10px] font-bold text-muted-foreground border border-muted-foreground/40 rounded-md px-1 py-0.5 hover:text-foreground hover:border-foreground/50 transition-colors leading-none"
-                      onClick={() => {/* GIF — bientôt disponible */}}
+                      onClick={() => setGifOpen(v => !v)}
+                      className={`flex-shrink-0 mx-2 mb-[9px] self-end text-[11px] font-extrabold rounded-lg px-1.5 py-0.5 leading-none transition-colors border
+                        ${gifOpen
+                          ? 'bg-primary/20 border-primary/50 text-primary'
+                          : 'border-muted-foreground/40 text-muted-foreground hover:border-primary/50 hover:text-primary'
+                        }`}
                     >
                       GIF
                     </motion.button>
