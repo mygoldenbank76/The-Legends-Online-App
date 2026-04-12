@@ -185,6 +185,8 @@ html, body {
   position: fixed;
   top: 0;
   left: 0;
+  /* Block touch-driven document scroll — all scrolling is inside message list */
+  touch-action: none;
 }
 
 #root {
@@ -192,9 +194,10 @@ html, body {
   height: 100%;
   width: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
   display: flex;
   flex-direction: column;
-  /* Anchor to top-left so translateY from JS works correctly */
+  /* JS also sets top = vv.offsetTop so #root tracks the visual viewport exactly */
   position: fixed;
   top: 0;
   left: 0;

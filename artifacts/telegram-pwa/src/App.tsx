@@ -84,14 +84,29 @@ function useVisualViewport() {
     const update = () => {
       const root = document.getElementById('root');
       if (!root) return;
-      // Set height to the actual visible area (shrinks when keyboard opens)
+      // Clamp the root to exactly the visible area (shrinks when keyboard opens).
+      // offsetTop > 0 when Android Chrome scrolls the layout viewport to reveal
+      // the focused input — we compensate so #root tracks the visual viewport.
       root.style.height = `${vv.height}px`;
+      root.style.top    = `${vv.offsetTop}px`;
+    };
+
+    // Hard-block any document-level scroll. All scrolling must happen inside
+    // the message list container, never at the window/body level.
+    const blockScroll = (e: Event) => {
+      e.preventDefault();
+      window.scrollTo(0, 0);
     };
 
     update();
-    vv.addEventListener('resize', update);
+    vv.addEventListener('resize',  update);
+    vv.addEventListener('scroll',  update);
+    window.addEventListener('scroll', blockScroll, { passive: false });
+
     return () => {
-      vv.removeEventListener('resize', update);
+      vv.removeEventListener('resize',  update);
+      vv.removeEventListener('scroll',  update);
+      window.removeEventListener('scroll', blockScroll);
     };
   }, []);
 }
