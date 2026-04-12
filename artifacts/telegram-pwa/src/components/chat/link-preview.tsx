@@ -45,17 +45,35 @@ function PlatformBadge({ platform, siteName }: { platform?: string | null; siteN
   );
 }
 
-function SpotifyEmbed({ embedUrl, isMine }: { embedUrl: string; isMine: boolean }) {
+function SpotifyEmbed({ embedUrl }: { embedUrl: string; isMine: boolean }) {
+  const [loaded, setLoaded] = useState(false);
+
   return (
-    <div className="mt-2 rounded-xl overflow-hidden" style={{ height: 152 }}>
+    <div className="mt-2 rounded-b-xl overflow-hidden relative" style={{ height: 152 }}>
+      {/* Spotify-themed skeleton — visible pendant le chargement de l'iframe */}
+      {!loaded && (
+        <div
+          className="absolute inset-0 flex items-center justify-center gap-2"
+          style={{ background: '#121212' }}
+        >
+          <Music size={18} className="animate-pulse" style={{ color: '#1DB954' }} />
+          <span className="text-sm" style={{ color: '#aaa' }}>Chargement Spotify…</span>
+        </div>
+      )}
       <iframe
         src={embedUrl}
         width="100%"
         height="152"
         allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-        loading="lazy"
-        style={{ border: 'none', borderRadius: 12 }}
+        loading="eager"
+        style={{
+          border: 'none',
+          display: 'block',
+          opacity: loaded ? 1 : 0,
+          transition: 'opacity 0.25s ease',
+        }}
         title="Spotify player"
+        onLoad={() => setLoaded(true)}
       />
     </div>
   );
@@ -106,6 +124,26 @@ function YouTubeEmbed({ preview, isMine }: { preview: LinkPreviewData; isMine: b
         <span className="text-[10px] bg-black/70 text-white px-1.5 py-0.5 rounded font-mono">▶ YouTube</span>
       </div>
     </button>
+  );
+}
+
+/* Image avec skeleton — évite le flash blanc/noir pendant le chargement */
+function GenericImage({ src, alt }: { src: string; alt: string }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <div className="relative w-full" style={{ minHeight: 80 }}>
+      {!loaded && (
+        <div className="absolute inset-0 animate-pulse" style={{ background: 'rgba(255,255,255,0.06)', minHeight: 80 }} />
+      )}
+      <img
+        src={src}
+        alt={alt}
+        loading="eager"
+        className="w-full object-cover max-h-40 block"
+        style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.2s ease' }}
+        onLoad={() => setLoaded(true)}
+      />
+    </div>
   );
 }
 
@@ -171,9 +209,7 @@ export function LinkPreviewCard({ preview, isMine }: Props) {
       className={containerClass + ' block hover:opacity-90 transition-opacity'}
       {...blockProps}
     >
-      {hasImage && (
-        <img src={preview.image!} alt={preview.title ?? ''} className="w-full object-cover max-h-40" />
-      )}
+      {hasImage && <GenericImage src={preview.image!} alt={preview.title ?? ''} />}
       <div className="px-3 py-2">
         <div className="flex items-center justify-between gap-2">
           <PlatformBadge platform={platform} siteName={preview.siteName} />
