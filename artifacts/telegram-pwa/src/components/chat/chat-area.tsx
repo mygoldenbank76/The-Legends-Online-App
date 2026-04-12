@@ -18,7 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   ArrowLeft, Loader2, Send, Plus, Smile,
   Reply, Pin, Pencil, Trash2, Languages, X, Check, PinOff, MoreVertical,
-  Mic, Copy, Heart, CheckCheck,
+  Mic, Copy, Heart, CheckCheck, ChevronDown,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { AttachmentSheet } from './attachment-sheet';
@@ -318,15 +318,24 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
   // Track whether user is pinned to the bottom (updated on every scroll)
   const wasAtBottomRef = useRef(true);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
+
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || !scrollReady) return;
     const onScroll = () => {
-      wasAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      wasAtBottomRef.current = atBottom;
+      setIsAtBottom(atBottom);
+      if (atBottom) setUnreadCount(0);
     };
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
   }, [scrollReady]);
+
+  // Reset unread counter when switching conversation
+  useEffect(() => { setUnreadCount(0); setIsAtBottom(true); }, [conversationId]);
 
   // When the keyboard opens (viewport shrinks), scroll to bottom if we were there before
   // Must capture wasAtBottom BEFORE the resize (that's why the ref approach is needed —
@@ -364,6 +373,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     const count = messages?.length ?? 0;
     // Only auto-scroll on new messages (after initial load is done)
     if (scrollReadyConvRef.current === conversationId && count !== prevMsgCount) {
+      const delta = count - prevMsgCount;
       setPrevMsgCount(count);
       const el = scrollRef.current;
       if (forceScrollRef.current) {
@@ -373,8 +383,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       } else if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 200) {
         // Someone else sent and user was near the bottom — keep them there
         scrollBottom(30);
+      } else if (delta > 0) {
+        // User is scrolled up reading history — show unread badge on the scroll button
+        setUnreadCount(c => c + delta);
       }
-      // else: user is scrolled up reading history — don't disturb them
     } else if (count !== prevMsgCount) {
       setPrevMsgCount(count);
     }
@@ -921,7 +933,29 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       )}
 
       {/* ── Messages ── */}
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 pt-4 pb-2 bg-background" style={{ visibility: scrollReady || isLoading ? 'visible' : 'hidden' }}>
+      <div className="flex-1 min-h-0 relative">
+      {/* Scroll-to-bottom floating button — Telegram style */}
+      <AnimatePresence>
+        {!isAtBottom && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.7 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.7 }}
+            transition={{ duration: 0.15 }}
+            onClick={() => { scrollBottom(0); setUnreadCount(0); }}
+            className="absolute bottom-3 right-3 z-20 w-10 h-10 rounded-full bg-card border border-border/60 shadow-lg flex items-center justify-center text-foreground hover:bg-primary/10 transition-colors"
+            style={{ backdropFilter: 'blur(12px)' }}
+          >
+            <ChevronDown className="w-5 h-5" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1.5 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-[10px] font-bold text-white flex items-center justify-center leading-none">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </motion.button>
+        )}
+      </AnimatePresence>
+      <div ref={scrollRef} className="h-full overflow-y-auto px-3 pt-4 pb-2 bg-background" style={{ visibility: scrollReady || isLoading ? 'visible' : 'hidden' }}>
         {/* Sentinel — triggers loading older messages on scroll to top */}
         <div ref={sentinelRef} className="h-1" />
         {/* Spinner while loading older messages */}
@@ -1237,6 +1271,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           })}
         </div>
       </div>
+      </div>{/* end flex-1 relative messages wrapper */}
 
       {/* ── Reply bar ── */}
       {replyTo && (
