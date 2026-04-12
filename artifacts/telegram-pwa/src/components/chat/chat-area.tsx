@@ -34,6 +34,8 @@ import { RichText, applyFormat } from './rich-text';
 import type { FormatType } from './rich-text';
 import { GifPicker } from './gif-picker';
 import type { GifResult } from './gif-picker';
+import { MediaPickerModal } from './media-picker-modal';
+import type { MediaQuality } from './media-picker-modal';
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡', '🔥'];
 const PICKER_EMOJIS = ['😀','😂','🤣','😊','😍','🥰','😘','😋','😎','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😣','😥','😮','🤐','😯','😪','😫','🥱','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','☹️','🙁','😖','😞','😟','😤','😢','😭','😦','😧','😨','😩','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','😡','😠','🤬','😷','🤒','🤕','🤢','🤮','🤧','😇','🥳','🥺','🤠','🤡','🤥','🤫','🤭','🧐','🤓','😈','👿','👹','👺','💀','👻','👽','👾','🤖'];
@@ -196,8 +198,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  const addMoreMediaRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [mediaPicker, setMediaPicker] = useState<File[] | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressInputTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -639,18 +643,47 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   }, []);
 
   // ── File handlers ──────────────────────────────────────────
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Gallery: open the media picker modal for preview/caption/quality
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setMediaPicker(files);
+    if (e.target) e.target.value = '';
+  };
+
+  // Camera: also open modal (single file)
+  const handleCameraChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setMediaPicker(files);
+    if (e.target) e.target.value = '';
+  };
+
+  // Called by MediaPickerModal when user hits send
+  const handleMediaSend = useCallback(async (
+    files: File[],
+    caption: string,
+    _quality: MediaQuality,
+  ) => {
+    setMediaPicker(null);
     try {
       setUploadingImg(true);
-      const res = await uploadImage.mutateAsync({ data: { file } });
-      forceScrollRef.current = true;
-      await sendMsg.mutateAsync({ conversationId, data: { imageUrl: res.url, replyToId: replyTo?.id } });
-      setReplyTo(null); invalidate();
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const res = await uploadImage.mutateAsync({ data: { file } });
+        forceScrollRef.current = true;
+        // Caption only on the last file (Telegram behaviour)
+        const msgCaption = i === files.length - 1 ? (caption || undefined) : undefined;
+        await sendMsg.mutateAsync({
+          conversationId,
+          data: { imageUrl: res.url, content: msgCaption, replyToId: replyTo?.id },
+        });
+      }
+      setReplyTo(null);
+      invalidate();
     } catch (err) { console.error(err); }
-    finally { setUploadingImg(false); if (e.target) e.target.value = ''; }
-  };
+    finally { setUploadingImg(false); }
+  }, [uploadImage, sendMsg, conversationId, replyTo, invalidate]);
 
   const handleDocumentChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -890,9 +923,28 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   return (
     <div className="relative w-full h-full overflow-hidden">
       {/* Hidden file inputs */}
-      <input type="file" ref={galleryInputRef} className="hidden" accept="image/*,video/*" onChange={handleFileChange} />
-      <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleFileChange} />
+      {/* Gallery: multiple files supported */}
+      <input type="file" ref={galleryInputRef} className="hidden" accept="image/*,video/*" multiple onChange={handleFileChange} />
+      {/* Add more files inside the media picker modal */}
+      <input type="file" ref={addMoreMediaRef} className="hidden" accept="image/*,video/*" multiple onChange={(e) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length) setMediaPicker(prev => [...(prev || []), ...files]);
+        if (e.target) e.target.value = '';
+      }} />
+      <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleCameraChange} />
       <input type="file" ref={documentInputRef} className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar,.7z,application/*,text/plain" onChange={handleDocumentChange} />
+
+      {/* Media picker modal — opens on gallery/camera selection */}
+      <AnimatePresence>
+        {mediaPicker && mediaPicker.length > 0 && (
+          <MediaPickerModal
+            initialFiles={mediaPicker}
+            onClose={() => setMediaPicker(null)}
+            onSend={handleMediaSend}
+            addMoreInputRef={addMoreMediaRef}
+          />
+        )}
+      </AnimatePresence>
     <div className="absolute inset-0 flex flex-col">
 
       {/* ── Header ── */}
