@@ -1191,7 +1191,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       exit={{ opacity: 0, x: -8 }}
                       transition={{ duration: 0.13 }}
                       onClick={() => setGifOpen(v => !v)}
-                      className={`flex-shrink-0 ml-3 mr-3 self-center h-5 w-[38px] flex items-center justify-center rounded-full text-xs font-bold border transition-colors
+                      className={`flex-shrink-0 ml-3 mr-3 self-center h-6 w-[38px] flex items-center justify-center rounded-full text-xs font-bold border transition-colors
                         ${gifOpen
                           ? 'bg-primary/20 border-primary text-primary'
                           : 'border-foreground/40 text-foreground/60 hover:border-primary hover:text-primary'
@@ -1211,12 +1211,12 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     >
                       <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
                         <PopoverTrigger asChild>
-                          <button className={`flex items-center justify-center rounded-full h-5 w-[38px] border transition-colors
+                          <button className={`flex items-center justify-center rounded-full h-6 w-[38px] border transition-colors
                             ${emojiOpen
                               ? 'bg-primary/20 border-primary text-primary'
                               : 'border-foreground/40 text-foreground/60 hover:border-primary hover:text-primary'
                             }`}>
-                            <Smile className="w-3 h-3" />
+                            <Smile className="w-4 h-4" />
                           </button>
                         </PopoverTrigger>
                         <PopoverContent className="w-72 p-2 glass-strong border-border/50" align="start" side="top">
