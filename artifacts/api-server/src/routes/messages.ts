@@ -196,6 +196,7 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
       sender: senderMap[m.senderId] ? formatUser(senderMap[m.senderId]) : undefined,
       content: m.isDeleted ? null : m.content,
       imageUrl: m.isDeleted ? null : m.imageUrl,
+      mediaAlbum: m.isDeleted ? null : (m.mediaAlbum as string[] | null),
       audioUrl: m.isDeleted ? null : m.audioUrl,
       audioDuration: m.isDeleted ? null : m.audioDuration,
       poll: m.isDeleted ? null : (m.pollId ? pollsData[m.pollId] || null : null),
