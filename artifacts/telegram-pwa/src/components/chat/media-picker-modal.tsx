@@ -211,20 +211,6 @@ export function MediaPickerModal({ initialFiles, onClose, onSend, addMoreInputRe
           </>
         )}
 
-        {/* Quality indicator overlay */}
-        <div className="absolute top-3 right-3 bg-black/60 rounded-md px-2 py-0.5 text-white text-xs font-bold tracking-wide">
-          {quality}
-        </div>
-
-        {/* Remove current file */}
-        {mediaFiles.length > 0 && (
-          <button
-            onClick={() => removeFile(safeIdx)}
-            className="absolute top-3 left-3 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center hover:bg-red-500/80 transition-colors"
-          >
-            <X className="w-4 h-4 text-white" />
-          </button>
-        )}
       </div>
 
       {/* ── Thumbnail strip ── */}
@@ -303,12 +289,12 @@ export function MediaPickerModal({ initialFiles, onClose, onSend, addMoreInputRe
         <button
           onClick={handleSend}
           disabled={sending}
-          className="flex-shrink-0 w-11 h-11 rounded-full bg-primary flex items-center justify-center shadow-lg transition-all active:scale-95 disabled:opacity-60"
+          className="flex-shrink-0 w-10 h-10 rounded-xl bg-primary/20 border border-primary/30 hover:bg-primary/30 text-primary transition-colors flex items-center justify-center active:scale-95 disabled:opacity-60"
         >
           {sending ? (
-            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           ) : (
-            <Send className="w-5 h-5 text-white ml-0.5" />
+            <Send className="w-4 h-4" />
           )}
         </button>
       </div>
