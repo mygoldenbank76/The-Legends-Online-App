@@ -74,7 +74,7 @@ export function GifPicker({ open, onClose, onSelect }: Props) {
           exit={{ opacity: 0, y: 10, scale: 0.97 }}
           transition={{ duration: 0.16, ease: 'easeOut' }}
         >
-          <div className="glass-strong border border-border/50 rounded-2xl overflow-hidden shadow-xl mx-3">
+          <div className="border border-white/[0.09] rounded-2xl overflow-hidden shadow-xl mx-3 backdrop-blur-[40px]" style={{ background: 'rgba(18,24,40,0.97)' }}>
             {/* Search bar */}
             <div className="flex items-center gap-2 px-3 pt-3 pb-2">
               <div className="flex-1 relative">

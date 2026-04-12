@@ -1165,7 +1165,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
               exit={{ opacity: 0, y: 10, scale: 0.97 }}
               transition={{ duration: 0.16, ease: 'easeOut' }}
             >
-              <div className="glass-strong border border-border/50 rounded-2xl overflow-hidden shadow-xl mx-3">
+              <div className="border border-white/[0.09] rounded-2xl overflow-hidden shadow-xl mx-3 backdrop-blur-[40px]" style={{ background: 'rgba(18,24,40,0.97)' }}>
                 <div className="flex items-center justify-between px-3 pt-3 pb-2">
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Emojis</span>
                   <button
