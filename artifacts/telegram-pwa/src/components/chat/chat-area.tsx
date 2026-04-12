@@ -36,6 +36,7 @@ import { GifPicker } from './gif-picker';
 import type { GifResult } from './gif-picker';
 import { MediaPickerModal } from './media-picker-modal';
 import type { MediaQuality } from './media-picker-modal';
+import { MediaViewer } from './media-viewer';
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡', '🔥'];
 const PICKER_EMOJIS = ['😀','😂','🤣','😊','😍','🥰','😘','😋','😎','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😣','😥','😮','🤐','😯','😪','😫','🥱','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','☹️','🙁','😖','😞','😟','😤','😢','😭','😦','😧','😨','😩','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','😡','😠','🤬','😷','🤒','🤕','🤢','🤮','🤧','😇','🥳','🥺','🤠','🤡','🤥','🤫','🤭','🧐','🤓','😈','👿','👹','👺','💀','👻','👽','👾','🤖'];
@@ -92,58 +93,146 @@ async function translateText(text: string, targetLang: string): Promise<string> 
   return translated;
 }
 
-// ── Album grid (Telegram-style multi-media layout) ────────────────────────
-function AlbumGrid({ urls }: { urls: string[] }) {
-  const count = urls.length;
-
-  const rows = count <= 2 ? 1 : count <= 4 ? 2 : 3;
-  const gridH = rows === 1 ? 160 : rows === 2 ? 220 : 280;
-
+// ── Media thumbnail cell ────────────────────────────────────────────────
+function MediaThumb({
+  url, onClick, overlay, radius = '0px',
+}: {
+  url: string; onClick: () => void; overlay?: React.ReactNode; radius?: string;
+}) {
+  const vid = /\.(mp4|webm|mov|avi|mkv)$/i.test(url);
   return (
     <div
-      className="mb-2 -mx-1 -mt-1 rounded-xl overflow-hidden"
-      onClick={(e) => e.stopPropagation()}
-      style={{
-        display: 'grid',
-        gridTemplateColumns: count === 1 ? '1fr' : 'repeat(2, 1fr)',
-        gridTemplateRows: `repeat(${rows === 1 ? 1 : rows}, 1fr)`,
-        gap: 2,
-        height: gridH,
-        maxWidth: 280,
-      }}
+      className="relative w-full h-full overflow-hidden bg-black cursor-pointer active:opacity-80 transition-opacity"
+      style={{ borderRadius: radius }}
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
     >
-      {urls.slice(0, Math.min(count, 6)).map((url, i) => {
-        const isVideo = url.match(/\.(mp4|webm|mov|avi|mkv)$/i);
-        const isLastShown = i === 5 && count > 6;
-        return (
-          <div
-            key={i}
-            className="relative overflow-hidden bg-black"
-            style={{
-              gridColumn: count === 1 ? '1 / -1' : undefined,
-              gridRow: count === 1 ? '1 / -1' : undefined,
-            }}
-          >
-            {isVideo ? (
-              <video src={url} className="w-full h-full object-cover" muted playsInline onClick={(e) => { e.stopPropagation(); (e.currentTarget as HTMLVideoElement).paused ? e.currentTarget.play() : e.currentTarget.pause(); }} />
-            ) : (
-              <img src={url} alt="" className="w-full h-full object-cover" />
-            )}
-            {isVideo && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-8 h-8 rounded-full bg-black/50 flex items-center justify-center">
-                  <div className="w-0 h-0 border-y-[6px] border-y-transparent border-l-[10px] border-l-white ml-0.5" />
-                </div>
-              </div>
-            )}
-            {isLastShown && (
+      {vid ? (
+        <video src={url} className="w-full h-full object-cover" muted playsInline preload="metadata" />
+      ) : (
+        <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
+      )}
+      {vid && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+          <div className="w-10 h-10 rounded-full bg-black/55 flex items-center justify-center shadow-lg">
+            <div className="w-0 h-0 border-y-[7px] border-y-transparent border-l-[12px] border-l-white ml-1" />
+          </div>
+        </div>
+      )}
+      {overlay}
+    </div>
+  );
+}
+
+// ── Album grid (Telegram-style multi-media layout) ────────────────────────
+function AlbumGrid({ urls, onItemClick }: { urls: string[]; onItemClick: (i: number) => void }) {
+  const count = urls.length;
+  const shown = urls.slice(0, Math.min(count, 6));
+  const gap = 2;
+
+  // Telegram exact corner radius map (outer corners only)
+  const r = (tl: boolean, tr: boolean, bl: boolean, br: boolean) =>
+    `${tl ? 10 : 2}px ${tr ? 10 : 2}px ${br ? 10 : 2}px ${bl ? 10 : 2}px`;
+
+  const wrap = (content: React.ReactNode) => (
+    <div
+      className="mb-2 -mx-1 -mt-1 overflow-hidden rounded-xl"
+      onClick={e => e.stopPropagation()}
+    >
+      {content}
+    </div>
+  );
+
+  // ── 1 media ──────────────────────────────────────────────────────
+  if (count === 1) return wrap(
+    <div style={{ width: '100%', height: 260 }}>
+      <MediaThumb url={shown[0]} onClick={() => onItemClick(0)} radius="10px" />
+    </div>
+  );
+
+  // ── 2 media ──────────────────────────────────────────────────────
+  if (count === 2) return wrap(
+    <div style={{ display: 'flex', gap, height: 210 }}>
+      <div style={{ flex: 1 }}>
+        <MediaThumb url={shown[0]} onClick={() => onItemClick(0)} radius={r(true, false, true, false)} />
+      </div>
+      <div style={{ flex: 1 }}>
+        <MediaThumb url={shown[1]} onClick={() => onItemClick(1)} radius={r(false, true, false, true)} />
+      </div>
+    </div>
+  );
+
+  // ── 3 media — left tall + right 2 stacked ────────────────────────
+  if (count === 3) return wrap(
+    <div style={{ display: 'flex', gap, height: 230 }}>
+      <div style={{ flex: 1.4 }}>
+        <MediaThumb url={shown[0]} onClick={() => onItemClick(0)} radius={r(true, false, true, false)} />
+      </div>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap }}>
+        <div style={{ flex: 1 }}>
+          <MediaThumb url={shown[1]} onClick={() => onItemClick(1)} radius={r(false, true, false, false)} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <MediaThumb url={shown[2]} onClick={() => onItemClick(2)} radius={r(false, false, false, true)} />
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── 4 media — 2x2 ────────────────────────────────────────────────
+  if (count === 4) return wrap(
+    <div style={{ display: 'flex', flexDirection: 'column', gap, height: 240 }}>
+      <div style={{ display: 'flex', gap, flex: 1 }}>
+        <div style={{ flex: 1 }}>
+          <MediaThumb url={shown[0]} onClick={() => onItemClick(0)} radius={r(true, false, false, false)} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <MediaThumb url={shown[1]} onClick={() => onItemClick(1)} radius={r(false, true, false, false)} />
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap, flex: 1 }}>
+        <div style={{ flex: 1 }}>
+          <MediaThumb url={shown[2]} onClick={() => onItemClick(2)} radius={r(false, false, true, false)} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <MediaThumb url={shown[3]} onClick={() => onItemClick(3)} radius={r(false, false, false, true)} />
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── 5+ media — top 2 + bottom 3 ──────────────────────────────────
+  return wrap(
+    <div style={{ display: 'flex', flexDirection: 'column', gap, height: 280 }}>
+      {/* Top row: 2 equal */}
+      <div style={{ display: 'flex', gap, flex: 1.1 }}>
+        <div style={{ flex: 1 }}>
+          <MediaThumb url={shown[0]} onClick={() => onItemClick(0)} radius={r(true, false, false, false)} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <MediaThumb url={shown[1]} onClick={() => onItemClick(1)} radius={r(false, true, false, false)} />
+        </div>
+      </div>
+      {/* Bottom row: 3 equal */}
+      <div style={{ display: 'flex', gap, flex: 1 }}>
+        <div style={{ flex: 1 }}>
+          <MediaThumb url={shown[2]} onClick={() => onItemClick(2)} radius={r(false, false, true, false)} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <MediaThumb url={shown[3]} onClick={() => onItemClick(3)} radius="2px" />
+        </div>
+        <div style={{ flex: 1 }}>
+          <MediaThumb
+            url={shown[4]}
+            onClick={() => onItemClick(4)}
+            radius={r(false, false, false, true)}
+            overlay={count > 6 ? (
               <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                 <span className="text-white text-xl font-bold">+{count - 5}</span>
               </div>
-            )}
-          </div>
-        );
-      })}
+            ) : undefined}
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -295,6 +384,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const [voiceActive, setVoiceActive] = useState(false);
   const [gifOpen, setGifOpen] = useState(false);
   const [pinnedIdx, setPinnedIdx] = useState(0);
+
+  // Media viewer (full-screen lightbox)
+  const [mediaViewer, setMediaViewer] = useState<{ urls: string[]; index: number } | null>(null);
 
   // Poll votes viewer state
   const [pollVotes, setPollVotes] = useState<{ optionText: string; voters: { id: number; displayName: string }[] }[] | null>(null);
@@ -1282,22 +1374,44 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
                     {/* Media Album (multiple images/videos — Telegram grid style) */}
                     {(msg as any).mediaAlbum && Array.isArray((msg as any).mediaAlbum) && (msg as any).mediaAlbum.length > 0 && !isPoll && (
-                      <AlbumGrid urls={(msg as any).mediaAlbum} />
+                      <AlbumGrid
+                        urls={(msg as any).mediaAlbum}
+                        onItemClick={(i) => setMediaViewer({ urls: (msg as any).mediaAlbum, index: i })}
+                      />
                     )}
 
                     {/* Single Image or Video */}
                     {msg.imageUrl && !(msg as any).mediaAlbum && !isPoll && (
-                      <div className="mb-2 -mx-1 -mt-1 overflow-hidden rounded-xl" onClick={(e) => e.stopPropagation()}>
+                      <div
+                        className="mb-2 -mx-1 -mt-1 overflow-hidden rounded-xl"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {msg.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? (
-                          <video
-                            src={msg.imageUrl}
-                            controls
-                            playsInline
-                            className="max-w-full max-h-72 w-full rounded-xl bg-black"
-                            style={{ display: 'block' }}
-                          />
+                          <div
+                            className="relative cursor-pointer"
+                            onClick={() => setMediaViewer({ urls: [msg.imageUrl!], index: 0 })}
+                          >
+                            <video
+                              src={msg.imageUrl}
+                              playsInline
+                              muted
+                              preload="metadata"
+                              className="max-w-full max-h-72 w-full rounded-xl bg-black object-cover"
+                              style={{ display: 'block', pointerEvents: 'none' }}
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="w-12 h-12 rounded-full bg-black/55 flex items-center justify-center shadow-lg">
+                                <div className="w-0 h-0 border-y-[8px] border-y-transparent border-l-[14px] border-l-white ml-1" />
+                              </div>
+                            </div>
+                          </div>
                         ) : (
-                          <img src={msg.imageUrl} alt="attached" className="max-w-full max-h-64 object-cover rounded-xl" />
+                          <img
+                            src={msg.imageUrl}
+                            alt="attached"
+                            className="max-w-full max-h-64 object-cover rounded-xl cursor-pointer active:opacity-80 transition-opacity"
+                            onClick={() => setMediaViewer({ urls: [msg.imageUrl!], index: 0 })}
+                          />
                         )}
                       </div>
                     )}
@@ -1977,6 +2091,15 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             setProfileUser(null);
             onOpenConversation?.(convId);
           }}
+        />
+      )}
+
+      {/* ── Media viewer (full-screen lightbox) ── */}
+      {mediaViewer && (
+        <MediaViewer
+          urls={mediaViewer.urls}
+          startIndex={mediaViewer.index}
+          onClose={() => setMediaViewer(null)}
         />
       )}
     </div>
