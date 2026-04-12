@@ -77,6 +77,12 @@ export function MediaPickerModal({ initialFiles, onClose, onSend, addMoreInputRe
   const stripRef = useRef<HTMLDivElement>(null);
   const captionRef = useRef<HTMLTextAreaElement>(null);
 
+  // ── Drag-to-reorder state ──────────────────────────────────────────
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [overIdx, setOverIdx] = useState<number | null>(null);
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draggingRef = useRef(false);
+
   const handleFormat = useCallback((fmt: FormatType) => {
     const ta = captionRef.current;
     if (!ta) return;
@@ -111,6 +117,58 @@ export function MediaPickerModal({ initialFiles, onClose, onSend, addMoreInputRe
     });
     setActiveIdx(prev => Math.min(prev, Math.max(0, mediaFiles.length - 2)));
   }, [mediaFiles.length]);
+
+  // ── Drag-to-reorder helpers ────────────────────────────────────────
+  const getThumbIndexFromX = useCallback((clientX: number): number | null => {
+    const strip = stripRef.current;
+    if (!strip) return null;
+    const children = Array.from(strip.children) as HTMLElement[];
+    for (let j = 0; j < children.length - 1; j++) { // exclude "+" button
+      const rect = children[j].getBoundingClientRect();
+      if (clientX >= rect.left && clientX <= rect.right) return j;
+    }
+    return null;
+  }, []);
+
+  const applyReorder = useCallback((from: number, to: number) => {
+    if (from === to) return;
+    setMediaFiles(prev => {
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+    setActiveIdx(to);
+  }, []);
+
+  const onThumbPointerDown = useCallback((e: React.PointerEvent, i: number) => {
+    if (e.button !== 0 && e.pointerType !== 'touch') return;
+    draggingRef.current = false;
+    longPressRef.current = setTimeout(() => {
+      draggingRef.current = true;
+      setDragIdx(i);
+      setOverIdx(i);
+      try { (e.target as HTMLElement).setPointerCapture(e.pointerId); } catch {}
+    }, 220);
+  }, []);
+
+  const onThumbPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!draggingRef.current) return;
+    const hit = getThumbIndexFromX(e.clientX);
+    if (hit !== null) setOverIdx(hit);
+  }, [getThumbIndexFromX]);
+
+  const onThumbPointerUp = useCallback((e: React.PointerEvent, i: number) => {
+    if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; }
+    if (draggingRef.current && dragIdx !== null && overIdx !== null) {
+      applyReorder(dragIdx, overIdx);
+    } else if (!draggingRef.current) {
+      setActiveIdx(i);
+    }
+    draggingRef.current = false;
+    setDragIdx(null);
+    setOverIdx(null);
+  }, [dragIdx, overIdx, applyReorder]);
 
   const handleAddMore = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -231,44 +289,59 @@ export function MediaPickerModal({ initialFiles, onClose, onSend, addMoreInputRe
 
       {/* ── Thumbnail strip ── */}
       <div className="flex-shrink-0 py-2" style={{ background: 'rgba(0,0,0,0.8)' }}>
+        {dragIdx !== null && (
+          <p className="text-center text-white/50 text-[10px] mb-1">Glisse pour réordonner</p>
+        )}
         <div
           ref={stripRef}
           className="flex items-center gap-1.5 px-3 overflow-x-auto"
-          style={{ touchAction: 'pan-x', scrollbarWidth: 'none' }}
+          style={{ touchAction: dragIdx !== null ? 'none' : 'pan-x', scrollbarWidth: 'none', userSelect: 'none' }}
         >
-          {mediaFiles.map((m, i) => (
-            <button
-              key={m.id}
-              onClick={() => setActiveIdx(i)}
-              className={`flex-shrink-0 relative rounded-lg overflow-hidden transition-all ${
-                i === safeIdx
-                  ? 'ring-2 ring-white scale-105'
-                  : 'opacity-60 hover:opacity-90'
-              }`}
-              style={{ width: 60, height: 60 }}
-            >
-              {m.type === 'video' ? (
-                <video src={m.previewUrl} className="w-full h-full object-cover" muted />
-              ) : (
-                <img src={m.previewUrl} alt="" className="w-full h-full object-cover" />
-              )}
-              {m.type === 'video' && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                  <div className="w-5 h-5 rounded-full bg-white/80 flex items-center justify-center">
-                    <div className="w-0 h-0 border-y-[5px] border-y-transparent border-l-[8px] border-l-black ml-0.5" />
-                  </div>
-                </div>
-              )}
-              {/* Remove badge */}
-              <button
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={(e) => { e.stopPropagation(); removeFile(i); }}
-                className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/70 flex items-center justify-center hover:bg-red-500 transition-colors"
+          {mediaFiles.map((m, i) => {
+            const isActive = i === safeIdx;
+            const isDragged = i === dragIdx;
+            const isOver = i === overIdx && dragIdx !== null && dragIdx !== i;
+            return (
+              <div
+                key={m.id}
+                className={`flex-shrink-0 relative rounded-lg overflow-hidden transition-all duration-150 cursor-grab active:cursor-grabbing ${
+                  isActive && dragIdx === null ? 'ring-2 ring-white scale-105' : ''
+                } ${isDragged ? 'opacity-40 scale-95 ring-2 ring-primary' : ''}
+                ${isOver ? 'ring-2 ring-white/70 scale-110' : ''}
+                ${!isActive && dragIdx === null ? 'opacity-60' : ''}`}
+                style={{ width: 60, height: 60, touchAction: 'none' }}
+                onPointerDown={e => onThumbPointerDown(e, i)}
+                onPointerMove={onThumbPointerMove}
+                onPointerUp={e => onThumbPointerUp(e, i)}
+                onPointerCancel={() => { draggingRef.current = false; setDragIdx(null); setOverIdx(null); }}
               >
-                <X className="w-2.5 h-2.5 text-white" />
-              </button>
-            </button>
-          ))}
+                {m.type === 'video' ? (
+                  <video src={m.previewUrl} className="w-full h-full object-cover pointer-events-none" muted />
+                ) : (
+                  <img src={m.previewUrl} alt="" className="w-full h-full object-cover pointer-events-none" draggable={false} />
+                )}
+                {m.type === 'video' && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
+                    <div className="w-5 h-5 rounded-full bg-white/80 flex items-center justify-center">
+                      <div className="w-0 h-0 border-y-[5px] border-y-transparent border-l-[8px] border-l-black ml-0.5" />
+                    </div>
+                  </div>
+                )}
+                {/* Order badge */}
+                <div className="absolute bottom-0.5 left-0.5 w-4 h-4 rounded-full bg-black/70 flex items-center justify-center pointer-events-none">
+                  <span className="text-white text-[9px] font-bold leading-none">{i + 1}</span>
+                </div>
+                {/* Remove badge */}
+                <button
+                  onPointerDown={e => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); removeFile(i); }}
+                  className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/70 flex items-center justify-center hover:bg-red-500 transition-colors"
+                >
+                  <X className="w-2.5 h-2.5 text-white" />
+                </button>
+              </div>
+            );
+          })}
 
           {/* Add more button */}
           <button
