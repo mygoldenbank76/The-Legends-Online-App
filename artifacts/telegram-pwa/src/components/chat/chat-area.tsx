@@ -20,7 +20,6 @@ import {
   Mic, Copy, Heart, CheckCheck,
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { AttachmentSheet } from './attachment-sheet';
 import { PollCreator } from './poll-creator';
 import { PollMessage } from './poll-message';
@@ -1154,6 +1153,38 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           onClose={() => setGifOpen(false)}
           onSelect={handleGifSelect}
         />
+
+        {/* Emoji picker — same pattern as GIF picker */}
+        <AnimatePresence>
+          {emojiOpen && (
+            <motion.div
+              key="emoji-panel"
+              className="absolute bottom-full left-0 right-0 mb-1 z-50"
+              initial={{ opacity: 0, y: 10, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.97 }}
+              transition={{ duration: 0.16, ease: 'easeOut' }}
+            >
+              <div className="glass-strong border border-border/50 rounded-2xl overflow-hidden shadow-xl mx-3">
+                <div className="flex items-center justify-between px-3 pt-3 pb-2">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Emojis</span>
+                  <button
+                    onClick={() => setEmojiOpen(false)}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-8 gap-0.5 px-2 pb-3 max-h-[240px] overflow-y-auto no-scrollbar">
+                  {PICKER_EMOJIS.map(e => (
+                    <button key={e} onClick={() => { setContent(p => p + e); setEmojiOpen(false); }}
+                      className="text-xl hover:bg-white/10 rounded p-1 transition-colors leading-none">{e}</button>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         {/* Formatting toolbar — shown BELOW messages, ABOVE the input row */}
         <FormattingToolbar
           visible={!voiceActive}
@@ -1200,35 +1231,22 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       GIF
                     </motion.button>
                   ) : (
-                    /* Emoji picker */
-                    <motion.div
+                    /* Emoji button */
+                    <motion.button
                       key="emoji"
                       initial={{ opacity: 0, x: -8 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -8 }}
                       transition={{ duration: 0.13 }}
-                      className="flex-shrink-0 self-center ml-3 mr-3"
+                      onClick={() => setEmojiOpen(v => !v)}
+                      className={`flex-shrink-0 ml-3 mr-3 self-center h-6 w-[38px] flex items-center justify-center rounded-full border transition-colors
+                        ${emojiOpen
+                          ? 'bg-primary/20 border-primary text-primary'
+                          : 'border-foreground/40 text-foreground/60 hover:border-primary hover:text-primary'
+                        }`}
                     >
-                      <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
-                        <PopoverTrigger asChild>
-                          <button className={`flex items-center justify-center rounded-full h-6 w-[38px] border transition-colors
-                            ${emojiOpen
-                              ? 'bg-primary/20 border-primary text-primary'
-                              : 'border-foreground/40 text-foreground/60 hover:border-primary hover:text-primary'
-                            }`}>
-                            <Smile className="w-4 h-4" />
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-72 p-2 glass-strong border-border/50" align="start" side="top">
-                          <div className="grid grid-cols-8 gap-0.5">
-                            {PICKER_EMOJIS.map(e => (
-                              <button key={e} onClick={() => { setContent(p => p + e); setEmojiOpen(false); }}
-                                className="text-xl hover:bg-white/10 rounded p-1 transition-colors leading-none">{e}</button>
-                            ))}
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </motion.div>
+                      <Smile className="w-4 h-4" />
+                    </motion.button>
                   )}
                 </AnimatePresence>
 
