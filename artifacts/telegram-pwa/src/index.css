@@ -154,6 +154,31 @@
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(42, 171, 238, 0.3); border-radius: 2px; }
 
+/* ── App shell — anchored to the true device viewport ── */
+/* Prevents mobile browser chrome (address bar / keyboard) from causing layout jumps */
+html {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  /* Fix body to the screen so the browser chrome cannot scroll it */
+  position: fixed;
+  inset: 0;
+  width: 100%;
+}
+
+#root {
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 @layer base {
   * {
     @apply border-border;
