@@ -22,6 +22,26 @@ const dateFnsLocaleMap: Record<string, Locale> = {
   fr, en: enUS, es, ar, pt, de,
 };
 
+/**
+ * Convertit le contenu riche en texte plat pour l'aperçu dans la liste.
+ * Supprime toute la syntaxe markdown et extrait le label des liens.
+ * → [Banger](https://...) devient "Banger"
+ * → **texte** devient "texte"
+ * → https://... devient "🔗 Lien"
+ */
+function plainPreview(text: string): string {
+  return text
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')              // [label](url) → label
+    .replace(/\*\*([^*]+)\*\*/g, '$1')                     // **bold**
+    .replace(/\*([^*]+)\*/g, '$1')                          // *italic*
+    .replace(/__([^_]+)__/g, '$1')                          // __underline__
+    .replace(/~~([^~]+)~~/g, '$1')                          // ~~strike~~
+    .replace(/\|\|([^|]+)\|\|/g, '$1')                     // ||spoiler||
+    .replace(/`([^`]+)`/g, '$1')                            // `code`
+    .replace(/https?:\/\/\S+/g, '🔗 Lien')                // URLs seules → "🔗 Lien"
+    .trim();
+}
+
 const SWIPE_REVEAL_PX = -72;
 const LONG_PRESS_MS = 450;
 
@@ -282,14 +302,15 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
                     </div>
 
                     <div className="flex items-center justify-between gap-1">
-                      <p className="text-xs text-muted-foreground truncate">
+                      {/* pointer-events: none → empêche Chrome mobile d'ouvrir les URLs auto-détectées */}
+                      <p className="text-xs text-muted-foreground truncate" style={{ pointerEvents: 'none' }}>
                         {lastMsg ? (
                           <>
                             {lastMsg.senderId === user.id && (
                               <span className="text-primary/70 mr-1">{t.conversations.you}:</span>
                             )}
                             {lastMsg.content
-                              ? lastMsg.content
+                              ? plainPreview(lastMsg.content)
                               : (lastMsg as any).audioUrl
                               ? t.conversations.voiceMessage
                               : (lastMsg as any).pollId
