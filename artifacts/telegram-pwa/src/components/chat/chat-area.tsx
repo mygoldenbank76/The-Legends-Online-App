@@ -1004,10 +1004,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                             <button
                               key={emoji}
                               onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, emoji); }}
-                              className={`rounded-full px-1.5 py-0.5 text-xs flex items-center gap-0.5 transition-colors
+                              className={`rounded-full px-1.5 py-0.5 text-xs flex items-center gap-0.5 border transition-colors
                                 ${hasReacted(emoji)
-                                  ? (isMine ? 'bg-white/20 text-white border border-white/30' : 'bg-primary/20 border border-primary/40 text-primary')
-                                  : (isMine ? 'bg-white/10 border border-white/20 text-primary-foreground/80' : 'bg-black/10 border border-border text-foreground hover:bg-black/20')}`}
+                                  ? 'bg-white/25 border-white/40 text-white'
+                                  : 'bg-white/10 border-white/20 text-white/80 hover:bg-white/15'}`}
                             >
                               <span>{emoji}</span>
                               <span className="font-bold text-[10px]">{count as number}</span>
