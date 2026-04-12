@@ -291,22 +291,42 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     }, delay);
   }, []);
 
-  // Re-scroll to bottom when the virtual keyboard opens/closes
-  // so the last message is never cut off behind the input bar
+  // Track whether user is pinned to the bottom (updated on every scroll)
+  const wasAtBottomRef = useRef(true);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !scrollReady) return;
+    const onScroll = () => {
+      wasAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [scrollReady]);
+
+  // When the keyboard opens (viewport shrinks), scroll to bottom if we were there before
+  // Must capture wasAtBottom BEFORE the resize (that's why the ref approach is needed —
+  // after resize, clientHeight has changed and the naive distance check breaks)
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
+    let prevHeight = vv.height;
+
     const onViewportResize = () => {
-      const el = scrollRef.current;
-      if (!el) return;
-      // If user is within 300px of the bottom, keep them pinned to bottom
-      if (el.scrollHeight - el.scrollTop - el.clientHeight < 300) {
-        // Small delay to let the layout finish resizing first
+      const newHeight = vv.height;
+      const keyboardOpened = newHeight < prevHeight;
+      prevHeight = newHeight;
+
+      if (keyboardOpened && wasAtBottomRef.current) {
+        // Wait for the layout to reflow (App.tsx sets #root height on same event)
+        // then scroll to bottom
         requestAnimationFrame(() => {
-          if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+          requestAnimationFrame(() => {
+            if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+          });
         });
       }
     };
+
     vv.addEventListener('resize', onViewportResize);
     return () => vv.removeEventListener('resize', onViewportResize);
   }, []);
