@@ -155,28 +155,34 @@
 ::-webkit-scrollbar-thumb { background: rgba(42, 171, 238, 0.3); border-radius: 2px; }
 
 /* ── App shell — anchored to the true device viewport ── */
-/* Prevents mobile browser chrome (address bar / keyboard) from causing layout jumps */
-html {
+/* The Visual Viewport API (in App.tsx) sets #root height dynamically
+   to match the actual visible area (excludes keyboard + browser chrome).
+   These CSS rules provide the initial/fallback values. */
+html, body {
   height: 100%;
-  overflow: hidden;
-  overscroll-behavior: none;
-}
-
-body {
-  height: 100%;
-  overflow: hidden;
-  overscroll-behavior: none;
-  /* Fix body to the screen so the browser chrome cannot scroll it */
-  position: fixed;
-  inset: 0;
   width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  /* Prevent the OS from scrolling the page when the keyboard opens */
+  position: fixed;
+  top: 0;
+  left: 0;
 }
 
 #root {
+  /* Initial height — JS will override this with the exact visual viewport height */
   height: 100%;
+  width: 100%;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  /* Anchor to top-left so translateY from JS works correctly */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
 }
 
 @layer base {

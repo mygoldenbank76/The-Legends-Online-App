@@ -1,5 +1,6 @@
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
@@ -70,7 +71,28 @@ function AppRouter() {
   );
 }
 
+function useVisualViewport() {
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const update = () => {
+      const root = document.getElementById('root');
+      if (!root) return;
+      // Set height to the actual visible area (shrinks when keyboard opens)
+      root.style.height = `${vv.height}px`;
+    };
+
+    update();
+    vv.addEventListener('resize', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+    };
+  }, []);
+}
+
 function App() {
+  useVisualViewport();
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
