@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, X, Send, ChevronLeft, ChevronRight, Plus, Bold, Italic, Underline, Strikethrough, Eye } from 'lucide-react';
+import { ArrowLeft, X, Send, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { applyFormat } from './rich-text';
 import type { FormatType } from './rich-text';
+import { FormattingToolbar } from './formatting-toolbar';
 
 export type MediaQuality = 'SD' | 'HD';
 
@@ -73,9 +74,12 @@ export function MediaPickerModal({ initialFiles, onClose, onSend, addMoreInputRe
   const [caption, setCaption] = useState('');
   const [quality, setQuality] = useState<MediaQuality>('HD');
   const [sending, setSending] = useState(false);
-  const [hasSelection, setHasSelection] = useState(false);
+  const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
+  const [linkMode, setLinkMode] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
   const stripRef = useRef<HTMLDivElement>(null);
   const captionRef = useRef<HTMLTextAreaElement>(null);
+  const longPressInputRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Drag-to-reorder state ──────────────────────────────────────────
   const [dragIdx, setDragIdx] = useState<number | null>(null);
@@ -83,18 +87,82 @@ export function MediaPickerModal({ initialFiles, onClose, onSend, addMoreInputRe
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draggingRef = useRef(false);
 
-  const handleFormat = useCallback((fmt: FormatType) => {
+  // Block the native Android context menu on long-press in the caption field
+  const handleCaptionTouchStart = useCallback(() => {
+    if (longPressInputRef.current) clearTimeout(longPressInputRef.current);
+    longPressInputRef.current = setTimeout(() => {
+      const block = (e: Event) => { e.preventDefault(); e.stopPropagation(); };
+      document.addEventListener('contextmenu', block, { once: true, capture: true });
+    }, 280);
+  }, []);
+
+  const handleCaptionTouchEnd = useCallback(() => {
+    if (longPressInputRef.current) { clearTimeout(longPressInputRef.current); longPressInputRef.current = null; }
+  }, []);
+
+  const handleTextSelect = useCallback(() => {
     const ta = captionRef.current;
     if (!ta) return;
     const start = ta.selectionStart ?? 0;
     const end = ta.selectionEnd ?? 0;
+    setSelectionRange(start !== end ? { start, end } : null);
+  }, []);
+
+  const handleFormat = useCallback((fmt: FormatType) => {
+    const ta = captionRef.current;
+    if (!ta) return;
+    const start = selectionRange?.start ?? ta.selectionStart ?? 0;
+    const end = selectionRange?.end ?? ta.selectionEnd ?? 0;
     const { newText, newStart, newEnd } = applyFormat(caption, start, end, fmt);
     setCaption(newText);
+    setSelectionRange(null);
     requestAnimationFrame(() => {
       ta.focus();
-      ta.setSelectionRange(newStart, newEnd);
+      ta.setSelectionRange(newEnd, newEnd);
     });
+  }, [caption, selectionRange]);
+
+  const handleCopy = useCallback(() => {
+    const ta = captionRef.current;
+    if (!ta || !selectionRange) return;
+    navigator.clipboard?.writeText(caption.slice(selectionRange.start, selectionRange.end));
+  }, [caption, selectionRange]);
+
+  const handlePaste = useCallback(async () => {
+    const ta = captionRef.current;
+    if (!ta) return;
+    try {
+      const text = await navigator.clipboard.readText();
+      const start = ta.selectionStart ?? caption.length;
+      const end = ta.selectionEnd ?? caption.length;
+      const newCaption = caption.slice(0, start) + text + caption.slice(end);
+      setCaption(newCaption);
+      requestAnimationFrame(() => {
+        ta.focus();
+        ta.setSelectionRange(start + text.length, start + text.length);
+      });
+    } catch {}
   }, [caption]);
+
+  const handleLinkRequest = useCallback(() => {
+    setLinkMode(true);
+    setLinkUrl('');
+  }, []);
+
+  const handleLinkConfirm = useCallback(() => {
+    const ta = captionRef.current;
+    if (!ta || !linkUrl) { setLinkMode(false); return; }
+    const start = selectionRange?.start ?? ta.selectionStart ?? 0;
+    const end = selectionRange?.end ?? ta.selectionEnd ?? 0;
+    const { newText, newEnd } = applyFormat(caption, start, end, 'link', linkUrl);
+    setCaption(newText);
+    setSelectionRange(null);
+    setLinkMode(false);
+    setLinkUrl('');
+    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(newEnd, newEnd); });
+  }, [caption, selectionRange, linkUrl]);
+
+  const handleLinkCancel = useCallback(() => { setLinkMode(false); setLinkUrl(''); }, []);
 
   // Cleanup object URLs on unmount
   useEffect(() => {
@@ -353,38 +421,20 @@ export function MediaPickerModal({ initialFiles, onClose, onSend, addMoreInputRe
         </div>
       </div>
 
-      {/* ── Formatting toolbar (appears when text is selected) ── */}
-      <AnimatePresence>
-        {hasSelection && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.13 }}
-            className="flex-shrink-0 flex items-center justify-around px-2 py-1 overflow-hidden"
-            style={{ background: 'rgba(30,20,50,0.95)', borderTop: '1px solid rgba(255,255,255,0.08)' }}
-          >
-            {([
-              { fmt: 'bold' as FormatType, icon: <Bold className="w-4 h-4" />, label: 'Gras' },
-              { fmt: 'italic' as FormatType, icon: <Italic className="w-4 h-4" />, label: 'Italique' },
-              { fmt: 'underline' as FormatType, icon: <Underline className="w-4 h-4" />, label: 'Souligner' },
-              { fmt: 'strike' as FormatType, icon: <Strikethrough className="w-4 h-4" />, label: 'Barrer' },
-              { fmt: 'spoiler' as FormatType, icon: <Eye className="w-4 h-4" />, label: 'Spoiler' },
-            ]).map(({ fmt, icon, label }) => (
-              <button
-                key={fmt}
-                onMouseDown={e => { e.preventDefault(); handleFormat(fmt); }}
-                onTouchEnd={e => { e.preventDefault(); handleFormat(fmt); }}
-                className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-white/80 hover:bg-white/10 hover:text-white active:scale-95 transition-all"
-                title={label}
-              >
-                {icon}
-                <span className="text-[9px] leading-none">{label}</span>
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* ── Formatting toolbar (same as chat — no double menu) ── */}
+      <FormattingToolbar
+        visible={true}
+        hasSelection={!!selectionRange}
+        linkMode={linkMode}
+        linkUrl={linkUrl}
+        onLinkUrlChange={setLinkUrl}
+        onLinkConfirm={handleLinkConfirm}
+        onLinkCancel={handleLinkCancel}
+        onFormat={handleFormat}
+        onLinkRequest={handleLinkRequest}
+        onCopy={handleCopy}
+        onPaste={handlePaste}
+      />
 
       {/* ── Caption + Send ── */}
       <div
@@ -396,11 +446,11 @@ export function MediaPickerModal({ initialFiles, onClose, onSend, addMoreInputRe
             ref={captionRef}
             value={caption}
             onChange={e => setCaption(e.target.value)}
-            onSelect={e => {
-              const ta = e.currentTarget;
-              setHasSelection((ta.selectionEnd ?? 0) > (ta.selectionStart ?? 0));
-            }}
-            onBlur={() => setHasSelection(false)}
+            onSelect={handleTextSelect}
+            onBlur={() => setSelectionRange(null)}
+            onTouchStart={handleCaptionTouchStart}
+            onTouchEnd={handleCaptionTouchEnd}
+            onContextMenu={e => e.preventDefault()}
             placeholder="Ajouter une légende..."
             rows={1}
             className="w-full bg-transparent text-white placeholder:text-white/40 text-sm resize-none outline-none leading-relaxed"
