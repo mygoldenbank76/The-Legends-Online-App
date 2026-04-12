@@ -149,10 +149,9 @@
 .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
-/* Thin scrollbar */
-::-webkit-scrollbar { width: 3px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(42, 171, 238, 0.3); border-radius: 2px; }
+/* Hide all scrollbars globally */
+* { scrollbar-width: none; -ms-overflow-style: none; }
+*::-webkit-scrollbar { display: none; }
 
 /* ── Spoiler text — Telegram-style canvas particle overlay ── */
 .spoiler-wrap {
