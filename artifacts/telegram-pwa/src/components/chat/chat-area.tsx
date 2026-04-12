@@ -1365,13 +1365,13 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                 <div className="flex items-center px-4 pt-3 pb-2 border-b border-white/5 rounded-t-2xl" style={{ background: 'rgba(18,24,40,0.97)' }}>
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-primary/70">Mentions</span>
                 </div>
-                {/* Scrollable list */}
-                <div className="max-h-52 overflow-y-auto rounded-b-2xl">
+                {/* Scrollable list — touch-action pan-y allows native vertical scroll */}
+                <div className="max-h-52 overflow-y-auto rounded-b-2xl" style={{ touchAction: 'pan-y', overscrollBehavior: 'contain' }}>
                   {mentionSuggestions.map((p, idx) => (
                     <button
                       key={p.id}
                       onMouseDown={(e) => { e.preventDefault(); handleMentionSelect(p); }}
-                      onTouchStart={(e) => { e.preventDefault(); handleMentionSelect(p); }}
+                      onClick={() => handleMentionSelect(p)}
                       className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-primary/10 active:bg-primary/20 transition-colors text-left ${idx > 0 ? 'border-t border-white/5' : ''}`}
                     >
                       <Avatar className="w-8 h-8 flex-shrink-0">
