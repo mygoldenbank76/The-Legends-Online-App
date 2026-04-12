@@ -154,7 +154,7 @@
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(42, 171, 238, 0.3); border-radius: 2px; }
 
-/* ── Spoiler text — Telegram-style animated particle shimmer ── */
+/* ── Spoiler text — Telegram-style canvas particle overlay ── */
 .spoiler-wrap {
   display: inline-block;
   position: relative;
@@ -162,34 +162,12 @@
   overflow: hidden;
   vertical-align: baseline;
   cursor: pointer;
+  /* No background color — inherits bubble color */
 }
 
 .spoiler-text {
   visibility: hidden;
   user-select: none;
-}
-
-@keyframes spoilerDrift {
-  0%   { transform: translateX(0px); }
-  100% { transform: translateX(-56px); }
-}
-
-/* Animated particle layer — moves a tiled dot grid across the block */
-.spoiler-anim {
-  position: absolute;
-  /* Slightly wider than the container so the scroll doesn't show a gap */
-  inset: 0;
-  left: -4px;
-  width: calc(100% + 60px);
-  border-radius: 3px;
-  /* Tiled dot pattern: two offset layers to create a denser grid */
-  background-color: rgba(108, 48, 210, 0.82);
-  background-image:
-    radial-gradient(circle, rgba(255, 255, 255, 0.80) 1px, transparent 1px),
-    radial-gradient(circle, rgba(255, 255, 255, 0.45) 1px, transparent 1px);
-  background-size: 6px 5px, 9px 8px;
-  background-position: 0 0, 3px 3px;
-  animation: spoilerDrift 0.9s linear infinite;
 }
 
 /* ── App shell — anchored to the true device viewport ── */

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 export type FormatType = 'bold' | 'italic' | 'underline' | 'strike' | 'code' | 'spoiler' | 'link';
 
@@ -163,6 +163,77 @@ function findNextSpecial(text: string, from: number): number {
   return text.length;
 }
 
+/* Canvas that draws white twinkling particles — no background color */
+function SpoilerCanvas() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rafRef    = useRef<number>(0);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    type Particle = { x: number; y: number; r: number; phase: number; speed: number };
+    let particles: Particle[] = [];
+    let t = 0;
+
+    const init = () => {
+      const w = canvas.offsetWidth;
+      const h = canvas.offsetHeight;
+      if (!w || !h) return;
+      canvas.width  = w;
+      canvas.height = h;
+      /* one particle per ~9 px² for a dense Telegram-like fill */
+      const N = Math.max(15, Math.floor((w * h) / 9));
+      particles = Array.from({ length: N }, () => ({
+        x:     Math.random() * w,
+        y:     Math.random() * h,
+        r:     0.35 + Math.random() * 1.1,
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.7 + Math.random() * 2.2,
+      }));
+    };
+
+    const draw = () => {
+      const { width: w, height: h } = canvas;
+      ctx.clearRect(0, 0, w, h);
+      t += 0.045;
+
+      for (const p of particles) {
+        /* alpha oscillates between ~0.08 and ~1.0 per particle independently */
+        const alpha = 0.08 + 0.92 * (0.5 + 0.5 * Math.sin(t * p.speed + p.phase));
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(2)})`;
+        ctx.fill();
+      }
+
+      rafRef.current = requestAnimationFrame(draw);
+    };
+
+    init();
+    draw();
+    return () => cancelAnimationFrame(rafRef.current);
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      aria-hidden="true"
+      style={{
+        position: 'absolute',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        borderRadius: '3px',
+        pointerEvents: 'none',
+        filter: 'blur(0.4px)',
+      }}
+    />
+  );
+}
+
 function SpoilerSpan({ children }: { children: React.ReactNode }) {
   const [revealed, setRevealed] = useState(false);
 
@@ -187,10 +258,10 @@ function SpoilerSpan({ children }: { children: React.ReactNode }) {
       onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); setRevealed(true); }}
       className="spoiler-wrap cursor-pointer select-none"
     >
-      {/* Hidden text — occupies exact layout space but invisible */}
+      {/* invisible text — keeps the exact layout size of the content */}
       <span className="spoiler-text">{children}</span>
-      {/* Animated overlay — same size as the text */}
-      <span className="spoiler-anim" aria-hidden="true" />
+      {/* canvas overlay: white twinkling particles, no solid bg */}
+      <SpoilerCanvas />
     </span>
   );
 }
