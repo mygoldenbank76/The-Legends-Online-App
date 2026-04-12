@@ -1316,40 +1316,6 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         </div>
       )}
 
-      {/* ── @mention suggestions panel ── */}
-      <AnimatePresence>
-        {mentionQuery !== null && mentionSuggestions.length > 0 && (
-          <motion.div
-            key="mention-popup"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 8 }}
-            transition={{ duration: 0.15 }}
-            className="flex-shrink-0 mx-3 mb-1 glass-strong border border-primary/30 rounded-2xl overflow-hidden shadow-xl"
-          >
-            {mentionSuggestions.map((p, idx) => (
-              <button
-                key={p.id}
-                onMouseDown={(e) => { e.preventDefault(); handleMentionSelect(p); }}
-                onTouchStart={(e) => { e.preventDefault(); handleMentionSelect(p); }}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-primary/10 active:bg-primary/20 transition-colors text-left ${idx > 0 ? 'border-t border-white/5' : ''}`}
-              >
-                <Avatar className="w-8 h-8 flex-shrink-0">
-                  <AvatarImage src={p.avatar || ''} />
-                  <AvatarFallback className="bg-primary/20 text-primary text-xs">
-                    {(p.displayName || '?').substring(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium truncate">{p.displayName}</div>
-                  {p.username && <div className="text-xs text-primary/70 truncate">@{p.username}</div>}
-                </div>
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* ── Typing indicator ── */}
       <AnimatePresence>
         {typingUsers.filter(u => u.conversationId === conversationId).length > 0 && (
@@ -1382,6 +1348,46 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
       {/* ── Input bar — Base44 style ── */}
       <div className="flex-shrink-0 glass border-t border-border/50 relative">
+
+        {/* @mention suggestions — floats above the input bar, same pattern as emoji/GIF */}
+        <AnimatePresence>
+          {mentionQuery !== null && mentionSuggestions.length > 0 && (
+            <motion.div
+              key="mention-popup"
+              className="absolute bottom-full left-0 right-0 mb-1 z-50 px-3"
+              initial={{ opacity: 0, y: 10, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.97 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+            >
+              <div className="border border-white/[0.09] rounded-2xl overflow-hidden shadow-xl backdrop-blur-[40px] max-h-56 overflow-y-auto" style={{ background: 'rgba(18,24,40,0.97)' }}>
+                <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-white/5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-primary/70">Mentions</span>
+                </div>
+                {mentionSuggestions.map((p, idx) => (
+                  <button
+                    key={p.id}
+                    onMouseDown={(e) => { e.preventDefault(); handleMentionSelect(p); }}
+                    onTouchStart={(e) => { e.preventDefault(); handleMentionSelect(p); }}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-primary/10 active:bg-primary/20 transition-colors text-left ${idx > 0 ? 'border-t border-white/5' : ''}`}
+                  >
+                    <Avatar className="w-8 h-8 flex-shrink-0">
+                      <AvatarImage src={p.avatar || ''} />
+                      <AvatarFallback className="bg-primary/20 text-primary text-xs">
+                        {(p.displayName || '?').substring(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{p.displayName}</div>
+                      {p.username && <div className="text-xs text-primary/60 truncate">@{p.username}</div>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* GIF picker — floats above the input bar */}
         <GifPicker
           open={gifOpen}
