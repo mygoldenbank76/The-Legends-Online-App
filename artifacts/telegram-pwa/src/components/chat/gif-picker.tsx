@@ -56,7 +56,7 @@ export function GifPicker({ open, onClose, onSelect }: Props) {
   useEffect(() => {
     if (open) {
       setRawQuery('');
-      setTimeout(() => inputRef.current?.focus(), 120);
+      // Don't auto-focus — user taps the search bar when they want to type
     }
   }, [open]);
 
