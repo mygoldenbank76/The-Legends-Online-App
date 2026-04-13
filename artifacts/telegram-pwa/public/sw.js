@@ -1,7 +1,8 @@
-const CACHE_NAME = 'legends-v4';
-const STATIC_CACHE = 'legends-static-v4';
+const CACHE_NAME = 'legends-v5';
+const STATIC_CACHE = 'legends-static-v5';
+const MEDIA_CACHE = 'legends-media-v5';
 
-// On install: skip waiting to activate immediately
+// ── Install ──────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
@@ -11,57 +12,130 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// On activate: delete all old caches immediately
+// ── Activate: delete old caches ──────────────────────────────────────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys
-          .filter((key) => key !== CACHE_NAME && key !== STATIC_CACHE)
-          .map((key) => caches.delete(key))
+          .filter((k) => k !== CACHE_NAME && k !== STATIC_CACHE && k !== MEDIA_CACHE)
+          .map((k) => caches.delete(k))
       );
     }).then(() => self.clients.claim())
   );
 });
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** URLs that should be served Cache-First (media files) */
+function isMediaRequest(url) {
+  const pathname = url.pathname;
+  // Our own GCS media proxy
+  if (pathname.startsWith('/api/uploads/gcs/')) return true;
+  // Static image/video extensions
+  if (/\.(png|jpe?g|gif|webp|svg|mp4|webm|mov|ico|woff2?)(\?|$)/i.test(pathname)) return true;
+  return false;
+}
+
+/** External media hosts to cache (thumbnails, avatars, og-images) */
+const EXTERNAL_MEDIA_HOSTS = [
+  'i.ytimg.com',
+  'img.youtube.com',
+  'i.scdn.co',
+  'mosaic.scdn.co',
+  'i.imgur.com',
+  'media.giphy.com',
+  'media0.giphy.com',
+  'media1.giphy.com',
+  'media2.giphy.com',
+  'media3.giphy.com',
+  'media4.giphy.com',
+  'c.tenor.com',
+  'media.tenor.com',
+];
+
+function isExternalMedia(url) {
+  return EXTERNAL_MEDIA_HOSTS.some((h) => url.hostname === h || url.hostname.endsWith('.' + h));
+}
+
+// ── Fetch ─────────────────────────────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET and non-same-origin requests
-  if (request.method !== 'GET' || url.origin !== self.location.origin) {
+  // Only handle GET
+  if (request.method !== 'GET') return;
+
+  // ── 1. Our own media proxy — Cache First, very long TTL ──────────────────
+  if (url.origin === self.location.origin && isMediaRequest(url)) {
+    event.respondWith(
+      caches.open(MEDIA_CACHE).then(async (cache) => {
+        const cached = await cache.match(request);
+        if (cached) return cached;
+        const response = await fetch(request);
+        if (response.ok) cache.put(request, response.clone());
+        return response;
+      })
+    );
     return;
   }
 
-  // Skip API and socket requests — always go to network
-  if (url.pathname.startsWith('/api') || url.pathname.startsWith('/socket.io')) {
+  // ── 2. External media thumbnails — Cache First (opaque ok) ───────────────
+  if (isExternalMedia(url)) {
+    event.respondWith(
+      caches.open(MEDIA_CACHE).then(async (cache) => {
+        const cached = await cache.match(request);
+        if (cached) return cached;
+        try {
+          // no-cors gives opaque response — still cacheable and displayable
+          const response = await fetch(request, { mode: 'no-cors' });
+          if (response.type === 'opaque' || response.ok) {
+            cache.put(request, response.clone());
+          }
+          return response;
+        } catch {
+          return new Response('', { status: 503 });
+        }
+      })
+    );
     return;
   }
 
-  // Navigation requests (HTML) — network first, fallback to cache
+  // Skip API (data) and socket — always network
+  if (
+    url.origin === self.location.origin &&
+    (url.pathname.startsWith('/api') || url.pathname.startsWith('/socket.io'))
+  ) {
+    return;
+  }
+
+  // Skip cross-origin non-media
+  if (url.origin !== self.location.origin) return;
+
+  // ── 3. Navigation requests — Network First, cache fallback ───────────────
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
         .then((response) => {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          caches.open(CACHE_NAME).then((c) => c.put(request, clone));
           return response;
         })
-        .catch(() => {
-          return caches.match(request).then((cached) => cached || caches.match('/index.html'));
-        })
+        .catch(() =>
+          caches.match(request).then((cached) => cached || caches.match('/index.html'))
+        )
     );
     return;
   }
 
-  // Static assets with content hash in filename (JS, CSS) — cache first
+  // ── 4. Hashed static assets (JS/CSS bundles) — Cache First ───────────────
   if (url.pathname.startsWith('/assets/')) {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) return cached;
         return fetch(request).then((response) => {
           const clone = response.clone();
-          caches.open(STATIC_CACHE).then((cache) => cache.put(request, clone));
+          caches.open(STATIC_CACHE).then((c) => c.put(request, clone));
           return response;
         });
       })
@@ -69,13 +143,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Everything else — network first
-  event.respondWith(
-    fetch(request).catch(() => caches.match(request))
-  );
+  // ── 5. Everything else — Network First ───────────────────────────────────
+  event.respondWith(fetch(request).catch(() => caches.match(request)));
 });
 
-// ── Push notification handler ──────────────────────────────────────────────
+// ── Push notification handler ─────────────────────────────────────────────────
 self.addEventListener('push', (event) => {
   if (!event.data) return;
 
@@ -87,8 +159,6 @@ self.addEventListener('push', (event) => {
   }
 
   const { title, body, icon, badge, tag, data } = payload;
-
-  // Always use absolute URLs so Android can load the icon correctly
   const origin = self.location.origin;
   const toAbsolute = (path) => {
     if (!path) return origin + '/icon-notification.png';
@@ -112,7 +182,7 @@ self.addEventListener('push', (event) => {
   );
 });
 
-// ── IndexedDB helper (SW context) ─────────────────────────────────────────
+// ── IndexedDB helper (SW context) ─────────────────────────────────────────────
 function getTokenFromIDB() {
   return new Promise((resolve) => {
     const req = indexedDB.open('legends-auth', 1);
@@ -128,7 +198,7 @@ function getTokenFromIDB() {
   });
 }
 
-// ── Notification click handler ─────────────────────────────────────────────
+// ── Notification click handler ─────────────────────────────────────────────────
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
@@ -138,21 +208,17 @@ self.addEventListener('notificationclick', (event) => {
   const type = isGroup ? 'group' : 'direct';
   const fallbackUrl = conversationId ? `/?conv=${conversationId}&type=${type}` : '/';
 
-  // Helper: find an open PWA window (same origin only)
   function findAppClient(clientList) {
     return clientList.find(
       (c) => c.url.startsWith(self.location.origin) && 'focus' in c
     ) || null;
   }
 
-  // ── Inline reply action ────────────────────────────────────────────────
   if (event.action === 'reply' && event.reply && conversationId) {
     const replyText = event.reply.trim();
-
     event.waitUntil(
       getTokenFromIDB().then((token) => {
         if (!token || !replyText) return;
-
         return fetch(`/api/conversations/${conversationId}/messages`, {
           method: 'POST',
           headers: {
@@ -161,7 +227,6 @@ self.addEventListener('notificationclick', (event) => {
           },
           body: JSON.stringify({ content: replyText }),
         }).then(() => {
-          // Notify open app window (same origin) to open that conversation
           return clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
             const appClient = findAppClient(clientList);
             if (appClient) {
@@ -174,22 +239,16 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
 
-  // ── Normal tap: open conversation ─────────────────────────────────────
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       const appClient = findAppClient(clientList);
-
       if (appClient) {
-        // Wait for focus() to resolve before sending postMessage
-        // so the app is fully in the foreground when it receives the message
         return appClient.focus().then((focused) => {
           if (conversationId) {
             focused.postMessage({ type: 'OPEN_CONVERSATION', conversationId, isGroup });
           }
         });
       }
-
-      // App is not open — open a new window, URL params will be read on mount
       if (clients.openWindow) {
         return clients.openWindow(fallbackUrl);
       }
