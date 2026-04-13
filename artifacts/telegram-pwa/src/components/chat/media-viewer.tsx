@@ -238,7 +238,7 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
                     userSelect: 'none',
                   }}
                 />
-                {/* Main image — always contain, never distorted */}
+                {/* Main image — fills full viewport, always contain (no distortion) */}
                 <img
                   ref={imgRef}
                   src={url}
@@ -246,10 +246,9 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
                   draggable={false}
                   style={{
                     position: 'relative',
-                    maxWidth: '100vw',
-                    maxHeight: '100vh',
-                    width: 'auto',
-                    height: 'auto',
+                    width: '100vw',
+                    height: '100vh',
+                    objectFit: 'contain',
                     display: 'block',
                     userSelect: 'none',
                     WebkitUserSelect: 'none',
