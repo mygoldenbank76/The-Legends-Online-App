@@ -2,7 +2,7 @@
   "name": "The Legends Online",
   "short_name": "The Legends Online",
   "description": "The Legends Online — messagerie communautaire",
-  "theme_color": "#0f1523",
+  "theme_color": "#0e121c",
   "background_color": "#0d0d1a",
   "display": "standalone",
   "orientation": "portrait",
