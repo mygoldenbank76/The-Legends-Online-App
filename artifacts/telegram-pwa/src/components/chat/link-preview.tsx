@@ -1,5 +1,7 @@
-import { useState } from 'react';
-import { Play, ExternalLink, Music, Tv, Twitter, Instagram, Github, Radio } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Play, ExternalLink, Music, Tv, Twitter, Instagram, Github, Radio, Plus, MoreHorizontal } from 'lucide-react';
+import { CachedImg } from './cached-img';
+import { preloadMedia } from '@/lib/media-cache';
 
 export type LinkPreviewData = {
   url: string;
@@ -45,42 +47,97 @@ function PlatformBadge({ platform, siteName }: { platform?: string | null; siteN
   );
 }
 
-function SpotifyEmbed({ embedUrl }: { embedUrl: string; isMine: boolean }) {
-  const [loaded, setLoaded] = useState(false);
+/**
+ * Spotify card — shows full rich preview INSTANTLY from cached message data,
+ * then silently loads the interactive iframe behind it.
+ * When the iframe is ready, crossfade to it seamlessly.
+ */
+function SpotifyEmbed({ preview }: { preview: LinkPreviewData; isMine: boolean }) {
+  const [iframeReady, setIframeReady] = useState(false);
+  const [iframeStarted, setIframeStarted] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Start iframe load immediately on mount (background)
+  useEffect(() => {
+    setIframeStarted(true);
+    // Preload album art in memory so it appears instantly
+    if (preview.image) preloadMedia(preview.image);
+  }, [preview.image]);
 
   return (
-    <div className="mt-2 rounded-b-xl overflow-hidden relative" style={{ height: 152 }}>
-      {/* Spotify-themed skeleton — visible pendant le chargement de l'iframe */}
-      {!loaded && (
-        <div
-          className="absolute inset-0 flex items-center justify-center gap-2"
-          style={{ background: '#121212' }}
-        >
-          <Music size={18} className="animate-pulse" style={{ color: '#1DB954' }} />
-          <span className="text-sm" style={{ color: '#aaa' }}>Chargement Spotify…</span>
+    <div className="mt-2 rounded-xl overflow-hidden relative" style={{ background: '#121212' }}>
+      {/* ── Static rich card — visible IMMEDIATELY, fades out when iframe ready ── */}
+      <div
+        className="absolute inset-0 flex items-center gap-3 px-3 transition-opacity duration-300"
+        style={{ opacity: iframeReady ? 0 : 1, pointerEvents: iframeReady ? 'none' : 'auto', zIndex: 1 }}
+      >
+        {preview.image ? (
+          <CachedImg
+            src={preview.image}
+            alt="album"
+            className="rounded flex-shrink-0 object-cover"
+            style={{ width: 72, height: 72 }}
+          />
+        ) : (
+          <div className="w-[72px] h-[72px] rounded flex-shrink-0 flex items-center justify-center" style={{ background: '#282828' }}>
+            <Music size={24} style={{ color: '#1DB954' }} />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          {preview.title && (
+            <p className="font-semibold text-white text-sm truncate leading-snug">{preview.title}</p>
+          )}
+          {preview.description && (
+            <p className="text-xs truncate mt-0.5" style={{ color: '#b3b3b3' }}>{preview.description}</p>
+          )}
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: '#2a2a2a', color: '#b3b3b3' }}>
+              Preview
+            </span>
+          </div>
+          <div className="flex items-center gap-3 mt-1.5">
+            <Plus size={16} style={{ color: '#b3b3b3' }} />
+            <span className="text-xs" style={{ color: '#b3b3b3' }}>Save on Spotify</span>
+          </div>
+          <div className="flex items-center justify-between mt-1">
+            <MoreHorizontal size={16} style={{ color: '#b3b3b3' }} />
+            <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: '#1DB954' }}>
+              <Play size={16} fill="white" className="text-white ml-0.5" />
+            </div>
+          </div>
         </div>
-      )}
-      <iframe
-        src={embedUrl}
-        width="100%"
-        height="152"
-        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-        loading="eager"
-        style={{
-          border: 'none',
-          display: 'block',
-          opacity: loaded ? 1 : 0,
-          transition: 'opacity 0.25s ease',
-        }}
-        title="Spotify player"
-        onLoad={() => setLoaded(true)}
-      />
+        {/* Spotify logo */}
+        <svg width="28" height="28" viewBox="0 0 168 168" className="absolute top-3 right-3 flex-shrink-0" style={{ fill: '#1DB954' }}>
+          <path d="M84 0C37.6 0 0 37.6 0 84s37.6 84 84 84 84-37.6 84-84S130.4 0 84 0zm38.5 121.2c-1.5 2.5-4.8 3.3-7.3 1.8-19.9-12.2-45-14.9-74.5-8.2-2.8.6-5.7-1.1-6.3-3.9-.6-2.8 1.1-5.7 3.9-6.3 32.3-7.4 60-4.2 82.3 9.4 2.6 1.5 3.4 4.7 1.9 7.2zm10.3-22.8c-1.9 3.1-6 4.1-9.1 2.2-22.8-14-57.4-18-84.3-9.8-3.5 1.1-7.2-.9-8.3-4.4-1-3.5.9-7.2 4.4-8.3 30.8-9.4 69-4.8 95 11.2 3.1 1.9 4 6 2.3 9.1zm.9-23.8c-27.4-16.3-72.6-17.8-98.7-9.8-4.2 1.3-8.6-1.1-9.9-5.2-1.3-4.2 1.1-8.6 5.2-9.9 30-9.1 79.9-7.3 111.4 11.4 3.8 2.2 5 7.1 2.7 10.9-2.2 3.7-7.1 5-10.7 2.6z"/>
+        </svg>
+      </div>
+
+      {/* ── Interactive iframe — loads silently, fades in when ready ── */}
+      <div style={{ height: 152, opacity: iframeReady ? 1 : 0, transition: 'opacity 0.3s ease' }}>
+        {iframeStarted && preview.embedUrl && (
+          <iframe
+            ref={iframeRef}
+            src={preview.embedUrl}
+            width="100%"
+            height="152"
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            loading="eager"
+            style={{ border: 'none', display: 'block' }}
+            title="Spotify player"
+            onLoad={() => setIframeReady(true)}
+          />
+        )}
+      </div>
     </div>
   );
 }
 
 function YouTubeEmbed({ preview, isMine }: { preview: LinkPreviewData; isMine: boolean }) {
   const [playing, setPlaying] = useState(false);
+
+  useEffect(() => {
+    if (preview.image) preloadMedia(preview.image);
+  }, [preview.image]);
 
   if (playing && preview.embedUrl) {
     return (
@@ -91,7 +148,7 @@ function YouTubeEmbed({ preview, isMine }: { preview: LinkPreviewData; isMine: b
           height="100%"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
-          loading="lazy"
+          loading="eager"
           style={{ border: 'none', display: 'block' }}
           title={preview.title ?? 'YouTube video'}
         />
@@ -106,20 +163,18 @@ function YouTubeEmbed({ preview, isMine }: { preview: LinkPreviewData; isMine: b
       style={{ aspectRatio: '16/9', background: '#000' }}
     >
       {preview.image && (
-        <img
+        <CachedImg
           src={preview.image}
           alt={preview.title ?? 'YouTube thumbnail'}
           className="w-full h-full object-cover transition-opacity group-hover:opacity-80"
         />
       )}
-      {/* Play button */}
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="w-14 h-14 rounded-full flex items-center justify-center transition-transform group-hover:scale-110"
           style={{ background: 'rgba(255,0,0,0.9)' }}>
           <Play size={24} fill="white" className="text-white ml-1" />
         </div>
       </div>
-      {/* Duration badge placeholder */}
       <div className="absolute bottom-2 right-2">
         <span className="text-[10px] bg-black/70 text-white px-1.5 py-0.5 rounded font-mono">▶ YouTube</span>
       </div>
@@ -127,23 +182,15 @@ function YouTubeEmbed({ preview, isMine }: { preview: LinkPreviewData; isMine: b
   );
 }
 
-/* Image avec skeleton — évite le flash blanc/noir pendant le chargement */
+// Generic image using CachedImg — no skeleton flash, instant from cache
 function GenericImage({ src, alt }: { src: string; alt: string }) {
-  const [loaded, setLoaded] = useState(false);
   return (
-    <div className="relative w-full" style={{ minHeight: 80 }}>
-      {!loaded && (
-        <div className="absolute inset-0 animate-pulse" style={{ background: 'rgba(255,255,255,0.06)', minHeight: 80 }} />
-      )}
-      <img
-        src={src}
-        alt={alt}
-        loading="eager"
-        className="w-full object-cover max-h-40 block"
-        style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.2s ease' }}
-        onLoad={() => setLoaded(true)}
-      />
-    </div>
+    <CachedImg
+      src={src}
+      alt={alt}
+      loading="eager"
+      className="w-full object-cover max-h-40 block"
+    />
   );
 }
 
@@ -173,7 +220,7 @@ export function LinkPreviewCard({ preview, isMine }: Props) {
           {preview.title && <p className="font-semibold mt-1 truncate text-foreground">{preview.title}</p>}
           {preview.description && <p className="opacity-70 line-clamp-1 mt-0.5">{preview.description}</p>}
         </div>
-        <SpotifyEmbed embedUrl={preview.embedUrl} isMine={isMine} />
+        <SpotifyEmbed preview={preview} isMine={isMine} />
       </div>
     );
   }

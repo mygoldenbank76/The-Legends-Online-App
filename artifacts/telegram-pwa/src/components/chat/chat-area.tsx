@@ -360,6 +360,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       if (m.replyTo?.imageUrl && !m.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i)) {
         preloadMedia(m.replyTo.imageUrl);
       }
+      // Preload link preview images (Spotify album art, YouTube thumbnails, etc.)
+      if (m.linkPreview?.image) {
+        preloadMedia(m.linkPreview.image);
+      }
     }
   // Only re-run when message count changes (new messages arrive)
   // eslint-disable-next-line react-hooks/exhaustive-deps
