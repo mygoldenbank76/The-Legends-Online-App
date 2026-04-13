@@ -12,82 +12,80 @@ function isVideo(url: string) {
   return /\.(mp4|webm|mov|avi|mkv)$/i.test(url);
 }
 
-/** Clamp offset so the zoomed image never exposes empty space */
-function clampOffset(x: number, y: number, scale: number) {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  // When zoomed by `scale`, the extra pixels available for panning are:
-  const maxX = Math.max(0, (vw * scale - vw) / 2);
-  const maxY = Math.max(0, (vh * scale - vh) / 2);
-  return {
-    x: Math.max(-maxX, Math.min(maxX, x)),
-    y: Math.max(-maxY, Math.min(maxY, y)),
-  };
-}
-
 export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
   const [idx, setIdx] = useState(startIndex);
   const [dragX, setDragX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [scale, setScale] = useState(1);
-  const [imgOffset, setImgOffset] = useState({ x: 0, y: 0 });
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
 
-  // Refs for touch tracking
+  const imgRef = useRef<HTMLImageElement>(null);
   const touchStartRef = useRef<{ x: number; y: number; t: number } | null>(null);
-  // Last position during pan (used to compute per-frame delta)
   const lastTouchRef = useRef<{ x: number; y: number } | null>(null);
-  const pinchStartRef = useRef<{ dist: number; scale: number } | null>(null);
+  const pinchRef = useRef<{ dist: number; scale: number } | null>(null);
+  const scaleRef = useRef(1);
+  const lastTapRef = useRef(0);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const lastTapRef = useRef<number>(0);
-
-  // Current scale ref (to avoid stale closure in touch handlers)
-  const scaleRef = useRef(scale);
-  const offsetRef = useRef(imgOffset);
-  useEffect(() => { scaleRef.current = scale; }, [scale]);
-  useEffect(() => { offsetRef.current = imgOffset; }, [imgOffset]);
 
   const url = urls[idx] ?? '';
   const isVid = isVideo(url);
   const count = urls.length;
 
-  // Reset state on navigation
+  // Keep scaleRef in sync
+  useEffect(() => { scaleRef.current = scale; }, [scale]);
+
+  // Reset on slide change
   useEffect(() => {
     if (isVid && videoRef.current) {
       videoRef.current.currentTime = 0;
       videoRef.current.play().catch(() => {});
     }
     setScale(1);
-    setImgOffset({ x: 0, y: 0 });
+    scaleRef.current = 1;
+    setOffset({ x: 0, y: 0 });
     setDragX(0);
     setIsDragging(false);
   }, [idx, isVid]);
 
   // Escape key
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
   }, [onClose]);
 
   const goTo = useCallback((next: number) => {
-    const clamped = Math.max(0, Math.min(count - 1, next));
-    setIdx(clamped);
+    setIdx(Math.max(0, Math.min(count - 1, next)));
     setDragX(0);
   }, [count]);
 
-  // ── Touch handling ──────────────────────────────────────────────────
-  const handleTouchStart = (e: React.TouchEvent) => {
+  /** Clamp offset so the image never exposes empty background */
+  const clamp = useCallback((x: number, y: number, s: number) => {
+    const img = imgRef.current;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    // Use actual rendered image dimensions (at scale=1) for bounds
+    const iw = img ? img.offsetWidth : vw;
+    const ih = img ? img.offsetHeight : vh;
+    const maxX = Math.max(0, (iw * s - vw) / 2);
+    const maxY = Math.max(0, (ih * s - vh) / 2);
+    return {
+      x: Math.max(-maxX, Math.min(maxX, x)),
+      y: Math.max(-maxY, Math.min(maxY, y)),
+    };
+  }, []);
+
+  // ── Touch handlers ─────────────────────────────────────────────────
+  const onTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 2) {
-      // Pinch-to-zoom start: capture initial distance AND current scale
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
-      pinchStartRef.current = { dist: Math.hypot(dx, dy), scale: scaleRef.current };
+      pinchRef.current = { dist: Math.hypot(dx, dy), scale: scaleRef.current };
       touchStartRef.current = null;
       lastTouchRef.current = null;
       return;
     }
-    if (e.touches.length !== 1) return;
-    pinchStartRef.current = null;
+    pinchRef.current = null;
     const x = e.touches[0].clientX;
     const y = e.touches[0].clientY;
     touchStartRef.current = { x, y, t: Date.now() };
@@ -95,64 +93,56 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
     setIsDragging(false);
   };
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    // ── Pinch zoom ──
-    if (e.touches.length === 2 && pinchStartRef.current !== null) {
+  const onTouchMove = (e: React.TouchEvent) => {
+    // Pinch zoom
+    if (e.touches.length === 2 && pinchRef.current) {
       e.preventDefault();
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       const dist = Math.hypot(dx, dy);
-      const rawScale = pinchStartRef.current.scale * (dist / pinchStartRef.current.dist);
-      const newScale = Math.max(1, Math.min(5, rawScale));
-      setScale(newScale);
+      const newScale = Math.max(1, Math.min(5, pinchRef.current.scale * (dist / pinchRef.current.dist)));
       scaleRef.current = newScale;
-      // Clamp offset to new scale
-      setImgOffset(prev => clampOffset(prev.x, prev.y, newScale));
+      setScale(newScale);
+      setOffset(prev => clamp(prev.x, prev.y, newScale));
       return;
     }
 
     if (!lastTouchRef.current || e.touches.length !== 1) return;
 
-    const curX = e.touches[0].clientX;
-    const curY = e.touches[0].clientY;
+    const cx = e.touches[0].clientX;
+    const cy = e.touches[0].clientY;
+    const dx = cx - lastTouchRef.current.x;
+    const dy = cy - lastTouchRef.current.y;
+    lastTouchRef.current = { x: cx, y: cy };
 
-    // Per-frame delta (not cumulative from start)
-    const deltaX = curX - lastTouchRef.current.x;
-    const deltaY = curY - lastTouchRef.current.y;
-    lastTouchRef.current = { x: curX, y: curY };
-
-    const currentScale = scaleRef.current;
-
-    if (currentScale > 1) {
-      // ── Pan mode: move image within clamped bounds ──
+    if (scaleRef.current > 1) {
+      // Pan mode
       e.preventDefault();
-      setImgOffset(prev => {
-        const raw = { x: prev.x + deltaX, y: prev.y + deltaY };
-        return clampOffset(raw.x, raw.y, currentScale);
-      });
+      setOffset(prev => clamp(prev.x + dx, prev.y + dy, scaleRef.current));
     } else {
-      // ── Swipe mode: horizontal swipe to navigate ──
+      // Swipe navigation mode
       if (!touchStartRef.current) return;
-      const totalDX = curX - touchStartRef.current.x;
-      const totalDY = curY - touchStartRef.current.y;
+      const totalDX = cx - touchStartRef.current.x;
+      const totalDY = cy - touchStartRef.current.y;
       if (!isDragging && Math.abs(totalDX) > Math.abs(totalDY) && Math.abs(totalDX) > 8) {
         setIsDragging(true);
       }
-      if (isDragging) {
-        setDragX(totalDX);
-      }
+      if (isDragging) setDragX(totalDX);
     }
   };
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    pinchStartRef.current = null;
+  const onTouchEnd = () => {
+    pinchRef.current = null;
     lastTouchRef.current = null;
 
-    // Snap scale to 1 if very close
+    // Snap back if scale very close to 1
     setScale(prev => {
-      const snapped = prev < 1.05 ? 1 : prev;
-      if (snapped === 1) setImgOffset({ x: 0, y: 0 });
-      return snapped;
+      if (prev < 1.05) {
+        scaleRef.current = 1;
+        setOffset({ x: 0, y: 0 });
+        return 1;
+      }
+      return prev;
     });
 
     if (!touchStartRef.current) return;
@@ -165,24 +155,25 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
       setDragX(0);
     }
     setIsDragging(false);
+    void dt;
   };
 
-  // Double-tap to zoom / reset
-  const handleDoubleTap = useCallback(() => {
+  // Double-tap zoom toggle
+  const onTap = useCallback(() => {
     const now = Date.now();
     if (now - lastTapRef.current < 300) {
       if (scaleRef.current > 1) {
-        setScale(1);
-        setImgOffset({ x: 0, y: 0 });
+        setScale(1); scaleRef.current = 1;
+        setOffset({ x: 0, y: 0 });
       } else {
-        setScale(2.5);
-        setImgOffset({ x: 0, y: 0 });
+        setScale(2.5); scaleRef.current = 2.5;
+        setOffset({ x: 0, y: 0 });
       }
     }
     lastTapRef.current = now;
   }, []);
 
-  const downloadUrl = () => {
+  const download = () => {
     const a = document.createElement('a');
     a.href = url;
     a.download = url.split('/').pop() || 'media';
@@ -198,7 +189,7 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.18 }}
     >
-      {/* ── Top bar ── */}
+      {/* Top bar */}
       <div
         className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-3"
         style={{
@@ -208,46 +199,32 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
           pointerEvents: 'none',
         }}
       >
-        <button
-          onClick={onClose}
-          className="w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 transition-colors"
-          style={{ pointerEvents: 'auto' }}
-        >
+        <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-full bg-black/50" style={{ pointerEvents: 'auto' }}>
           <X className="w-5 h-5 text-white" />
         </button>
 
         {count > 1 ? (
-          <div className="flex items-center gap-1.5" style={{ pointerEvents: 'none' }}>
+          <div className="flex items-center gap-1.5">
             {urls.map((_, i) => (
-              <div
-                key={i}
-                className="rounded-full transition-all duration-300"
-                style={{
-                  width: i === idx ? 18 : 6,
-                  height: 6,
-                  background: i === idx ? '#fff' : 'rgba(255,255,255,0.45)',
-                }}
+              <div key={i} className="rounded-full transition-all duration-300"
+                style={{ width: i === idx ? 18 : 6, height: 6, background: i === idx ? '#fff' : 'rgba(255,255,255,0.45)' }}
               />
             ))}
           </div>
         ) : <span />}
 
-        <button
-          onClick={downloadUrl}
-          className="w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 transition-colors"
-          style={{ pointerEvents: 'auto' }}
-        >
+        <button onClick={download} className="w-10 h-10 flex items-center justify-center rounded-full bg-black/50" style={{ pointerEvents: 'auto' }}>
           <Download className="w-4 h-4 text-white" />
         </button>
       </div>
 
-      {/* ── Full-screen media area ── */}
+      {/* Media area */}
       <div
         className="absolute inset-0 flex items-center justify-center overflow-hidden"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onClick={handleDoubleTap}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onClick={onTap}
         style={{ touchAction: scale > 1 ? 'none' : 'pan-y' }}
       >
         <AnimatePresence mode="wait" initial={false}>
@@ -266,47 +243,42 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
                 controls
                 playsInline
                 autoPlay
-                className="w-full h-full"
-                style={{ objectFit: 'contain', maxWidth: '100vw', maxHeight: '100dvh' }}
                 onClick={e => e.stopPropagation()}
+                style={{ maxWidth: '100vw', maxHeight: '100vh', width: '100vw', height: '100vh', objectFit: 'contain', display: 'block' }}
               />
             ) : (
               <img
+                ref={imgRef}
                 src={url}
                 alt=""
                 draggable={false}
                 style={{
-                  objectFit: 'contain',
                   maxWidth: '100vw',
-                  maxHeight: '100dvh',
-                  width: '100%',
-                  height: '100%',
-                  transform: `scale(${scale}) translate(${imgOffset.x / scale}px, ${imgOffset.y / scale}px)`,
-                  transformOrigin: 'center center',
+                  maxHeight: '100vh',
+                  width: 'auto',
+                  height: 'auto',
+                  display: 'block',
                   userSelect: 'none',
                   WebkitUserSelect: 'none',
                   willChange: 'transform',
-                  transition: isDragging || pinchStartRef.current ? 'none' : 'transform 0.15s ease-out',
+                  transform: `scale(${scale}) translate(${offset.x / scale}px, ${offset.y / scale}px)`,
+                  transformOrigin: 'center center',
+                  transition: isDragging || !!pinchRef.current ? 'none' : 'transform 0.12s ease-out',
                 }}
               />
             )}
           </motion.div>
         </AnimatePresence>
 
-        {/* Desktop nav arrows */}
         {count > 1 && idx > 0 && (
-          <button
-            onClick={(e) => { e.stopPropagation(); goTo(idx - 1); }}
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors z-10 hidden sm:flex"
-          >
+          <button onClick={(e) => { e.stopPropagation(); goTo(idx - 1); }}
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/50 flex items-center justify-center z-10 hidden sm:flex">
             <ChevronLeft className="w-6 h-6 text-white" />
           </button>
         )}
         {count > 1 && idx < count - 1 && (
-          <button
-            onClick={(e) => { e.stopPropagation(); goTo(idx + 1); }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors z-10 hidden sm:flex"
-          >
+          <button onClick={(e) => { e.stopPropagation(); goTo(idx + 1); }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/50 flex items-center justify-center z-10 hidden sm:flex">
             <ChevronRight className="w-6 h-6 text-white" />
           </button>
         )}
