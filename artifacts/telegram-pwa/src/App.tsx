@@ -15,6 +15,7 @@ import { PreferencesProvider } from "@/lib/preferences-context";
 import { ShieldOff, LogOut } from "lucide-react";
 import { createIDBPersister } from "@/lib/idb-persister";
 import { BackgroundLoader } from "@/components/background-loader";
+import { RestoringProvider, useRestoringState } from "@/lib/restoring-context";
 
 // ── Query client ──────────────────────────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -134,25 +135,31 @@ function useVisualViewport() {
 // ── App ───────────────────────────────────────────────────────────────────────
 function App() {
   useVisualViewport();
+  // Track IndexedDB restoration state so auth can pause during it
+  const { isRestoring, setIsRestoring } = useRestoringState();
+
   return (
     <PersistQueryClientProvider
       client={queryClient}
       persistOptions={persistOptions}
+      onSuccess={() => setIsRestoring(false)}
     >
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <PreferencesProvider>
-            <AuthProvider>
-              <SocketProvider>
-                {/* Invisible background data loader — preloads all convs + media silently */}
-                <BackgroundLoader />
-                <AppRouter />
-              </SocketProvider>
-            </AuthProvider>
-          </PreferencesProvider>
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
+      <RestoringProvider isRestoring={isRestoring} setIsRestoring={setIsRestoring}>
+        <TooltipProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <PreferencesProvider>
+              <AuthProvider>
+                <SocketProvider>
+                  {/* Invisible background data loader — preloads all convs + media silently */}
+                  <BackgroundLoader />
+                  <AppRouter />
+                </SocketProvider>
+              </AuthProvider>
+            </PreferencesProvider>
+          </WouterRouter>
+          <Toaster />
+        </TooltipProvider>
+      </RestoringProvider>
     </PersistQueryClientProvider>
   );
 }

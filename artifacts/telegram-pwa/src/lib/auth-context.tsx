@@ -4,7 +4,7 @@ import { useGetMe, useLogin, useRegister, useLogout } from '@workspace/api-clien
 import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import { saveTokenToIDB, removeTokenFromIDB } from './auth-idb';
-import { useIsRestoring } from '@tanstack/react-query-persist-client';
+import { useIsRestoring } from './restoring-context';
 
 type AuthContextType = {
   user: User | null;
