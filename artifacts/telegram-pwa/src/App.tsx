@@ -1,5 +1,6 @@
 import { Switch, Route, Router as WouterRouter } from "wouter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -12,21 +13,42 @@ import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { SocketProvider } from "@/lib/socket-context";
 import { PreferencesProvider } from "@/lib/preferences-context";
 import { ShieldOff, LogOut } from "lucide-react";
+import { createIDBPersister } from "@/lib/idb-persister";
+import { BackgroundLoader } from "@/components/background-loader";
 
+// ── Query client ──────────────────────────────────────────────────────────────
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       // Socket handles all real-time updates — no HTTP refetch needed due to staleness
       staleTime: Infinity,
-      // Keep all query data in memory for 24h — fast reopening like Telegram/WhatsApp
+      // Keep all query data in memory for 24h (IDB handles longer-term persistence)
       gcTime: 1000 * 60 * 60 * 24,
       retry: 1,
-      // Don't refetch on focus — socket keeps everything live
       refetchOnWindowFocus: false,
+      // On reconnect, refetch conversation list so we get any missed data
+      refetchOnReconnect: 'always',
     },
   },
 });
 
+// ── IndexedDB persister — survives full app close/reopen ─────────────────────
+const idbPersister = createIDBPersister(
+  1000 * 60 * 60 * 24 * 7 // 7 days
+);
+
+// ── Persist options ───────────────────────────────────────────────────────────
+const persistOptions = {
+  persister: idbPersister,
+  // Bump this string to force-invalidate all cached data (e.g. after schema changes)
+  buster: 'legends-v1',
+  // Dehydrate all queries including those with no data yet
+  dehydrateOptions: {
+    shouldDehydrateQuery: () => true,
+  },
+};
+
+// ── Screens ───────────────────────────────────────────────────────────────────
 function BannedScreen() {
   const { logout } = useAuth();
   return (
@@ -76,6 +98,7 @@ function AppRouter() {
   );
 }
 
+// ── Visual viewport fix (keyboard push-up on mobile) ─────────────────────────
 function useVisualViewport() {
   useEffect(() => {
     const vv = window.visualViewport;
@@ -84,15 +107,10 @@ function useVisualViewport() {
     const update = () => {
       const root = document.getElementById('root');
       if (!root) return;
-      // Clamp the root to exactly the visible area (shrinks when keyboard opens).
-      // offsetTop > 0 when Android Chrome scrolls the layout viewport to reveal
-      // the focused input — we compensate so #root tracks the visual viewport.
       root.style.height = `${vv.height}px`;
       root.style.top    = `${vv.offsetTop}px`;
     };
 
-    // Hard-block any document-level scroll. All scrolling must happen inside
-    // the message list container, never at the window/body level.
     const blockScroll = (e: Event) => {
       e.preventDefault();
       window.scrollTo(0, 0);
@@ -111,15 +129,21 @@ function useVisualViewport() {
   }, []);
 }
 
+// ── App ───────────────────────────────────────────────────────────────────────
 function App() {
   useVisualViewport();
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={persistOptions}
+    >
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <PreferencesProvider>
             <AuthProvider>
               <SocketProvider>
+                {/* Invisible background data loader — preloads all convs + media silently */}
+                <BackgroundLoader />
                 <AppRouter />
               </SocketProvider>
             </AuthProvider>
@@ -127,7 +151,7 @@ function App() {
         </WouterRouter>
         <Toaster />
       </TooltipProvider>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   );
 }
 
