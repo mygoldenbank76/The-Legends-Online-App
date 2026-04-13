@@ -259,6 +259,49 @@ function SheetItem({
   );
 }
 
+// ── Skeleton shown while messages load for the first time ─────────────────────
+const SKELETON_ROWS = [
+  { mine: false, w: '52%',  h: 40 },
+  { mine: true,  w: '38%',  h: 40 },
+  { mine: false, w: '68%',  h: 56 },
+  { mine: true,  w: '55%',  h: 40 },
+  { mine: false, w: '44%',  h: 40 },
+  { mine: false, w: '72%',  h: 56 },
+  { mine: true,  w: '62%',  h: 40 },
+  { mine: true,  w: '35%',  h: 40 },
+  { mine: false, w: '58%',  h: 40 },
+  { mine: true,  w: '48%',  h: 40 },
+];
+
+function MessagesSkeleton() {
+  return (
+    <div className="flex flex-col justify-end gap-1.5 px-3 pb-3 pt-6 min-h-full">
+      {/* Date pill */}
+      <div className="flex justify-center mb-2">
+        <div className="h-5 w-28 rounded-full animate-pulse" style={{ background: 'rgba(255,255,255,0.07)' }} />
+      </div>
+      {SKELETON_ROWS.map((row, i) => (
+        <div key={i} className={`flex items-end gap-2 ${row.mine ? 'justify-end' : 'justify-start'}`}>
+          {!row.mine && (
+            <div className="w-7 h-7 rounded-full flex-shrink-0 animate-pulse" style={{ background: 'rgba(255,255,255,0.10)' }} />
+          )}
+          <div
+            className="rounded-2xl animate-pulse"
+            style={{
+              width: row.w,
+              height: row.h,
+              background: row.mine
+                ? 'rgba(139, 92, 246, 0.18)'
+                : 'rgba(255, 255, 255, 0.07)',
+              animationDelay: `${i * 60}ms`,
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAreaProps) {
   const { user } = useAuth();
   const { socket, joinConversation, emitTyping, typingUsers } = useSocket();
@@ -1193,7 +1236,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           </motion.button>
         )}
       </AnimatePresence>
-      <div ref={scrollRef} className="h-full overflow-y-auto px-3 pt-4 pb-2 bg-background" style={{ visibility: scrollReady || isLoading ? 'visible' : 'hidden' }}>
+      <div ref={scrollRef} className="h-full overflow-y-auto px-3 pt-4 pb-2 bg-background" style={{ visibility: scrollReady || isLoading || messages.length === 0 ? 'visible' : 'hidden' }}>
         {/* Sentinel — triggers loading older messages on scroll to top */}
         <div ref={sentinelRef} className="h-1" />
         {/* Spinner while loading older messages */}
@@ -1208,9 +1251,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             <span className="text-[10px] text-muted-foreground/50 select-none">— début de la conversation —</span>
           </div>
         )}
-        {isLoading && (
-          <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
-        )}
+        {isLoading && <MessagesSkeleton />}
         <div ref={msgsWrapRef} className="flex flex-col gap-0.5 pb-2">
           {messages?.map((msg, index) => {
             const isMine = msg.senderId === user?.id;

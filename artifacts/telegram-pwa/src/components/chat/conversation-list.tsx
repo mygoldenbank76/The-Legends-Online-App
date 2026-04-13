@@ -91,7 +91,30 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
     });
   }, [allConvs, queryClient]);
 
-  // ── Optimisation 2 : prefetch messages dès le pointerDown ──
+  // ── Optimisation 2 : prefetch auto des 5 conversations les plus récentes ──
+  // Dès que la liste charge, on pré-charge les messages des 5 premières convs en
+  // arrière-plan. Résultat : premier tap toujours instantané, même sans avoir touché.
+  useEffect(() => {
+    if (!allConvs.length) return;
+    const top5 = allConvs.slice(0, 5);
+    top5.forEach((conv, idx) => {
+      const key = getListMessagesQueryKey(conv.id);
+      const state = queryClient.getQueryState(key);
+      const isStale = !state?.dataUpdatedAt || Date.now() - state.dataUpdatedAt > 1000 * 60 * 5;
+      if (!isStale) return;
+      // Delay chaque prefetch pour ne pas bloquer le thread
+      setTimeout(() => {
+        queryClient.prefetchQuery({
+          queryKey: key,
+          queryFn: () => listMessages(conv.id),
+          staleTime: 1000 * 60 * 5,
+        });
+      }, idx * 300);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allConvs.length > 0]);
+
+  // ── Optimisation 3 : prefetch messages dès le pointerDown ──
   // Le doigt commence à appuyer → on démarre le chargement des messages immédiatement.
   // Quand le doigt se lève (~100-200ms plus tard), les messages sont déjà en cache.
   const prefetchMessages = useCallback((convId: number) => {
