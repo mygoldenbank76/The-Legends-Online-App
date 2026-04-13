@@ -1434,7 +1434,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     {(msg as any).mediaAlbum && Array.isArray((msg as any).mediaAlbum) && (msg as any).mediaAlbum.length > 0 && !isPoll && (
                       <AlbumGrid
                         urls={(msg as any).mediaAlbum}
-                        onItemClick={(i) => setMediaViewer({ urls: (msg as any).mediaAlbum, index: i })}
+                        onItemClick={(i) => {
+                          if (Date.now() - conversationOpenedAt.current < 900) return;
+                          setMediaViewer({ urls: (msg as any).mediaAlbum, index: i });
+                        }}
                       />
                     )}
 
@@ -1447,7 +1450,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                         {msg.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? (
                           <div
                             className="relative cursor-pointer"
-                            onClick={() => setMediaViewer({ urls: [msg.imageUrl!], index: 0 })}
+                            onClick={() => {
+                              if (Date.now() - conversationOpenedAt.current < 900) return;
+                              setMediaViewer({ urls: [msg.imageUrl!], index: 0 });
+                            }}
                           >
                             <video
                               src={msg.imageUrl}
@@ -1468,7 +1474,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                             src={msg.imageUrl}
                             alt="attached"
                             className="max-w-full max-h-64 object-cover rounded-xl cursor-pointer active:opacity-80 transition-opacity"
-                            onClick={() => setMediaViewer({ urls: [msg.imageUrl!], index: 0 })}
+                            onClick={() => {
+                              if (Date.now() - conversationOpenedAt.current < 900) return;
+                              setMediaViewer({ urls: [msg.imageUrl!], index: 0 });
+                            }}
                           />
                         )}
                       </div>
