@@ -16,12 +16,12 @@ import { ShieldOff, LogOut } from "lucide-react";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // 5 min staleTime — socket handles real-time; HTTP refetch only needed after 5 min
-      staleTime: 1000 * 60 * 5,
-      // 30 min gcTime — keep unused query data in memory for fast reopening
-      gcTime: 1000 * 60 * 30,
+      // Socket handles all real-time updates — no HTTP refetch needed due to staleness
+      staleTime: Infinity,
+      // Keep all query data in memory for 24h — fast reopening like Telegram/WhatsApp
+      gcTime: 1000 * 60 * 60 * 24,
       retry: 1,
-      // Don't refetch just because the tab regained focus — socket keeps data live
+      // Don't refetch on focus — socket keeps everything live
       refetchOnWindowFocus: false,
     },
   },
