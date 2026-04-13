@@ -9,7 +9,7 @@ import {
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth-context';
-import { useSocket } from '@/lib/socket-context';
+import { useSocket, activeConversationIdRef } from '@/lib/socket-context';
 import { usePreferences } from '@/lib/preferences-context';
 import { translateGroupName } from '@/lib/i18n';
 import { getAuthHeaders } from '@/lib/auth-fetch';
@@ -561,8 +561,26 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // Reset ghost-touch guard whenever we open a different conversation
   useEffect(() => { conversationOpenedAt.current = Date.now(); }, [conversationId]);
 
+  // Track active conversation so the socket doesn't increment unread for messages
+  // we're already reading, and clean up when we leave.
   useEffect(() => {
-    if (conversationId && messages && messages.length > 0) markRead.mutate({ conversationId });
+    activeConversationIdRef.current = conversationId ?? null;
+    return () => { activeConversationIdRef.current = null; };
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (!conversationId || !messages || messages.length === 0) return;
+
+    // Immediately zero out the badge in the local cache (optimistic)
+    const listKey = getListConversationsQueryKey();
+    queryClient.setQueryData(listKey, (old: any[]) => {
+      if (!Array.isArray(old)) return old;
+      return old.map(conv =>
+        conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv
+      );
+    });
+
+    markRead.mutate({ conversationId });
   }, [conversationId, messages?.length]);
 
   const invalidate = useCallback(() => {

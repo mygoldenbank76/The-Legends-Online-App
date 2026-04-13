@@ -40,6 +40,10 @@ type SocketMsg = {
 
 const SocketContext = createContext<SocketContextType | undefined>(undefined);
 
+// Module-level ref tracking the currently open conversation, so the socket
+// doesn't increment unreadCount for messages the user is actively reading.
+export const activeConversationIdRef = { current: null as number | null };
+
 export function SocketProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -90,8 +94,9 @@ export function SocketProvider({ children }: { children: ReactNode }) {
               ...conv,
               lastMessage: msg,
               updatedAt: msg.createdAt,
-              // Increment unread only if this message is from someone else
-              unreadCount: msg.senderId !== user?.id
+              // Increment unread only if: message is from someone else AND
+              // this conversation is not currently open by the user
+              unreadCount: msg.senderId !== user?.id && activeConversationIdRef.current !== convId
                 ? (conv.unreadCount ?? 0) + 1
                 : conv.unreadCount,
             };
