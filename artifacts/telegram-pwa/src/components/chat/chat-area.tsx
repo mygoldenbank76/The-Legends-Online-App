@@ -409,7 +409,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [ctxMenu, setCtxMenu] = useState<CtxMenu>(null);
   const [replyTo, setReplyTo] = useState<Msg | null>(null);
-  const [editState, setEditState] = useState<{ id: number; orig: string } | null>(null);
+  const [editState, setEditState] = useState<{ id: number; orig: string; mediaLabel?: string } | null>(null);
   const [translations, setTranslations] = useState<TranslateEntry[]>([]);
   const [translatingId, setTranslatingId] = useState<number | null>(null);
   const [swipeOffsets, setSwipeOffsets] = useState<Record<number, number>>({});
@@ -1015,7 +1015,17 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   }, [ctxMenu?.msgId]);
 
   const handleReply = (msg: Msg) => { setReplyTo(msg); setEditState(null); setContent(''); closeCtx(); };
-  const handleEdit = (msg: Msg) => { setEditState({ id: msg.id, orig: msg.content || '' }); setContent(msg.content || ''); setReplyTo(null); closeCtx(); };
+  const handleEdit = (msg: Msg) => {
+    const mediaLabel = msg.mediaAlbum?.length
+      ? `📸 Album (${msg.mediaAlbum.length} médias)`
+      : msg.videoUrl ? '🎬 Vidéo'
+      : msg.mediaUrl ? '📷 Photo'
+      : undefined;
+    setEditState({ id: msg.id, orig: msg.content || '', mediaLabel });
+    setContent(msg.content || '');
+    setReplyTo(null);
+    closeCtx();
+  };
 
   const handleDeleteConfirm = async (msgId: number) => {
     closeCtx();
@@ -1610,7 +1620,13 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       {editState && (
         <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-sidebar border-t border-primary/30">
           <Pencil className="w-4 h-4 text-primary flex-shrink-0" />
-          <p className="flex-1 text-xs text-primary font-medium truncate">{uiT.chat.edit} · {editState.orig}</p>
+          <p className="flex-1 text-xs text-primary font-medium truncate">
+            {uiT.chat.edit} · {editState.mediaLabel
+              ? editState.orig
+                ? `${editState.mediaLabel} — ${editState.orig}`
+                : editState.mediaLabel
+              : editState.orig}
+          </p>
           <button onClick={() => { setEditState(null); setContent(''); }} className="text-muted-foreground hover:text-foreground p-1 flex-shrink-0">
             <X className="w-4 h-4" />
           </button>
@@ -1814,16 +1830,18 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   rows={1}
                 />
 
-                {/* Right icon inside field: + attachment */}
-                <button
-                  onClick={() => setAttachmentSheetOpen(true)}
-                  disabled={uploadingImg}
-                  className="flex-shrink-0 p-2.5 mb-0.5 self-end text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {uploadingImg
-                    ? <Loader2 className="w-5 h-5 animate-spin" />
-                    : <Plus className="w-5 h-5" />}
-                </button>
+                {/* Right icon inside field: + attachment (hidden in edit mode) */}
+                {!editState && (
+                  <button
+                    onClick={() => setAttachmentSheetOpen(true)}
+                    disabled={uploadingImg}
+                    className="flex-shrink-0 p-2.5 mb-0.5 self-end text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {uploadingImg
+                      ? <Loader2 className="w-5 h-5 animate-spin" />
+                      : <Plus className="w-5 h-5" />}
+                  </button>
+                )}
               </div>
 
               {/* ── Right action button (outside field): Mic / Send ── */}
@@ -2039,7 +2057,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       divider
                     />
 
-                    {isMineCtx && ctxMsg.content && !ctxMsg.poll && (
+                    {isMineCtx && !ctxMsg.poll && !ctxMsg.audioUrl && (
                       <SheetItem icon={<Pencil size={18} />} label={uiT.chat.edit} onClick={() => ctxMsg && handleEdit(ctxMsg)} divider />
                     )}
 
