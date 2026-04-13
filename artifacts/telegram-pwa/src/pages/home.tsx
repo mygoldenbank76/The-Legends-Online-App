@@ -302,7 +302,15 @@ function DesktopTabs({ activeTab, onSelect }: { activeTab: Tab; onSelect: (t: Ta
 /* ── Mobile header ── */
 function MobileHeader({ user }: { user: { displayName: string } }) {
   return (
-    <div className="flex-shrink-0 h-14 flex items-center justify-between px-4 border-b border-border/50 glass">
+    <div
+      className="flex-shrink-0 flex items-center justify-between px-4 border-b border-border/50 glass"
+      style={{
+        borderTop: 'none',
+        paddingTop: `calc(env(safe-area-inset-top, 0px) + 12px)`,
+        paddingBottom: 12,
+        minHeight: '3.5rem',
+      }}
+    >
       <div className="flex items-center gap-2.5">
         <div className="w-8 h-8 rounded-xl bg-primary/20 flex items-center justify-center">
           <Zap className="w-4 h-4 text-primary" />
