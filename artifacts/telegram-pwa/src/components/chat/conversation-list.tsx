@@ -17,6 +17,7 @@ import { getAuthHeaders } from '@/lib/auth-fetch';
 
 import { usePreferences } from '@/lib/preferences-context';
 import { translateGroupName } from '@/lib/i18n';
+import { preloadMedia } from '@/lib/media-cache';
 
 const dateFnsLocaleMap: Record<string, Locale> = {
   fr, en: enUS, es, ar, pt, de,
@@ -114,7 +115,25 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allConvs.length > 0]);
 
-  // ── Optimisation 3 : prefetch messages dès le pointerDown ──
+  // ── Optimisation 3 : preload média des derniers messages visibles ──
+  // Dès que la liste charge, les images des derniers messages sont mises en cache RAM.
+  // Résultat : ouvrir une conversation = images déjà prêtes, affichage 0ms.
+  useEffect(() => {
+    if (!allConvs.length) return;
+    allConvs.forEach(conv => {
+      const lm = (conv as any).lastMessage;
+      if (lm?.imageUrl && !lm.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i)) {
+        preloadMedia(lm.imageUrl);
+      }
+      // Preload avatar pour les DMs
+      if (conv.otherUser?.avatar) {
+        preloadMedia(conv.otherUser.avatar);
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allConvs.length]);
+
+  // ── Optimisation 4 : prefetch messages dès le pointerDown ──
   // Le doigt commence à appuyer → on démarre le chargement des messages immédiatement.
   // Quand le doigt se lève (~100-200ms plus tard), les messages sont déjà en cache.
   const prefetchMessages = useCallback((convId: number) => {

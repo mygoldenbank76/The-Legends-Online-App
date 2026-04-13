@@ -37,6 +37,8 @@ import type { GifResult } from './gif-picker';
 import { MediaPickerModal } from './media-picker-modal';
 import type { MediaQuality } from './media-picker-modal';
 import { MediaViewer } from './media-viewer';
+import { CachedImg } from './cached-img';
+import { preloadMedia } from '@/lib/media-cache';
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡', '🔥'];
 const PICKER_EMOJIS = ['😀','😂','🤣','😊','😍','🥰','😘','😋','😎','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😣','😥','😮','🤐','😯','😪','😫','🥱','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','☹️','🙁','😖','😞','😟','😤','😢','😭','😦','😧','😨','😩','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','😡','😠','🤬','😷','🤒','🤕','🤢','🤮','🤧','😇','🥳','🥺','🤠','🤡','🤥','🤫','🤭','🧐','🤓','😈','👿','👹','👺','💀','👻','👽','👾','🤖'];
@@ -109,7 +111,7 @@ function MediaThumb({
       {vid ? (
         <video src={url} className="w-full h-full object-cover" style={{ background: '#000' }} muted playsInline preload="metadata" />
       ) : (
-        <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
+        <CachedImg src={url} alt="" className="w-full h-full object-cover" />
       )}
       {vid && (
         <div className="absolute inset-0 flex items-center justify-center">
@@ -343,6 +345,25 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const dedupedOlder = olderMessages.filter(m => !recentIds.has(m.id));
   const allMessages = [...dedupedOlder, ...((rawMessages as Msg[] | undefined) ?? [])];
   const messages = allMessages.filter(m => !m.isDeleted);
+
+  // Preload all media in the current conversation into memory the moment messages arrive
+  useEffect(() => {
+    for (const m of messages) {
+      if (m.imageUrl && !m.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i)) {
+        preloadMedia(m.imageUrl);
+      }
+      if ((m as any).mediaAlbum) {
+        for (const url of (m as any).mediaAlbum) {
+          if (!url.match(/\.(mp4|webm|mov|avi|mkv)$/i)) preloadMedia(url);
+        }
+      }
+      if (m.replyTo?.imageUrl && !m.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i)) {
+        preloadMedia(m.replyTo.imageUrl);
+      }
+    }
+  // Only re-run when message count changes (new messages arrive)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length]);
 
   // Load older messages when sentinel becomes visible
   const loadMore = useCallback(async () => {
@@ -1426,7 +1447,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                         </div>
                         {/* Thumbnail if image/video */}
                         {msg.replyTo.imageUrl && !msg.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) && (
-                          <img
+                          <CachedImg
                             src={msg.replyTo.imageUrl}
                             alt="reply"
                             className="w-14 h-14 object-cover flex-shrink-0"
@@ -1480,7 +1501,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                             </div>
                           </div>
                         ) : (
-                          <img
+                          <CachedImg
                             src={msg.imageUrl}
                             alt="attached"
                             className="max-w-full max-h-64 object-cover rounded-xl cursor-pointer active:opacity-80 transition-opacity"
