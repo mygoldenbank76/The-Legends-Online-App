@@ -4,6 +4,7 @@ import { useGetMe, useLogin, useRegister, useLogout } from '@workspace/api-clien
 import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import { saveTokenToIDB, removeTokenFromIDB } from './auth-idb';
+import { useIsRestoring } from '@tanstack/react-query-persist-client';
 
 type AuthContextType = {
   user: User | null;
@@ -33,6 +34,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
+  // True while IndexedDB is being restored into React Query cache.
+  // During this window, queries are paused — we MUST NOT act on missing user data.
+  const isRestoring = useIsRestoring();
+
   const [hasToken, setHasToken] = useState<boolean>(() => {
     const urlToken = extractTokenFromUrl();
     if (urlToken) {
@@ -45,7 +50,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { data: user, isLoading, refetch } = useGetMe({
     query: {
       retry: false,
-      enabled: hasToken,
+      // Don't run the query while IDB is restoring (it would return undefined briefly)
+      enabled: hasToken && !isRestoring,
     }
   });
 
@@ -60,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Ignore
     } finally {
       localStorage.removeItem('telechat_token');
-      localStorage.removeItem('telechat-query-cache'); // clear any stale query cache
+      localStorage.removeItem('telechat-query-cache');
       setHasToken(false);
       setLocation('/login');
     }
@@ -76,18 +82,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [hasToken]);
 
+  // Only clear token / redirect AFTER IDB restoration is complete
   useEffect(() => {
+    if (isRestoring) return; // Wait — queries are still paused
     if (!isLoading && !user && hasToken) {
       localStorage.removeItem('telechat_token');
       setHasToken(false);
     }
-  }, [user, isLoading, hasToken]);
+  }, [user, isLoading, hasToken, isRestoring]);
 
   useEffect(() => {
+    if (isRestoring) return; // Wait — don't redirect during restoration
     if (!isLoading && !user && !hasToken && window.location.pathname !== '/login' && window.location.pathname !== '/register') {
       setLocation('/login');
     }
-  }, [user, isLoading, hasToken, setLocation]);
+  }, [user, isLoading, hasToken, isRestoring, setLocation]);
 
   return (
     <AuthContext.Provider

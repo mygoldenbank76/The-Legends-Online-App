@@ -42,9 +42,11 @@ const persistOptions = {
   persister: idbPersister,
   // Bump this string to force-invalidate all cached data (e.g. after schema changes)
   buster: 'legends-v1',
-  // Dehydrate all queries including those with no data yet
   dehydrateOptions: {
-    shouldDehydrateQuery: () => true,
+    // Exclude auth query — user identity must always be freshly verified from server
+    shouldDehydrateQuery: (query: { queryKey: readonly unknown[] }) => {
+      return !query.queryKey.includes('/api/auth/me');
+    },
   },
 };
 
