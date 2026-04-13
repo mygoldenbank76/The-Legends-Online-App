@@ -18,8 +18,6 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [dragX, setDragX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
-  // naturalRatio = naturalWidth / naturalHeight, known after image loads
-  const [naturalRatio, setNaturalRatio] = useState<number | null>(null);
 
   const imgRef = useRef<HTMLImageElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -33,29 +31,10 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
   const isVid = isVideo(url);
   const count = urls.length;
 
-  const screenRatio = window.innerWidth / window.innerHeight; // e.g. 0.46 on tall phone
-
-  /**
-   * Fill strategy — mirrors Telegram's behaviour:
-   * • Portrait images (close to screen ratio) → fill by HEIGHT, no top/bottom bars,
-   *   slight side clip (user can pan). Threshold: image ratio ≤ 1.7× screen ratio.
-   * • Landscape / very wide images → fill by WIDTH, small top/bottom bars,
-   *   no side clip.
-   */
-  const fillByHeight = naturalRatio !== null && naturalRatio <= screenRatio * 1.7;
-
-  /**
-   * Is the image wider than the screen at scale 1?
-   * This happens for portrait images where height-fill makes width > screenWidth.
-   * In this case horizontal swipe pans instead of navigating.
-   */
-  const isHClipped = fillByHeight && naturalRatio !== null && naturalRatio > screenRatio;
-
   useEffect(() => { scaleRef.current = scale; }, [scale]);
 
   // Reset state on slide change
   useEffect(() => {
-    setNaturalRatio(null);
     setScale(1); scaleRef.current = 1;
     setOffset({ x: 0, y: 0 });
     setDragX(0); setIsDragging(false);
@@ -76,10 +55,7 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
     setIdx(Math.max(0, Math.min(count - 1, next)));
   }, [count]);
 
-  /**
-   * Clamp offset so the image never exposes empty background.
-   * Uses actual rendered img dimensions (offsetWidth/offsetHeight at scale=1).
-   */
+  /** Clamp pan offset using actual rendered image dimensions */
   const clamp = useCallback((x: number, y: number, s: number) => {
     const img = imgRef.current;
     const vw = window.innerWidth;
@@ -111,7 +87,6 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
   };
 
   const onTouchMove = (e: React.TouchEvent) => {
-    // Pinch zoom
     if (e.touches.length === 2 && pinchRef.current) {
       e.preventDefault();
       const dx = e.touches[0].clientX - e.touches[1].clientX;
@@ -130,15 +105,10 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
     const dy = cy - lastTouchRef.current.y;
     lastTouchRef.current = { x: cx, y: cy };
 
-    const s = scaleRef.current;
-    const canPanH = s > 1 || isHClipped; // pan horizontally if zoomed or image wider than screen
-
-    if (s > 1 || isHClipped) {
-      // Pan mode
+    if (scaleRef.current > 1) {
       e.preventDefault();
-      setOffset(prev => clamp(prev.x + dx, prev.y + dy, s));
+      setOffset(prev => clamp(prev.x + dx, prev.y + dy, scaleRef.current));
     } else {
-      // Swipe-to-navigate mode (only when image fits in screen at scale 1)
       if (!touchStartRef.current) return;
       const totalDX = cx - touchStartRef.current.x;
       const totalDY = cy - touchStartRef.current.y;
@@ -147,22 +117,17 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
       }
       if (isDragging) setDragX(totalDX);
     }
-    void canPanH;
   };
 
   const onTouchEnd = () => {
     pinchRef.current = null; lastTouchRef.current = null;
-
-    // Snap to 1 if barely zoomed
     setScale(prev => {
       if (prev < 1.05) { scaleRef.current = 1; setOffset({ x: 0, y: 0 }); return 1; }
       return prev;
     });
-
     if (!touchStartRef.current) { setDragX(0); setIsDragging(false); return; }
     touchStartRef.current = null;
-
-    if (!isHClipped && scaleRef.current <= 1 && Math.abs(dragX) > 60) {
+    if (scaleRef.current <= 1 && Math.abs(dragX) > 60) {
       goTo(dragX < 0 ? idx + 1 : idx - 1);
     } else {
       setDragX(0);
@@ -188,22 +153,6 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
     a.href = url; a.download = url.split('/').pop() || 'media'; a.target = '_blank'; a.click();
   };
 
-  // Image CSS — the key to margin-free portrait display
-  const imgCss: React.CSSProperties = fillByHeight
-    ? {
-        // Fill screen height → no top/bottom margins, slight side clip
-        height: '100vh',
-        width: 'auto',
-        display: 'block',
-      }
-    : {
-        // Contain wide images → no left/right margins, small top/bottom bars
-        width: '100vw',
-        height: 'auto',
-        maxHeight: '100vh',
-        display: 'block',
-      };
-
   return (
     <motion.div
       className="fixed inset-0 z-[600] bg-black select-none"
@@ -216,7 +165,7 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
         style={{
           paddingTop: 'max(env(safe-area-inset-top, 0px), 12px)',
           paddingBottom: 12,
-          background: 'linear-gradient(to bottom, rgba(0,0,0,0.65) 0%, transparent 100%)',
+          background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)',
           pointerEvents: 'none',
         }}
       >
@@ -245,19 +194,19 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
 
       {/* Media area */}
       <div
-        className="absolute inset-0 flex items-center justify-center overflow-hidden"
+        className="absolute inset-0 overflow-hidden"
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
         onClick={onTap}
-        style={{ touchAction: (scale > 1 || isHClipped) ? 'none' : 'pan-y' }}
+        style={{ touchAction: scale > 1 ? 'none' : 'pan-y' }}
       >
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={idx}
             className="absolute inset-0 flex items-center justify-center"
             initial={{ x: dragX > 0 ? '-30%' : '30%', opacity: 0 }}
-            animate={{ x: (!isHClipped && scale === 1) ? dragX : 0, opacity: 1 }}
+            animate={{ x: scale === 1 ? dragX : 0, opacity: 1 }}
             exit={{ x: dragX > 0 ? '30%' : '-30%', opacity: 0 }}
             transition={isDragging ? { duration: 0 } : { type: 'spring', stiffness: 320, damping: 35 }}
           >
@@ -267,38 +216,55 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
                 src={url}
                 controls playsInline autoPlay
                 onClick={e => e.stopPropagation()}
-                style={{
-                  width: '100vw', height: '100vh',
-                  objectFit: 'contain', display: 'block',
-                }}
+                style={{ width: '100vw', height: '100vh', objectFit: 'contain', display: 'block' }}
               />
             ) : (
-              <img
-                ref={imgRef}
-                src={url}
-                alt=""
-                draggable={false}
-                onLoad={e => {
-                  const img = e.currentTarget;
-                  if (img.naturalWidth && img.naturalHeight) {
-                    setNaturalRatio(img.naturalWidth / img.naturalHeight);
-                  }
-                }}
-                style={{
-                  ...imgCss,
-                  userSelect: 'none',
-                  WebkitUserSelect: 'none',
-                  willChange: 'transform',
-                  transform: `scale(${scale}) translate(${offset.x / scale}px, ${offset.y / scale}px)`,
-                  transformOrigin: 'center center',
-                  transition: isDragging || !!pinchRef.current ? 'none' : 'transform 0.12s ease-out',
-                }}
-              />
+              <>
+                {/* Blurred background fill — eliminates black bars, no distortion */}
+                <img
+                  src={url}
+                  alt=""
+                  aria-hidden
+                  draggable={false}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    filter: 'blur(24px) brightness(0.45) saturate(1.4)',
+                    transform: 'scale(1.08)',
+                    pointerEvents: 'none',
+                    userSelect: 'none',
+                  }}
+                />
+                {/* Main image — always contain, never distorted */}
+                <img
+                  ref={imgRef}
+                  src={url}
+                  alt=""
+                  draggable={false}
+                  style={{
+                    position: 'relative',
+                    maxWidth: '100vw',
+                    maxHeight: '100vh',
+                    width: 'auto',
+                    height: 'auto',
+                    display: 'block',
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                    willChange: 'transform',
+                    transform: `scale(${scale}) translate(${offset.x / scale}px, ${offset.y / scale}px)`,
+                    transformOrigin: 'center center',
+                    transition: isDragging || !!pinchRef.current ? 'none' : 'transform 0.12s ease-out',
+                  }}
+                />
+              </>
             )}
           </motion.div>
         </AnimatePresence>
 
-        {/* Desktop arrows */}
+        {/* Desktop navigation arrows */}
         {count > 1 && idx > 0 && (
           <button onClick={(e) => { e.stopPropagation(); goTo(idx - 1); }}
             className="absolute left-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors z-10 hidden sm:flex">
