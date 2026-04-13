@@ -5,6 +5,8 @@ import { ChatArea } from '@/components/chat/chat-area';
 import { ConversationList } from '@/components/chat/conversation-list';
 import { useAuth } from '@/lib/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useQueryClient } from '@tanstack/react-query';
+import { getListConversationsQueryKey } from '@workspace/api-client-react';
 import { AnimatedBackground } from '@/components/animated-background';
 import { Users, MessageSquare, ShoppingBag, Settings, Zap, LogOut, Globe, Languages, ChevronDown, Shield, X, ChevronRight, Pencil, Download, Smartphone, CheckCircle2, Share, Bell, BellOff } from 'lucide-react';
 import { AdminPanel } from '@/components/admin/admin-panel';
@@ -39,6 +41,7 @@ export default function Home() {
   const { user, logout, refetchUser } = useAuth();
   const { t } = usePreferences();
   const isMobile = useIsMobile();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>('groups');
   const [activeConvId, setActiveConvId] = useState<number | undefined>();
   const [swipeDir, setSwipeDir] = useState<1 | -1>(1);
@@ -117,7 +120,14 @@ export default function Home() {
   const showList = !isMobile || !activeConvId;
   const showChat = !isMobile || !!activeConvId;
 
-  const handleSelectConv = (id: number) => { setActiveConvId(id); };
+  const handleSelectConv = (id: number) => {
+    // Zero out the unread badge immediately on tap — before messages even load
+    queryClient.setQueryData(getListConversationsQueryKey(), (old: any[]) => {
+      if (!Array.isArray(old)) return old;
+      return old.map(conv => conv.id === id ? { ...conv, unreadCount: 0 } : conv);
+    });
+    setActiveConvId(id);
+  };
   const handleBack = () => { setActiveConvId(undefined); };
   const handleTabChange = (tab: Tab) => {
     setActiveTab(tab);

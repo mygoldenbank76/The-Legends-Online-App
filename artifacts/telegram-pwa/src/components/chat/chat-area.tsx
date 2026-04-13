@@ -561,25 +561,24 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // Reset ghost-touch guard whenever we open a different conversation
   useEffect(() => { conversationOpenedAt.current = Date.now(); }, [conversationId]);
 
-  // Track active conversation so the socket doesn't increment unread for messages
-  // we're already reading, and clean up when we leave.
+  // Track active conversation + zero badge immediately when entering any conversation.
+  // This is a safety net; the primary zero-out happens in handleSelectConv (home.tsx).
   useEffect(() => {
     activeConversationIdRef.current = conversationId ?? null;
+    if (conversationId) {
+      queryClient.setQueryData(getListConversationsQueryKey(), (old: any[]) => {
+        if (!Array.isArray(old)) return old;
+        return old.map(conv =>
+          conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv
+        );
+      });
+    }
     return () => { activeConversationIdRef.current = null; };
   }, [conversationId]);
 
+  // Call the API to update lastReadAt on the server whenever we enter a conv or new messages arrive.
   useEffect(() => {
     if (!conversationId || !messages || messages.length === 0) return;
-
-    // Immediately zero out the badge in the local cache (optimistic)
-    const listKey = getListConversationsQueryKey();
-    queryClient.setQueryData(listKey, (old: any[]) => {
-      if (!Array.isArray(old)) return old;
-      return old.map(conv =>
-        conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv
-      );
-    });
-
     markRead.mutate({ conversationId });
   }, [conversationId, messages?.length]);
 
