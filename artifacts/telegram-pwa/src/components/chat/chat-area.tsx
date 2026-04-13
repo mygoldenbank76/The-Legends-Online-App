@@ -39,6 +39,7 @@ import type { MediaQuality } from './media-picker-modal';
 import { MediaViewer } from './media-viewer';
 import { CachedImg } from './cached-img';
 import { preloadMedia } from '@/lib/media-cache';
+import { prewarmIframe } from '@/lib/iframe-pool';
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡', '🔥'];
 const PICKER_EMOJIS = ['😀','😂','🤣','😊','😍','🥰','😘','😋','😎','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😣','😥','😮','🤐','😯','😪','😫','🥱','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','☹️','🙁','😖','😞','😟','😤','😢','😭','😦','😧','😨','😩','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','😡','😠','🤬','😷','🤒','🤕','🤢','🤮','🤧','😇','🥳','🥺','🤠','🤡','🤥','🤫','🤭','🧐','🤓','😈','👿','👹','👺','💀','👻','👽','👾','🤖'];
@@ -360,9 +361,15 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       if (m.replyTo?.imageUrl && !m.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i)) {
         preloadMedia(m.replyTo.imageUrl);
       }
-      // Preload link preview images (Spotify album art, YouTube thumbnails, etc.)
+      // Preload link preview images + pre-warm embeds (Spotify, YouTube)
       if (m.linkPreview?.image) {
         preloadMedia(m.linkPreview.image);
+      }
+      if (m.linkPreview?.embedUrl && m.linkPreview.platform === 'spotify') {
+        prewarmIframe(m.linkPreview.embedUrl, {
+          allow: 'autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture',
+          height: '152',
+        });
       }
     }
   // Only re-run when message count changes (new messages arrive)
