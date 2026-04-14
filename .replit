@@ -40,3 +40,6 @@ channel = "stable-25_05"
 VAPID_PUBLIC_KEY = "BCA_cfCdcABfvMHRsT678EtJtiySmr_RWw36c-d2csaM3uNNLoYAvkaeqg8-G9_dK2II9yIMP1yS6hKWHtdnfvE"
 VAPID_PRIVATE_KEY = "m-E4XR8-sGC_ti-TeiNmVf3C6jtyLg7YON_wUFy6Lrg"
 VAPID_EMAIL = "mailto:admin@thelegendsonline.com"
+
+[objectStorage]
+defaultBucketID = "replit-objstore-f3269bdc-706a-4d02-8dcc-80c4a38be814"

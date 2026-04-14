@@ -496,9 +496,16 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     return () => document.removeEventListener('mousedown', handler);
   }, [headerMenuOpen]);
 
-  // Reset search state when closed
+  // Focus search input when opened (without autoFocus to avoid keyboard layout shift)
   useEffect(() => {
-    if (!searchOpen) { setSearchQuery(''); setSearchMatchIdx(0); }
+    if (searchOpen) {
+      // Small delay so the header transition is done before keyboard opens
+      const t = setTimeout(() => searchInputRef.current?.focus(), 80);
+      return () => clearTimeout(t);
+    } else {
+      setSearchQuery('');
+      setSearchMatchIdx(0);
+    }
   }, [searchOpen]);
 
   // Toggle mute via API
@@ -534,12 +541,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [searchMatches, messages]);
 
+  // Reset match index when query changes (no auto-scroll — user navigates manually)
   useEffect(() => {
-    if (searchMatches.length > 0) {
-      setSearchMatchIdx(0);
-      scrollToSearchMatch(0);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    setSearchMatchIdx(0);
   }, [searchQuery]);
 
   // Media viewer (full-screen lightbox)
@@ -1302,10 +1306,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
               <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
               <input
                 ref={searchInputRef}
-                autoFocus
-                type="search"
-                inputMode="search"
-                enterKeyHint="search"
+                type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Rechercher dans la conversation…"
@@ -1444,7 +1445,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           </motion.button>
         )}
       </AnimatePresence>
-      <div ref={scrollRef} className="h-full overflow-y-auto px-3 pt-4 pb-2 bg-background" style={{ visibility: scrollReady || isLoading || messages.length === 0 ? 'visible' : 'hidden' }}>
+      <div ref={scrollRef} className="h-full overflow-y-auto px-3 pt-4 pb-2 bg-background" style={{ visibility: searchOpen || scrollReady || isLoading || messages.length === 0 ? 'visible' : 'hidden' }}>
         {/* Sentinel — triggers loading older messages on scroll to top */}
         <div ref={sentinelRef} className="h-1" />
         {/* Spinner while loading older messages */}
