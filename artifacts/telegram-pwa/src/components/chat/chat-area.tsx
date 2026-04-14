@@ -471,15 +471,17 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const [searchMatchIdx, setSearchMatchIdx] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Per-conversation notification mute (persisted in localStorage)
-  const [isMuted, setIsMuted] = useState(() => {
-    try { return localStorage.getItem(`muted_conv_${conversationId}`) === '1'; } catch { return false; }
-  });
-  // Sync muted state when switching conversations
+  // Mute: derived from server conversation data + local optimistic override
+  const [mutedOverride, setMutedOverride] = useState<boolean | null>(null);
+  const isMuted = mutedOverride !== null ? mutedOverride : (conversation?.isMuted ?? false);
+
+  // Reset state when conversation changes
   useEffect(() => {
-    try { setIsMuted(localStorage.getItem(`muted_conv_${conversationId}`) === '1'); } catch {}
     setSearchOpen(false);
+    setSearchQuery('');
+    setSearchMatchIdx(0);
     setHeaderMenuOpen(false);
+    setMutedOverride(null);
   }, [conversationId]);
 
   // Close header menu on outside click
@@ -494,18 +496,25 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     return () => document.removeEventListener('mousedown', handler);
   }, [headerMenuOpen]);
 
-  // Focus search input when opened
+  // Reset search state when closed
   useEffect(() => {
-    if (searchOpen) setTimeout(() => searchInputRef.current?.focus(), 50);
-    else { setSearchQuery(''); setSearchMatchIdx(0); }
+    if (!searchOpen) { setSearchQuery(''); setSearchMatchIdx(0); }
   }, [searchOpen]);
 
-  // Toggle mute and persist
-  const toggleMute = () => {
+  // Toggle mute via API
+  const toggleMute = async () => {
     const next = !isMuted;
-    setIsMuted(next);
-    try { next ? localStorage.setItem(`muted_conv_${conversationId}`, '1') : localStorage.removeItem(`muted_conv_${conversationId}`); } catch {}
+    setMutedOverride(next);
     setHeaderMenuOpen(false);
+    try {
+      await fetch(`/api/conversations/${conversationId}/mute`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({ muted: next }),
+      });
+    } catch {
+      setMutedOverride(null);
+    }
   };
 
   // Search: compute matching message indices
@@ -1279,115 +1288,116 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
       {/* ── Header ── */}
       <div className="flex-none h-14 glass border-b border-border/50 flex items-center px-3 z-10 gap-3">
-        {onBack && (
-          <button onClick={onBack} className="text-muted-foreground hover:text-foreground transition-colors p-1 flex-shrink-0">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-        )}
 
-        {/* Avatar + name — cliquable pour ouvrir les infos (comme Telegram) */}
-        <button
-          className="flex items-center gap-3 flex-1 min-w-0 text-left active:opacity-70 transition-opacity"
-          onClick={() => setGroupInfoOpen(true)}
-        >
-          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
-            {avatarUrl
-              ? <img src={avatarUrl} alt={title} className="w-full h-full rounded-xl object-cover" />
-              : <span className="text-sm font-bold text-primary">{title.substring(0, 1).toUpperCase()}</span>
-            }
-          </div>
-          <div className="flex flex-col flex-1 min-w-0">
-            <span className="font-semibold text-sm leading-tight text-foreground truncate">{title}</span>
-            <span className={`text-xs leading-tight ${!isGroup && isOnline ? 'text-green-400' : 'text-muted-foreground'}`}>
-              {isGroup
-                ? `${memberCount} membre${memberCount !== 1 ? 's' : ''}`
-                : (isOnline ? uiT.chat.online : lastSeen)}
-            </span>
-          </div>
-        </button>
-
-        {/* ⋮ button — petit menu contextuel (notifications + recherche) */}
-        <div className="relative flex-shrink-0" ref={headerMenuRef}>
-          <button
-            onClick={() => setHeaderMenuOpen(v => !v)}
-            className="text-muted-foreground hover:text-foreground transition-colors p-1"
-          >
-            <MoreVertical className="w-5 h-5" />
-          </button>
-
-          {/* Dropdown */}
-          {headerMenuOpen && (
-            <div
-              className="absolute right-0 top-9 w-52 rounded-xl shadow-2xl overflow-hidden z-50 py-1"
-              style={{ background: 'rgba(22,26,40,0.97)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)' }}
+        {searchOpen ? (
+          /* ── Mode recherche : remplace le contenu du header (pas de layout shift) ── */
+          <>
+            <button
+              className="text-muted-foreground hover:text-foreground transition-colors p-1 flex-shrink-0"
+              onClick={() => setSearchOpen(false)}
             >
-              {/* Notifications */}
-              <button
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-white/5 active:bg-white/10 transition-colors text-left"
-                onClick={toggleMute}
-              >
-                {isMuted
-                  ? <Bell className="w-4 h-4 text-primary flex-shrink-0" />
-                  : <BellOff className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                }
-                <span>{isMuted ? 'Activer les notifications' : 'Désactiver les notifications'}</span>
-              </button>
-
-              {/* Rechercher */}
-              <button
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-white/5 active:bg-white/10 transition-colors text-left"
-                onClick={() => { setSearchOpen(true); setHeaderMenuOpen(false); }}
-              >
-                <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                <span>Rechercher</span>
-              </button>
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div className="flex items-center flex-1 min-w-0 gap-2">
+              <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <input
+                ref={searchInputRef}
+                autoFocus
+                type="search"
+                inputMode="search"
+                enterKeyHint="search"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Rechercher dans la conversation…"
+                className="flex-1 bg-transparent text-sm text-foreground placeholder-muted-foreground outline-none min-w-0"
+              />
             </div>
-          )}
-        </div>
-      </div>
+            {searchQuery.trim().length > 0 && (
+              <span className="text-xs text-muted-foreground flex-shrink-0 min-w-[36px] text-right">
+                {searchMatches.length > 0 ? `${searchMatchIdx + 1}/${searchMatches.length}` : '0'}
+              </span>
+            )}
+            {searchMatches.length > 1 && (
+              <>
+                <button className="p-1 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+                  onClick={() => { const next = (searchMatchIdx - 1 + searchMatches.length) % searchMatches.length; setSearchMatchIdx(next); scrollToSearchMatch(next); }}>
+                  <ChevronUp className="w-4 h-4" />
+                </button>
+                <button className="p-1 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+                  onClick={() => { const next = (searchMatchIdx + 1) % searchMatches.length; setSearchMatchIdx(next); scrollToSearchMatch(next); }}>
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              </>
+            )}
+          </>
+        ) : (
+          /* ── Mode normal ── */
+          <>
+            {onBack && (
+              <button onClick={onBack} className="text-muted-foreground hover:text-foreground transition-colors p-1 flex-shrink-0">
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+            )}
 
-      {/* ── Search bar (slides in below header when active) ── */}
-      {searchOpen && (
-        <div className="flex-none flex items-center gap-2 px-3 py-2 border-b border-border/50 bg-background/80" style={{ backdropFilter: 'blur(12px)' }}>
-          <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Rechercher dans la conversation…"
-            className="flex-1 bg-transparent text-sm text-foreground placeholder-muted-foreground outline-none"
-          />
-          {/* Match navigation */}
-          {searchQuery.trim().length > 0 && (
-            <span className="text-xs text-muted-foreground flex-shrink-0 min-w-[40px] text-right">
-              {searchMatches.length > 0 ? `${searchMatchIdx + 1}/${searchMatches.length}` : '0'}
-            </span>
-          )}
-          {searchMatches.length > 1 && (
-            <>
+            {/* Avatar + nom — cliquable pour ouvrir les infos */}
+            <button
+              className="flex items-center gap-3 flex-1 min-w-0 text-left active:opacity-70 transition-opacity"
+              onClick={() => setGroupInfoOpen(true)}
+            >
+              <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
+                {avatarUrl
+                  ? <img src={avatarUrl} alt={title} className="w-full h-full rounded-xl object-cover" />
+                  : <span className="text-sm font-bold text-primary">{title.substring(0, 1).toUpperCase()}</span>
+                }
+              </div>
+              <div className="flex flex-col flex-1 min-w-0">
+                <span className="font-semibold text-sm leading-tight text-foreground truncate">{title}</span>
+                <span className={`text-xs leading-tight ${!isGroup && isOnline ? 'text-green-400' : 'text-muted-foreground'}`}>
+                  {isGroup
+                    ? `${memberCount} membre${memberCount !== 1 ? 's' : ''}`
+                    : (isOnline ? uiT.chat.online : lastSeen)}
+                </span>
+              </div>
+            </button>
+
+            {/* ⋮ menu contextuel */}
+            <div className="relative flex-shrink-0" ref={headerMenuRef}>
               <button
-                className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                onClick={() => { const next = (searchMatchIdx - 1 + searchMatches.length) % searchMatches.length; setSearchMatchIdx(next); scrollToSearchMatch(next); }}
+                onClick={() => setHeaderMenuOpen(v => !v)}
+                className="text-muted-foreground hover:text-foreground transition-colors p-1"
               >
-                <ChevronUp className="w-4 h-4" />
+                <MoreVertical className="w-5 h-5" />
               </button>
-              <button
-                className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                onClick={() => { const next = (searchMatchIdx + 1) % searchMatches.length; setSearchMatchIdx(next); scrollToSearchMatch(next); }}
-              >
-                <ChevronDown className="w-4 h-4" />
-              </button>
-            </>
-          )}
-          <button
-            className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-            onClick={() => setSearchOpen(false)}
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
+
+              {headerMenuOpen && (
+                <div
+                  className="absolute right-0 top-9 w-56 rounded-xl shadow-2xl overflow-hidden z-50 py-1"
+                  style={{ background: 'rgba(22,26,40,0.97)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)' }}
+                >
+                  <button
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-white/5 active:bg-white/10 transition-colors text-left"
+                    onClick={toggleMute}
+                  >
+                    {isMuted
+                      ? <Bell className="w-4 h-4 text-primary flex-shrink-0" />
+                      : <BellOff className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    }
+                    <span>{isMuted ? 'Activer les notifications' : 'Désactiver les notifications'}</span>
+                  </button>
+
+                  <button
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-white/5 active:bg-white/10 transition-colors text-left"
+                    onClick={() => { setSearchOpen(true); setHeaderMenuOpen(false); }}
+                  >
+                    <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    <span>Rechercher</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
 
       {/* ── Pinned messages ── */}
       {pinnedMessageIds.length > 0 && pinnedMsg && !pinnedMsg.isDeleted && (

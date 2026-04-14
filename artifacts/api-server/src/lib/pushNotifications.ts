@@ -61,14 +61,15 @@ export async function notifyNewMessage(opts: {
 
   const { conversationId, senderId, senderName, conversationTitle, isGroup, content, imageUrl } = opts;
 
-  // Get all participants except sender
+  // Get all participants except sender who have NOT muted this conversation
   const participants = await db
     .select({ userId: conversationParticipantsTable.userId })
     .from(conversationParticipantsTable)
     .where(
       and(
         eq(conversationParticipantsTable.conversationId, conversationId),
-        ne(conversationParticipantsTable.userId, senderId)
+        ne(conversationParticipantsTable.userId, senderId),
+        eq(conversationParticipantsTable.isMuted, false)
       )
     );
 

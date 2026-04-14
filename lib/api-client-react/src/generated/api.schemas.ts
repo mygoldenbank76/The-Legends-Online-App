@@ -69,6 +69,7 @@ export interface Conversation {
   /** @nullable */
   pinnedMessageId?: number | null;
   participants: User[];
+  isMuted: boolean;
   createdAt: string;
 }
 
@@ -127,6 +128,7 @@ export interface ConversationSummary {
   otherUser?: User;
   lastMessage?: Message;
   unreadCount: number;
+  isMuted: boolean;
   updatedAt: string;
 }
 

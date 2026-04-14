@@ -110,6 +110,7 @@ router.get("/conversations", requireAuth, async (req, res): Promise<void> => {
       otherUser: otherParticipant ? formatUser(otherParticipant) : undefined,
       lastMessage: lastMessageFormatted,
       unreadCount,
+      isMuted: myParticipation?.isMuted ?? false,
       updatedAt: conv.updatedAt.toISOString(),
     };
   }));
@@ -229,6 +230,7 @@ router.delete("/conversations/:conversationId", requireAuth, async (req, res): P
 });
 
 router.get("/conversations/:conversationId", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as typeof req & { userId: number }).userId;
   const rawId = Array.isArray(req.params.conversationId) ? req.params.conversationId[0] : req.params.conversationId;
   const conversationId = parseInt(rawId, 10);
   if (isNaN(conversationId)) {
@@ -255,12 +257,52 @@ router.get("/conversations/:conversationId", requireAuth, async (req, res): Prom
     .where(eq(conversationPinsTable.conversationId, conversationId))
     .orderBy(conversationPinsTable.pinnedAt);
 
+  // isMuted for the current user
+  const myParticipant = participants.find(p => p.userId === userId);
+  const isMuted = myParticipant?.isMuted ?? false;
+
   res.json({
     ...conv,
     participants: participantUsers.map(formatUser),
     pinnedMessageIds: pins.map(p => p.messageId),
+    isMuted,
     createdAt: conv.createdAt.toISOString(),
   });
+});
+
+// PATCH /conversations/:id/mute — toggle mute for current user
+router.patch("/:id/mute", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as typeof req & { userId: number }).userId;
+  const conversationId = parseInt(req.params.id, 10);
+  const { muted } = req.body as { muted: boolean };
+
+  if (typeof muted !== 'boolean') {
+    res.status(400).json({ error: 'muted (boolean) required' });
+    return;
+  }
+
+  const participant = await db
+    .select()
+    .from(conversationParticipantsTable)
+    .where(
+      and(
+        eq(conversationParticipantsTable.conversationId, conversationId),
+        eq(conversationParticipantsTable.userId, userId)
+      )
+    )
+    .limit(1);
+
+  if (participant.length === 0) {
+    res.status(403).json({ error: 'Not a participant' });
+    return;
+  }
+
+  await db
+    .update(conversationParticipantsTable)
+    .set({ isMuted: muted })
+    .where(eq(conversationParticipantsTable.id, participant[0].id));
+
+  res.json({ success: true, muted });
 });
 
 export default router;

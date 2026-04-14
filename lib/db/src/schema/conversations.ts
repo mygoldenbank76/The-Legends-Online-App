@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, unique, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -17,6 +17,7 @@ export const conversationParticipantsTable = pgTable("conversation_participants"
   userId: serial("user_id").notNull(),
   lastReadAt: timestamp("last_read_at", { withTimezone: true }),
   joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+  isMuted: boolean("is_muted").notNull().default(false),
 });
 
 export const conversationPinsTable = pgTable("conversation_pins", {
