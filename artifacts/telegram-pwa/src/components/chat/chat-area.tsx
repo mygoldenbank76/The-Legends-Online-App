@@ -19,6 +19,7 @@ import {
   ArrowLeft, Loader2, Send, Plus, Smile,
   Reply, Pin, Pencil, Trash2, Languages, X, Check, PinOff, MoreVertical,
   Mic, Copy, Heart, CheckCheck, ChevronDown,
+  Search, Bell, BellOff, ChevronUp,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { AttachmentSheet } from './attachment-sheet';
@@ -459,6 +460,78 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const [voiceActive, setVoiceActive] = useState(false);
   const [gifOpen, setGifOpen] = useState(false);
   const [pinnedIdx, setPinnedIdx] = useState(0);
+
+  // Header ⋮ dropdown
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const headerMenuRef = useRef<HTMLDivElement>(null);
+
+  // In-conversation search
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchMatchIdx, setSearchMatchIdx] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Per-conversation notification mute (persisted in localStorage)
+  const [isMuted, setIsMuted] = useState(() => {
+    try { return localStorage.getItem(`muted_conv_${conversationId}`) === '1'; } catch { return false; }
+  });
+  // Sync muted state when switching conversations
+  useEffect(() => {
+    try { setIsMuted(localStorage.getItem(`muted_conv_${conversationId}`) === '1'); } catch {}
+    setSearchOpen(false);
+    setHeaderMenuOpen(false);
+  }, [conversationId]);
+
+  // Close header menu on outside click
+  useEffect(() => {
+    if (!headerMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (headerMenuRef.current && !headerMenuRef.current.contains(e.target as Node)) {
+        setHeaderMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [headerMenuOpen]);
+
+  // Focus search input when opened
+  useEffect(() => {
+    if (searchOpen) setTimeout(() => searchInputRef.current?.focus(), 50);
+    else { setSearchQuery(''); setSearchMatchIdx(0); }
+  }, [searchOpen]);
+
+  // Toggle mute and persist
+  const toggleMute = () => {
+    const next = !isMuted;
+    setIsMuted(next);
+    try { next ? localStorage.setItem(`muted_conv_${conversationId}`, '1') : localStorage.removeItem(`muted_conv_${conversationId}`); } catch {}
+    setHeaderMenuOpen(false);
+  };
+
+  // Search: compute matching message indices
+  const searchMatches = searchQuery.trim().length >= 1
+    ? messages.reduce<number[]>((acc, m, i) => {
+        if (m.content?.toLowerCase().includes(searchQuery.toLowerCase())) acc.push(i);
+        return acc;
+      }, [])
+    : [];
+
+  // Scroll to search match
+  const scrollToSearchMatch = useCallback((idx: number) => {
+    if (!searchMatches.length) return;
+    const msgId = messages[searchMatches[idx]]?.id;
+    if (!msgId) return;
+    const el = document.getElementById(`msg-${msgId}`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [searchMatches, messages]);
+
+  useEffect(() => {
+    if (searchMatches.length > 0) {
+      setSearchMatchIdx(0);
+      scrollToSearchMatch(0);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
 
   // Media viewer (full-screen lightbox)
   const [mediaViewer, setMediaViewer] = useState<{ urls: string[]; index: number } | null>(null);
@@ -1211,27 +1284,110 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             <ArrowLeft className="w-5 h-5" />
           </button>
         )}
-        <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
-          {avatarUrl
-            ? <img src={avatarUrl} alt={title} className="w-full h-full rounded-xl object-cover" />
-            : <span className="text-sm font-bold text-primary">{title.substring(0, 1).toUpperCase()}</span>
-          }
-        </div>
-        <div className="flex flex-col flex-1 min-w-0">
-          <span className="font-semibold text-sm leading-tight text-foreground truncate">{title}</span>
-          <span className={`text-xs leading-tight ${!isGroup && isOnline ? 'text-green-400' : 'text-muted-foreground'}`}>
-            {isGroup
-              ? `${memberCount} membre${memberCount !== 1 ? 's' : ''}`
-              : (isOnline ? uiT.chat.online : lastSeen)}
-          </span>
-        </div>
+
+        {/* Avatar + name — cliquable pour ouvrir les infos (comme Telegram) */}
         <button
+          className="flex items-center gap-3 flex-1 min-w-0 text-left active:opacity-70 transition-opacity"
           onClick={() => setGroupInfoOpen(true)}
-          className="text-muted-foreground hover:text-foreground transition-colors p-1 flex-shrink-0"
         >
-          <MoreVertical className="w-5 h-5" />
+          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
+            {avatarUrl
+              ? <img src={avatarUrl} alt={title} className="w-full h-full rounded-xl object-cover" />
+              : <span className="text-sm font-bold text-primary">{title.substring(0, 1).toUpperCase()}</span>
+            }
+          </div>
+          <div className="flex flex-col flex-1 min-w-0">
+            <span className="font-semibold text-sm leading-tight text-foreground truncate">{title}</span>
+            <span className={`text-xs leading-tight ${!isGroup && isOnline ? 'text-green-400' : 'text-muted-foreground'}`}>
+              {isGroup
+                ? `${memberCount} membre${memberCount !== 1 ? 's' : ''}`
+                : (isOnline ? uiT.chat.online : lastSeen)}
+            </span>
+          </div>
         </button>
+
+        {/* ⋮ button — petit menu contextuel (notifications + recherche) */}
+        <div className="relative flex-shrink-0" ref={headerMenuRef}>
+          <button
+            onClick={() => setHeaderMenuOpen(v => !v)}
+            className="text-muted-foreground hover:text-foreground transition-colors p-1"
+          >
+            <MoreVertical className="w-5 h-5" />
+          </button>
+
+          {/* Dropdown */}
+          {headerMenuOpen && (
+            <div
+              className="absolute right-0 top-9 w-52 rounded-xl shadow-2xl overflow-hidden z-50 py-1"
+              style={{ background: 'rgba(22,26,40,0.97)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)' }}
+            >
+              {/* Notifications */}
+              <button
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-white/5 active:bg-white/10 transition-colors text-left"
+                onClick={toggleMute}
+              >
+                {isMuted
+                  ? <Bell className="w-4 h-4 text-primary flex-shrink-0" />
+                  : <BellOff className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                }
+                <span>{isMuted ? 'Activer les notifications' : 'Désactiver les notifications'}</span>
+              </button>
+
+              {/* Rechercher */}
+              <button
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-white/5 active:bg-white/10 transition-colors text-left"
+                onClick={() => { setSearchOpen(true); setHeaderMenuOpen(false); }}
+              >
+                <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <span>Rechercher</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* ── Search bar (slides in below header when active) ── */}
+      {searchOpen && (
+        <div className="flex-none flex items-center gap-2 px-3 py-2 border-b border-border/50 bg-background/80" style={{ backdropFilter: 'blur(12px)' }}>
+          <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Rechercher dans la conversation…"
+            className="flex-1 bg-transparent text-sm text-foreground placeholder-muted-foreground outline-none"
+          />
+          {/* Match navigation */}
+          {searchQuery.trim().length > 0 && (
+            <span className="text-xs text-muted-foreground flex-shrink-0 min-w-[40px] text-right">
+              {searchMatches.length > 0 ? `${searchMatchIdx + 1}/${searchMatches.length}` : '0'}
+            </span>
+          )}
+          {searchMatches.length > 1 && (
+            <>
+              <button
+                className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => { const next = (searchMatchIdx - 1 + searchMatches.length) % searchMatches.length; setSearchMatchIdx(next); scrollToSearchMatch(next); }}
+              >
+                <ChevronUp className="w-4 h-4" />
+              </button>
+              <button
+                className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => { const next = (searchMatchIdx + 1) % searchMatches.length; setSearchMatchIdx(next); scrollToSearchMatch(next); }}
+              >
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            </>
+          )}
+          <button
+            className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => setSearchOpen(false)}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* ── Pinned messages ── */}
       {pinnedMessageIds.length > 0 && pinnedMsg && !pinnedMsg.isDeleted && (
@@ -1315,12 +1471,16 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             // Show sender name for group conversations (non-mine messages)
             const showSenderName = conversation?.type === 'group' && !isMine && !isSameAuthor;
 
+            // Search highlight
+            const isSearchMatch = searchOpen && searchQuery.trim().length > 0 && !!msg.content?.toLowerCase().includes(searchQuery.toLowerCase());
+            const isCurrentMatch = isSearchMatch && searchMatches[searchMatchIdx] === i;
+
             return (
               <div
                 key={msg.id}
                 id={`msg-${msg.id}`}
-                className={`flex items-end gap-2 w-full ${isMine ? 'justify-end' : 'justify-start'} ${isSameAuthor ? 'mt-0.5' : 'mt-3'}`}
-                style={{ userSelect: 'none', WebkitUserSelect: 'none' } as React.CSSProperties}
+                className={`flex items-end gap-2 w-full ${isMine ? 'justify-end' : 'justify-start'} ${isSameAuthor ? 'mt-0.5' : 'mt-3'} ${isSearchMatch ? 'relative' : ''}`}
+                style={{ userSelect: 'none', WebkitUserSelect: 'none', ...(isCurrentMatch ? { outline: '2px solid hsl(263,90%,65%)', outlineOffset: 4, borderRadius: 12 } : {}) } as React.CSSProperties}
                 onContextMenu={(e) => openCtxMenu(e, msg)}
                 onClick={(e) => {
                   if (didTriggerMenu.current || didJustSwipe.current) {
