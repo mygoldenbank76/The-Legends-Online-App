@@ -11,7 +11,8 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { fr, enUS, es, ar, pt, de } from 'date-fns/locale';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Phone, Video as VideoIcon } from 'lucide-react';
+import { useCall } from '@/lib/call-context';
 import { cn } from '@/lib/utils';
 import { UserSearch } from './user-search';
 import { getAuthHeaders } from '@/lib/auth-fetch';
@@ -60,6 +61,10 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
   const queryClient = useQueryClient();
   const { t, appLanguage } = usePreferences();
   const { presenceMap } = useSocket();
+  const { callState, maximize } = useCall();
+  const activeCallConvId = (callState.status === 'active' || callState.status === 'outgoing' || callState.status === 'incoming')
+    ? callState.conversationId
+    : undefined;
   const [openId, setOpenId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
@@ -350,26 +355,46 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
 
                     <div className="flex items-center justify-between gap-1">
                       {/* pointer-events: none → empêche Chrome mobile d'ouvrir les URLs auto-détectées */}
-                      <p className="text-xs text-muted-foreground truncate" style={{ pointerEvents: 'none' }}>
-                        {lastMsg ? (
-                          <>
-                            {lastMsg.senderId === user.id && (
-                              <span className="text-primary/70 mr-1">{t.conversations.you}:</span>
-                            )}
-                            {lastMsg.content
-                              ? plainPreview(lastMsg.content)
-                              : (lastMsg as any).audioUrl
-                              ? t.conversations.voiceMessage
-                              : (lastMsg as any).pollId
-                              ? t.conversations.poll
-                              : lastMsg.imageUrl
-                              ? t.conversations.image
-                              : ''}
-                          </>
-                        ) : (
-                          <span className="italic">{t.conversations.noMessage}</span>
-                        )}
-                      </p>
+                      {activeCallConvId === conv.id ? (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); maximize(); }}
+                          className="flex items-center gap-1 text-xs text-green-400 font-medium truncate min-w-0 focus:outline-none"
+                        >
+                          {callState.isVideo
+                            ? <VideoIcon className="w-3.5 h-3.5 flex-shrink-0" />
+                            : <Phone className="w-3.5 h-3.5 flex-shrink-0" />}
+                          <span className="truncate">
+                            {callState.isVideo ? 'Appel vidéo' : 'Appel vocal'}
+                            <span className="text-muted-foreground"> · Appel en cours</span>
+                          </span>
+                        </button>
+                      ) : (
+                        <p className="text-xs text-muted-foreground truncate" style={{ pointerEvents: 'none' }}>
+                          {lastMsg ? (
+                            <>
+                              {lastMsg.senderId === user.id && (
+                                <span className="text-primary/70 mr-1">{t.conversations.you}:</span>
+                              )}
+                              {(lastMsg as any).callType ? (
+                                (lastMsg as any).callStatus === 'missed'
+                                  ? ((lastMsg as any).callType === 'video' ? '📹 Appel vidéo manqué' : '📞 Appel vocal manqué')
+                                  : ((lastMsg as any).callType === 'video' ? '📹 Appel vidéo' : '📞 Appel vocal')
+                              ) : lastMsg.content
+                                ? plainPreview(lastMsg.content)
+                                : (lastMsg as any).audioUrl
+                                ? t.conversations.voiceMessage
+                                : (lastMsg as any).pollId
+                                ? t.conversations.poll
+                                : lastMsg.imageUrl
+                                ? t.conversations.image
+                                : ''}
+                            </>
+                          ) : (
+                            <span className="italic">{t.conversations.noMessage}</span>
+                          )}
+                        </p>
+                      )}
                       {conv.unreadCount > 0 && (
                         <span className="flex-shrink-0 bg-primary text-primary-foreground text-[10px] font-bold rounded-full min-w-5 h-5 flex items-center justify-center px-1.5">
                           {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
