@@ -428,7 +428,6 @@ export function CallModal() {
         </motion.div>
       )}
     </AnimatePresence>
-    </>
   );
 }
 
