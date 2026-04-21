@@ -27,6 +27,74 @@ export const userSockets = new Map<number, Set<string>>();
 // conversationId -> Set of userIds currently in the room
 export const roomPresence = new Map<number, Set<number>>();
 
+// ── Call tracking (for WhatsApp-style call log bubbles) ──────────────────────
+type ActiveCall = {
+  conversationId: number;
+  callerId: number;
+  calleeId: number;
+  isVideo: boolean;
+  startedAt: number;
+  answeredAt?: number;
+  missedTimer?: NodeJS.Timeout;
+};
+const activeCalls = new Map<string, ActiveCall>();
+const callKey = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+const RING_TIMEOUT_MS = 45_000;
+
+function formatUserBasic(u: typeof usersTable.$inferSelect) {
+  return {
+    id: u.id, username: u.username, displayName: u.displayName,
+    avatar: u.avatar, bio: u.bio || null, isOnline: u.isOnline,
+    lastSeen: u.lastSeen?.toISOString() || null,
+    createdAt: u.createdAt.toISOString(),
+  };
+}
+
+async function logCallMessage(opts: {
+  conversationId: number;
+  senderId: number; // always the caller
+  callType: 'audio' | 'video';
+  callStatus: 'answered' | 'missed' | 'declined';
+  callDuration?: number;
+}) {
+  try {
+    const [msg] = await db.insert(messagesTable).values({
+      conversationId: opts.conversationId,
+      senderId: opts.senderId,
+      callType: opts.callType,
+      callStatus: opts.callStatus,
+      callDuration: opts.callDuration ?? null,
+    }).returning();
+
+    const [sender] = await db.select().from(usersTable).where(eq(usersTable.id, opts.senderId));
+
+    const payload = {
+      id: msg.id,
+      conversationId: msg.conversationId,
+      senderId: msg.senderId,
+      sender: sender ? formatUserBasic(sender) : undefined,
+      content: null,
+      imageUrl: null,
+      mediaAlbum: null,
+      audioUrl: null,
+      audioDuration: null,
+      poll: null,
+      linkPreview: null,
+      replyTo: null,
+      editedAt: null,
+      isDeleted: false,
+      callType: msg.callType,
+      callStatus: msg.callStatus,
+      callDuration: msg.callDuration,
+      reactions: [],
+      createdAt: msg.createdAt.toISOString(),
+    };
+    io.to(`conversation:${opts.conversationId}`).emit("new_message", payload);
+  } catch (err) {
+    logger.error({ err }, "Failed to log call message");
+  }
+}
+
 // Authenticate socket connections
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token as string | undefined;
@@ -80,6 +148,27 @@ io.on("connection", async (socket) => {
         io.to(sid).emit("call_offer", { fromUserId: userId, fromName, fromAvatar, offer, conversationId, isVideo });
       }
     }
+    // Track active call for logging
+    const key = callKey(userId, targetUserId);
+    // Clear any stale entry from previous call
+    const stale = activeCalls.get(key);
+    if (stale?.missedTimer) clearTimeout(stale.missedTimer);
+    const call: ActiveCall = {
+      conversationId, callerId: userId, calleeId: targetUserId,
+      isVideo, startedAt: Date.now(),
+    };
+    call.missedTimer = setTimeout(() => {
+      const c = activeCalls.get(key);
+      if (c && !c.answeredAt) {
+        // Ringing timed out → log as missed
+        logCallMessage({
+          conversationId: c.conversationId, senderId: c.callerId,
+          callType: c.isVideo ? 'video' : 'audio', callStatus: 'missed',
+        });
+        activeCalls.delete(key);
+      }
+    }, RING_TIMEOUT_MS);
+    activeCalls.set(key, call);
     // Also push a notification in case the app is in background / screen is off
     try {
       await notifyIncomingCall({ targetUserId, callerName: fromName, callerAvatar: fromAvatar, conversationId, isVideo });
@@ -93,6 +182,13 @@ io.on("connection", async (socket) => {
       for (const sid of targetSockets) {
         io.to(sid).emit("call_answer", { fromUserId: userId, answer });
       }
+    }
+    // Mark the call as answered (callee picked up)
+    const key = callKey(userId, targetUserId);
+    const call = activeCalls.get(key);
+    if (call) {
+      call.answeredAt = Date.now();
+      if (call.missedTimer) { clearTimeout(call.missedTimer); call.missedTimer = undefined; }
     }
   });
 
@@ -114,6 +210,27 @@ io.on("connection", async (socket) => {
         io.to(sid).emit("call_ended", { fromUserId: userId });
       }
     }
+    // Log the call result
+    const key = callKey(userId, targetUserId);
+    const call = activeCalls.get(key);
+    if (call) {
+      if (call.missedTimer) clearTimeout(call.missedTimer);
+      if (call.answeredAt) {
+        const duration = Math.round((Date.now() - call.answeredAt) / 1000);
+        logCallMessage({
+          conversationId: call.conversationId, senderId: call.callerId,
+          callType: call.isVideo ? 'video' : 'audio',
+          callStatus: 'answered', callDuration: duration,
+        });
+      } else {
+        // Caller hung up before callee answered → missed
+        logCallMessage({
+          conversationId: call.conversationId, senderId: call.callerId,
+          callType: call.isVideo ? 'video' : 'audio', callStatus: 'missed',
+        });
+      }
+      activeCalls.delete(key);
+    }
   });
 
   socket.on("call_reject", ({ targetUserId }: { targetUserId: number }) => {
@@ -123,6 +240,17 @@ io.on("connection", async (socket) => {
       for (const sid of targetSockets) {
         io.to(sid).emit("call_rejected", { fromUserId: userId });
       }
+    }
+    // Callee declined → log declined (caller is sender)
+    const key = callKey(userId, targetUserId);
+    const call = activeCalls.get(key);
+    if (call) {
+      if (call.missedTimer) clearTimeout(call.missedTimer);
+      logCallMessage({
+        conversationId: call.conversationId, senderId: call.callerId,
+        callType: call.isVideo ? 'video' : 'audio', callStatus: 'declined',
+      });
+      activeCalls.delete(key);
     }
   });
 

@@ -94,6 +94,9 @@ type FormattedMessage = {
   editedAt: string | null;
   isDeleted: boolean;
   status?: 'sent' | 'delivered' | 'read';
+  callType?: string | null;
+  callStatus?: string | null;
+  callDuration?: number | null;
   reactions: Array<{ id: number; messageId: number; userId: number; emoji: string; user?: ReturnType<typeof formatUser>; createdAt: string }>;
   createdAt: string;
 };
@@ -205,6 +208,9 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
       editedAt: m.editedAt ? m.editedAt.toISOString() : null,
       isDeleted: m.isDeleted,
       status: computeStatus(m),
+      callType: m.callType,
+      callStatus: m.callStatus,
+      callDuration: m.callDuration,
       reactions: m.isDeleted ? [] : (reactionsByMessage[m.id] || []).map(r => ({
         id: r.id,
         messageId: r.messageId,

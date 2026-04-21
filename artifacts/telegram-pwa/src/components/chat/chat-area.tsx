@@ -82,6 +82,9 @@ type Msg = {
   editedAt?: string | null;
   isDeleted?: boolean;
   status?: 'sent' | 'delivered' | 'read';
+  callType?: 'audio' | 'video' | null;
+  callStatus?: 'missed' | 'answered' | 'declined' | 'ongoing' | null;
+  callDuration?: number | null;
   reactions: Array<{ id: number; messageId: number; userId: number; emoji: string }>;
   createdAt: string;
 };
@@ -1507,6 +1510,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             const msgTime = format(new Date(msg.createdAt), 'HH:mm');
             const isPoll = !!msg.poll;
             const isAudio = !!msg.audioUrl;
+            const isCall = !!msg.callType;
 
             // Show sender name for group conversations (non-mine messages)
             const showSenderName = conversation?.type === 'group' && !isMine && !isSameAuthor;
@@ -1733,6 +1737,69 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       />
                       </div>
                     )}
+
+                    {/* Call log (WhatsApp-style: icon + label + duration/status) */}
+                    {isCall && (() => {
+                      const isVideo = msg.callType === 'video';
+                      const Icon = isVideo ? VideoIcon : Phone;
+                      const status = msg.callStatus;
+                      const dur = msg.callDuration ?? 0;
+                      const formatDur = (s: number) => {
+                        if (s < 60) return `${s} s`;
+                        const m = Math.floor(s / 60);
+                        const r = s % 60;
+                        return r === 0 ? `${m} min` : `${m} min ${r}`;
+                      };
+                      let label = isVideo ? 'Appel vidéo' : 'Appel vocal';
+                      let subtitle = '';
+                      let iconColor = isMine ? 'text-white' : 'text-primary';
+                      if (status === 'answered') {
+                        subtitle = formatDur(dur);
+                      } else if (status === 'declined') {
+                        subtitle = isMine ? 'Refusé par le destinataire' : 'Refusé';
+                        iconColor = 'text-rose-400';
+                      } else {
+                        // missed
+                        label = isVideo ? 'Appel vidéo manqué' : 'Appel vocal manqué';
+                        subtitle = isMine ? 'Sans réponse' : 'Appuyez pour rappeler';
+                        iconColor = 'text-rose-400';
+                      }
+                      return (
+                        <button
+                          type="button"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            // Tap call bubble → ring back the peer
+                            if (conversation?.type !== 'group') {
+                              const other = (conversation as any)?.otherUser;
+                              if (other && initiateCall) {
+                                try {
+                                  await initiateCall({
+                                    peerId: other.id,
+                                    peerName: other.displayName,
+                                    peerAvatar: other.avatar || undefined,
+                                    conversationId,
+                                    isVideo,
+                                  });
+                                } catch {/* mic/cam denied */}
+                              }
+                            }
+                          }}
+                          className="flex items-center gap-3 py-1 pr-2 -my-0.5 text-left w-full focus:outline-none"
+                        >
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0
+                            ${isMine ? 'bg-white/15' : 'bg-primary/10'} ${iconColor}`}>
+                            <Icon className="w-[18px] h-[18px]" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-semibold leading-tight">{label}</p>
+                            <p className={`text-[11px] mt-0.5 leading-tight ${isMine ? 'text-white/70' : 'text-foreground/55'}`}>
+                              {subtitle}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })()}
 
                     {/* Text */}
                     {msg.content && !isPoll && (

@@ -14,6 +14,10 @@ export const messagesTable = pgTable("messages", {
   linkPreview: jsonb("link_preview"),
   mediaAlbum: jsonb("media_album"),
   replyToId: integer("reply_to_id"),
+  // Call log fields (when message represents a call event, à la WhatsApp)
+  callType: text("call_type"),       // 'audio' | 'video'
+  callStatus: text("call_status"),   // 'missed' | 'answered' | 'declined' | 'ongoing'
+  callDuration: integer("call_duration"), // seconds; null for missed/declined
   editedAt: timestamp("edited_at", { withTimezone: true }),
   isDeleted: boolean("is_deleted").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
