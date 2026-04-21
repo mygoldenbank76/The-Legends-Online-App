@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Play, Pause, Volume2 } from 'lucide-react';
+import { Play, Pause, Volume2, AlertCircle, Loader2 } from 'lucide-react';
 
 type Props = {
   url: string;
@@ -39,6 +39,8 @@ export function AudioPlayer({ url, duration, isMine, senderAvatar, senderInitial
   const [progress, setProgress] = useState(0);
   const [speedIdx, setSpeedIdx] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const bars = generateBars(url, 40);
 
@@ -53,22 +55,62 @@ export function AudioPlayer({ url, duration, isMine, senderAvatar, senderInitial
     };
     const onDur = () => { if (isFinite(audio.duration)) setTotalDuration(audio.duration); };
     const onEnd = () => { setPlaying(false); setCurrentTime(0); setProgress(0); };
+    const onPlay = () => { setPlaying(true); setLoading(false); };
+    const onPause = () => setPlaying(false);
+    const onErr = () => {
+      const err = audio.error;
+      const code = err?.code;
+      const codeMap: Record<number, string> = {
+        1: 'aborted', 2: 'network', 3: 'decode', 4: 'unsupported format',
+      };
+      const msg = code ? codeMap[code] || `code ${code}` : 'unknown';
+      console.error('[AudioPlayer] error:', msg, 'url:', url, err);
+      setLoadError(msg);
+      setLoading(false);
+      setPlaying(false);
+    };
+    const onWaiting = () => setLoading(true);
+    const onCanPlay = () => setLoading(false);
     audio.addEventListener('timeupdate', onTime);
     audio.addEventListener('durationchange', onDur);
     audio.addEventListener('ended', onEnd);
-    audio.addEventListener('play', () => setPlaying(true));
-    audio.addEventListener('pause', () => setPlaying(false));
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('pause', onPause);
+    audio.addEventListener('error', onErr);
+    audio.addEventListener('waiting', onWaiting);
+    audio.addEventListener('canplay', onCanPlay);
     return () => {
       audio.removeEventListener('timeupdate', onTime);
       audio.removeEventListener('durationchange', onDur);
       audio.removeEventListener('ended', onEnd);
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('pause', onPause);
+      audio.removeEventListener('error', onErr);
+      audio.removeEventListener('waiting', onWaiting);
+      audio.removeEventListener('canplay', onCanPlay);
     };
-  }, [dragging]);
+  }, [dragging, url]);
 
-  const toggle = async () => {
+  const toggle = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
     const a = audioRef.current;
     if (!a) return;
-    if (playing) { a.pause(); } else { try { await a.play(); } catch (e) { console.error(e); } }
+    if (playing) {
+      a.pause();
+      return;
+    }
+    setLoadError(null);
+    setLoading(true);
+    try {
+      // Force load if not started (esp. iOS Safari with preload="metadata")
+      if (a.readyState === 0) a.load();
+      await a.play();
+    } catch (err: any) {
+      console.error('[AudioPlayer] play() rejected:', err?.name, err?.message, 'url:', url);
+      setLoadError(err?.message || 'play failed');
+      setLoading(false);
+    }
   };
 
   const cycleSpeed = () => {
@@ -118,12 +160,18 @@ export function AudioPlayer({ url, duration, isMine, senderAvatar, senderInitial
 
       {/* Play / Pause */}
       <button
+        type="button"
         onClick={toggle}
-        className={`w-10 h-10 rounded-full ${playBg} flex items-center justify-center flex-shrink-0 transition-all active:scale-90`}
+        title={loadError ? `Erreur: ${loadError}` : playing ? 'Pause' : 'Lire'}
+        className={`w-10 h-10 rounded-full ${loadError ? 'bg-red-500/20 hover:bg-red-500/30' : playBg} flex items-center justify-center flex-shrink-0 transition-all active:scale-90`}
       >
-        {playing
-          ? <Pause className={`w-[18px] h-[18px] ${playColor}`} fill="currentColor" />
-          : <Play  className={`w-[18px] h-[18px] ${playColor} ml-0.5`} fill="currentColor" />
+        {loadError
+          ? <AlertCircle className="w-[18px] h-[18px] text-red-400" />
+          : loading
+            ? <Loader2 className={`w-[18px] h-[18px] ${playColor} animate-spin`} />
+            : playing
+              ? <Pause className={`w-[18px] h-[18px] ${playColor}`} fill="currentColor" />
+              : <Play  className={`w-[18px] h-[18px] ${playColor} ml-0.5`} fill="currentColor" />
         }
       </button>
 
