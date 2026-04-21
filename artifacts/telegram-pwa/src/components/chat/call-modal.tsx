@@ -224,12 +224,6 @@ export function CallModal() {
   const visible = !isMinimized && status !== 'idle';
 
   return (
-    <>
-      {/* Hidden remote audio element — always mounted while a call is active so
-          audio plays even when the modal is minimized or the call is audio-only. */}
-      {status !== 'idle' && (
-        <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
-      )}
     <AnimatePresence>
       {visible && (
         <motion.div
