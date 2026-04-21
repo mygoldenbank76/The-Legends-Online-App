@@ -59,11 +59,67 @@ io.on("connection", async (socket) => {
         .select({ conversationId: conversationParticipantsTable.conversationId })
         .from(conversationParticipantsTable)
         .where(eq(conversationParticipantsTable.userId, userId));
-      for (const { conversationId } of userConvs) {
+      const convIds = userConvs.map(c => c.conversationId);
+      // Store for use in disconnect handler
+      socket.data.conversationIds = convIds;
+      for (const conversationId of convIds) {
         socket.join(`conversation:${conversationId}`);
+        // Notify everyone in this conversation that this user is online
+        socket.to(`conversation:${conversationId}`).emit('user_online', { userId });
       }
     } catch { /* non-critical — manual join_conversation still works as fallback */ }
   }
+
+  // ── WebRTC signaling relay ────────────────────────────────────────────────
+  socket.on("call_offer", ({ targetUserId, offer, fromName, fromAvatar, conversationId, isVideo }: { targetUserId: number; offer: RTCSessionDescriptionInit; fromName: string; fromAvatar?: string; conversationId: number; isVideo: boolean }) => {
+    if (!userId) return;
+    const targetSockets = userSockets.get(targetUserId);
+    if (targetSockets) {
+      for (const sid of targetSockets) {
+        io.to(sid).emit("call_offer", { fromUserId: userId, fromName, fromAvatar, offer, conversationId, isVideo });
+      }
+    }
+  });
+
+  socket.on("call_answer", ({ targetUserId, answer }: { targetUserId: number; answer: RTCSessionDescriptionInit }) => {
+    if (!userId) return;
+    const targetSockets = userSockets.get(targetUserId);
+    if (targetSockets) {
+      for (const sid of targetSockets) {
+        io.to(sid).emit("call_answer", { fromUserId: userId, answer });
+      }
+    }
+  });
+
+  socket.on("call_ice_candidate", ({ targetUserId, candidate }: { targetUserId: number; candidate: RTCIceCandidateInit }) => {
+    if (!userId) return;
+    const targetSockets = userSockets.get(targetUserId);
+    if (targetSockets) {
+      for (const sid of targetSockets) {
+        io.to(sid).emit("call_ice_candidate", { fromUserId: userId, candidate });
+      }
+    }
+  });
+
+  socket.on("call_end", ({ targetUserId }: { targetUserId: number }) => {
+    if (!userId) return;
+    const targetSockets = userSockets.get(targetUserId);
+    if (targetSockets) {
+      for (const sid of targetSockets) {
+        io.to(sid).emit("call_ended", { fromUserId: userId });
+      }
+    }
+  });
+
+  socket.on("call_reject", ({ targetUserId }: { targetUserId: number }) => {
+    if (!userId) return;
+    const targetSockets = userSockets.get(targetUserId);
+    if (targetSockets) {
+      for (const sid of targetSockets) {
+        io.to(sid).emit("call_rejected", { fromUserId: userId });
+      }
+    }
+  });
 
   socket.on("join_conversation", async (conversationId: number) => {
     socket.join(`conversation:${conversationId}`);
@@ -137,7 +193,15 @@ io.on("connection", async (socket) => {
     logger.info({ socketId: socket.id }, "Socket disconnected");
     if (userId) {
       userSockets.get(userId)?.delete(socket.id);
-      if (userSockets.get(userId)?.size === 0) userSockets.delete(userId);
+      const isStillConnected = (userSockets.get(userId)?.size ?? 0) > 0;
+      if (!isStillConnected) {
+        userSockets.delete(userId);
+        // Broadcast offline to all conversation rooms
+        const convIds: number[] = socket.data.conversationIds ?? [];
+        for (const conversationId of convIds) {
+          io.to(`conversation:${conversationId}`).emit('user_offline', { userId, lastSeen: Date.now() });
+        }
+      }
       for (const members of roomPresence.values()) {
         members.delete(userId);
       }

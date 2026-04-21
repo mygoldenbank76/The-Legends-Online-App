@@ -11,6 +11,8 @@ import Home from "@/pages/home";
 import JoinGroup from "@/pages/join";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { SocketProvider } from "@/lib/socket-context";
+import { CallProvider } from "@/lib/call-context";
+import { CallModal } from "@/components/chat/call-modal";
 import { PreferencesProvider } from "@/lib/preferences-context";
 import { ShieldOff, LogOut } from "lucide-react";
 import { createIDBPersister } from "@/lib/idb-persister";
@@ -150,9 +152,13 @@ function App() {
             <PreferencesProvider>
               <AuthProvider>
                 <SocketProvider>
-                  {/* Invisible background data loader — preloads all convs + media silently */}
-                  <BackgroundLoader />
-                  <AppRouter />
+                  <CallProvider>
+                    {/* Invisible background data loader — preloads all convs + media silently */}
+                    <BackgroundLoader />
+                    <AppRouter />
+                    {/* Full-screen call overlay — renders on top of everything */}
+                    <CallModal />
+                  </CallProvider>
                 </SocketProvider>
               </AuthProvider>
             </PreferencesProvider>

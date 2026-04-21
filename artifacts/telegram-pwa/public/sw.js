@@ -158,7 +158,7 @@ self.addEventListener('push', (event) => {
     payload = { title: 'The Legends Online', body: event.data.text() };
   }
 
-  const { title, body, icon, badge, tag, data } = payload;
+  const { title, body, icon, badge, data } = payload;
   const origin = self.location.origin;
   const toAbsolute = (path) => {
     if (!path) return origin + '/icon-notification.png';
@@ -166,18 +166,36 @@ self.addEventListener('push', (event) => {
     return origin + path;
   };
 
+  // Use conversation-specific tag so notifications can be grouped/replaced
+  const conversationId = data?.conversationId;
+  const notifTag = conversationId ? `conv-${conversationId}` : 'legends-notification';
+
   event.waitUntil(
-    self.registration.showNotification(title || 'The Legends Online', {
-      body: body || '',
-      icon: toAbsolute(icon),
-      badge: toAbsolute(badge),
-      tag: tag || 'legends-notification',
-      data: data || {},
-      vibrate: [200, 100, 200],
-      requireInteraction: false,
-      actions: [
-        { action: 'reply', title: 'Répondre', type: 'text', placeholder: 'Écrire un message…' },
-      ],
+    // Check existing notifications for this conversation to group them
+    self.registration.getNotifications({ tag: notifTag }).then((existing) => {
+      let finalTitle = title || 'The Legends Online';
+      let finalBody = body || '';
+
+      if (existing.length > 0) {
+        // Group: show cumulative count
+        const count = existing.length + 1;
+        finalTitle = data?.groupName || data?.conversationName || 'The Legends Online';
+        finalBody = `${count} nouveaux messages`;
+      }
+
+      return self.registration.showNotification(finalTitle, {
+        body: finalBody,
+        icon: toAbsolute(icon),
+        badge: toAbsolute(badge),
+        tag: notifTag,
+        renotify: true,          // vibrate/sound even when replacing same tag
+        data: data || {},
+        vibrate: [200, 100, 200],
+        requireInteraction: false,
+        actions: [
+          { action: 'reply', title: 'Répondre', type: 'text', placeholder: 'Écrire un message…' },
+        ],
+      });
     })
   );
 });

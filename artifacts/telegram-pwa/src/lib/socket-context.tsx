@@ -10,12 +10,18 @@ export type TypingUser = {
   conversationId: number;
 };
 
+export type PresenceEntry = {
+  isOnline: boolean;
+  lastSeen?: number; // Unix ms
+};
+
 type SocketContextType = {
   socket: Socket | null;
   joinConversation: (conversationId: number) => void;
   leaveConversation: (conversationId: number) => void;
   emitTyping: (conversationId: number, isTyping: boolean) => void;
   typingUsers: TypingUser[];
+  presenceMap: Map<number, PresenceEntry>;
 };
 
 // Minimal shape of a message delivered by socket (matches server FormattedMessage)
@@ -49,6 +55,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
+  const [presenceMap, setPresenceMap] = useState<Map<number, PresenceEntry>>(new Map());
   const typingTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   useEffect(() => {
@@ -180,8 +187,26 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       }
     });
 
+    // ── Real-time presence ───────────────────────────────────────────────────
+    newSocket.on('user_online', ({ userId }: { userId: number }) => {
+      setPresenceMap(prev => {
+        const next = new Map(prev);
+        next.set(userId, { isOnline: true });
+        return next;
+      });
+    });
+
+    newSocket.on('user_offline', ({ userId, lastSeen }: { userId: number; lastSeen: number }) => {
+      setPresenceMap(prev => {
+        const next = new Map(prev);
+        next.set(userId, { isOnline: false, lastSeen });
+        return next;
+      });
+    });
+
     setSocket(newSocket);
     return () => { newSocket.disconnect(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, queryClient]);
 
   const joinConversation = (conversationId: number) => {
@@ -197,7 +222,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <SocketContext.Provider value={{ socket, joinConversation, leaveConversation, emitTyping, typingUsers }}>
+    <SocketContext.Provider value={{ socket, joinConversation, leaveConversation, emitTyping, typingUsers, presenceMap }}>
       {children}
     </SocketContext.Provider>
   );

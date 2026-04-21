@@ -19,6 +19,7 @@ import { getAuthHeaders } from '@/lib/auth-fetch';
 import { usePreferences } from '@/lib/preferences-context';
 import { translateGroupName } from '@/lib/i18n';
 import { preloadMedia } from '@/lib/media-cache';
+import { useSocket } from '@/lib/socket-context';
 
 const dateFnsLocaleMap: Record<string, Locale> = {
   fr, en: enUS, es, ar, pt, de,
@@ -58,6 +59,7 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
   const { data: allConvs = [], isLoading } = useListConversations();
   const queryClient = useQueryClient();
   const { t, appLanguage } = usePreferences();
+  const { presenceMap } = useSocket();
   const [openId, setOpenId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
@@ -258,7 +260,9 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
           const avatarUrl = isGroup ? undefined : conv.otherUser?.avatar;
           const lastMsg = conv.lastMessage;
           const isActive = activeConvId === conv.id;
-          const isOnline = !isGroup && conv.otherUser?.isOnline;
+          const otherUserId = conv.otherUser?.id;
+          const livePresence = otherUserId ? presenceMap.get(otherUserId) : undefined;
+          const isOnline = !isGroup && (livePresence ? livePresence.isOnline : conv.otherUser?.isOnline);
           const isRevealed = openId === conv.id && !isGroup;
           const isDeleting = deletingId === conv.id;
 

@@ -20,6 +20,7 @@ import {
   Reply, Pin, Pencil, Trash2, Languages, X, Check, PinOff, MoreVertical,
   Mic, Copy, Heart, CheckCheck, ChevronDown,
   Search, Bell, BellOff, ChevronUp,
+  Phone, Video as VideoIcon,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { AttachmentSheet } from './attachment-sheet';
@@ -41,6 +42,8 @@ import { MediaViewer } from './media-viewer';
 import { CachedImg } from './cached-img';
 import { preloadMedia } from '@/lib/media-cache';
 import { prewarmIframe } from '@/lib/iframe-pool';
+import { VideoPlayer } from './video-player';
+import { useCall } from '@/lib/call-context';
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡', '🔥'];
 const PICKER_EMOJIS = ['😀','😂','🤣','😊','😍','🥰','😘','😋','😎','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😣','😥','😮','🤐','😯','😪','😫','🥱','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','☹️','🙁','😖','😞','😟','😤','😢','😭','😦','😧','😨','😩','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','😡','😠','🤬','😷','🤒','🤕','🤢','🤮','🤧','😇','🥳','🥺','🤠','🤡','🤥','🤫','🤭','🧐','🤓','😈','👿','👹','👺','💀','👻','👽','👾','🤖'];
@@ -308,7 +311,8 @@ function MessagesSkeleton() {
 
 export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAreaProps) {
   const { user } = useAuth();
-  const { socket, joinConversation, emitTyping, typingUsers } = useSocket();
+  const { socket, joinConversation, emitTyping, typingUsers, presenceMap } = useSocket();
+  const { initiateCall } = useCall();
   const queryClient = useQueryClient();
   const { translateLanguage, t: uiT, appLanguage } = usePreferences();
 
@@ -1251,9 +1255,14 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const title = conversation?.type === 'group' ? translateGroupName(rawTitle, appLanguage) : rawTitle;
   const avatarUrl = conversation?.type === 'direct' ? conversation?.participants?.find((p: any) => p.id !== user?.id)?.avatar : undefined;
   const otherUser = conversation?.participants?.find((p: any) => p.id !== user?.id) as any;
-  const isOnline = otherUser?.isOnline;
-  const lastSeen = otherUser?.lastSeen
-    ? uiT.chat.lastSeen.replace('{time}', format(new Date(otherUser.lastSeen), 'HH:mm'))
+  // Use live presenceMap first; fall back to DB-stored isOnline if not yet in map
+  const livePresence = otherUser ? presenceMap.get(otherUser.id) : undefined;
+  const isOnline = livePresence ? livePresence.isOnline : (otherUser?.isOnline ?? false);
+  const lastSeenDate = livePresence?.lastSeen
+    ? new Date(livePresence.lastSeen)
+    : (otherUser?.lastSeen ? new Date(otherUser.lastSeen) : null);
+  const lastSeen = lastSeenDate
+    ? uiT.chat.lastSeen.replace('{time}', format(lastSeenDate, 'HH:mm'))
     : uiT.chat.offline;
 
   const isGroup = conversation?.type === 'group';
@@ -1360,6 +1369,26 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                 </span>
               </div>
             </button>
+
+            {/* Phone / video call buttons (DM only) */}
+            {!isGroup && otherUser && (
+              <>
+                <button
+                  onClick={() => initiateCall({ peerId: otherUser.id, peerName: title, peerAvatar: avatarUrl, conversationId: conversationId!, isVideo: false })}
+                  className="text-muted-foreground hover:text-foreground transition-colors p-1 flex-shrink-0"
+                  title="Appel audio"
+                >
+                  <Phone className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => initiateCall({ peerId: otherUser.id, peerName: title, peerAvatar: avatarUrl, conversationId: conversationId!, isVideo: true })}
+                  className="text-muted-foreground hover:text-foreground transition-colors p-1 flex-shrink-0"
+                  title="Appel vidéo"
+                >
+                  <VideoIcon className="w-5 h-5" />
+                </button>
+              </>
+            )}
 
             {/* ⋮ menu contextuel */}
             <div className="relative flex-shrink-0" ref={headerMenuRef}>
@@ -1662,27 +1691,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                         onClick={(e) => e.stopPropagation()}
                       >
                         {msg.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? (
-                          <div
-                            className="relative cursor-pointer"
-                            onClick={() => {
-                              if (Date.now() - conversationOpenedAt.current < 900) return;
-                              setMediaViewer({ urls: [msg.imageUrl!], index: 0 });
-                            }}
-                          >
-                            <video
-                              src={msg.imageUrl}
-                              playsInline
-                              muted
-                              preload="none"
-                              className="max-w-full max-h-72 w-full rounded-xl bg-black object-cover"
-                              style={{ display: 'block', pointerEvents: 'none' }}
-                            />
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <div className="w-12 h-12 rounded-full bg-black/55 flex items-center justify-center shadow-lg">
-                                <div className="w-0 h-0 border-y-[8px] border-y-transparent border-l-[14px] border-l-white ml-1" />
-                              </div>
-                            </div>
-                          </div>
+                          <VideoPlayer
+                            src={msg.imageUrl}
+                            className="w-full rounded-xl"
+                          />
                         ) : (
                           <CachedImg
                             src={msg.imageUrl}
@@ -1746,22 +1758,38 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
                     {/* Bottom row: reactions (left) + time (right) — inside bubble like Base44 */}
                     <div className={`flex items-end justify-between gap-2 ${isPoll ? 'mt-2' : 'mt-1.5'}`}>
-                      {/* Reactions inside bubble */}
+                      {/* Reactions inside bubble — animated with Framer Motion */}
                       {hasReactions ? (
                         <div className="flex flex-wrap gap-1">
-                          {Object.entries(reactionCounts).map(([emoji, count]) => (
-                            <button
-                              key={emoji}
-                              onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, emoji); }}
-                              className={`rounded-full px-1.5 py-0.5 text-xs flex items-center gap-0.5 border transition-colors
-                                ${hasReacted(emoji)
-                                  ? 'bg-white/25 border-white/40 text-white'
-                                  : 'bg-white/10 border-white/20 text-white/80 hover:bg-white/15'}`}
-                            >
-                              <span>{emoji}</span>
-                              <span className="font-bold text-[10px]">{count as number}</span>
-                            </button>
-                          ))}
+                          <AnimatePresence mode="popLayout">
+                            {Object.entries(reactionCounts).map(([emoji, count]) => (
+                              <motion.button
+                                key={emoji}
+                                layout
+                                initial={{ scale: 0, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0, opacity: 0 }}
+                                transition={{ type: 'spring', stiffness: 500, damping: 24 }}
+                                onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, emoji); }}
+                                className={`rounded-full px-1.5 py-0.5 text-xs flex items-center gap-0.5 border transition-colors
+                                  ${hasReacted(emoji)
+                                    ? 'bg-white/25 border-white/40 text-white'
+                                    : 'bg-white/10 border-white/20 text-white/80 hover:bg-white/15'}`}
+                                whileTap={{ scale: 1.3 }}
+                              >
+                                <span>{emoji}</span>
+                                <motion.span
+                                  key={`${emoji}-${count}`}
+                                  initial={{ y: -6, opacity: 0 }}
+                                  animate={{ y: 0, opacity: 1 }}
+                                  transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                                  className="font-bold text-[10px]"
+                                >
+                                  {count as number}
+                                </motion.span>
+                              </motion.button>
+                            ))}
+                          </AnimatePresence>
                         </div>
                       ) : <div />}
 
