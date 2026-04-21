@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { CachedImg } from './cached-img';
 import {
   useListConversations,
   getListConversationsQueryKey,
@@ -227,7 +228,7 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
         <UserSearch onSelectUser={onSelectConv} />
       </div>
 
-      <div className="flex-1 overflow-y-auto py-1 px-2 no-scrollbar">
+      <div className="flex-1 overflow-y-auto py-1 px-2 scroll-container">
         {isLoading && conversations.length === 0 && (
           <div className="flex flex-col gap-1 pt-1">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -317,7 +318,7 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
                       )}
                     >
                       {avatarUrl ? (
-                        <img src={avatarUrl} alt={title} className="w-full h-full object-cover" />
+                        <CachedImg src={avatarUrl} alt={title} className="w-full h-full object-cover" />
                       ) : (
                         initials
                       )}

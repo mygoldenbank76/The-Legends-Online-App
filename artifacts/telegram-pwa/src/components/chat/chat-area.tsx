@@ -106,12 +106,12 @@ function MediaThumb({
   const vid = /\.(mp4|webm|mov|avi|mkv)$/i.test(url);
   return (
     <div
-      className="relative w-full h-full overflow-hidden bg-black cursor-pointer active:opacity-80 transition-opacity"
+      className="relative w-full h-full overflow-hidden bg-white/6 cursor-pointer active:opacity-80 transition-opacity"
       style={{ borderRadius: radius }}
       onClick={(e) => { e.stopPropagation(); onClick(); }}
     >
       {vid ? (
-        <video src={url} className="w-full h-full object-cover" style={{ background: '#000' }} muted playsInline preload="metadata" />
+        <video src={url} className="w-full h-full object-cover" style={{ background: '#000' }} muted playsInline preload="none" />
       ) : (
         <CachedImg src={url} alt="" className="w-full h-full object-cover" />
       )}
@@ -1445,7 +1445,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           </motion.button>
         )}
       </AnimatePresence>
-      <div ref={scrollRef} className="h-full overflow-y-auto px-3 pt-4 pb-2 bg-background" style={{ visibility: searchOpen || scrollReady || isLoading || messages.length === 0 ? 'visible' : 'hidden' }}>
+      <div ref={scrollRef} className="h-full overflow-y-auto scroll-container px-3 pt-4 pb-2 bg-background" style={{ visibility: searchOpen || scrollReady || isLoading || messages.length === 0 ? 'visible' : 'hidden' }}>
         {/* Sentinel — triggers loading older messages on scroll to top */}
         <div ref={sentinelRef} className="h-1" />
         {/* Spinner while loading older messages */}
@@ -1491,7 +1491,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                 key={msg.id}
                 id={`msg-${msg.id}`}
                 className={`flex items-end gap-2 w-full ${isMine ? 'justify-end' : 'justify-start'} ${isSameAuthor ? 'mt-0.5' : 'mt-3'} ${isSearchMatch ? 'relative' : ''}`}
-                style={{ userSelect: 'none', WebkitUserSelect: 'none', ...(isCurrentMatch ? { outline: '2px solid hsl(263,90%,65%)', outlineOffset: 4, borderRadius: 12 } : {}) } as React.CSSProperties}
+                style={{ userSelect: 'none', WebkitUserSelect: 'none', contain: 'layout style', ...(isCurrentMatch ? { outline: '2px solid hsl(263,90%,65%)', outlineOffset: 4, borderRadius: 12 } : {}) } as React.CSSProperties}
                 onContextMenu={(e) => openCtxMenu(e, msg)}
                 onClick={(e) => {
                   if (didTriggerMenu.current || didJustSwipe.current) {
@@ -1566,6 +1566,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   style={{
                     transform: `translateX(${swipeOffset}px)`,
                     transition: swipingId === msg.id ? 'none' : 'transform 0.2s ease-out',
+                    willChange: swipeOffset !== 0 ? 'transform' : undefined,
                   }}
                 >
                   {/* Pinned label */}
@@ -1657,7 +1658,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     {/* Single Image or Video */}
                     {msg.imageUrl && !(msg as any).mediaAlbum && !isPoll && (
                       <div
-                        className="mb-2 -mx-1 -mt-1 overflow-hidden rounded-xl"
+                        className="mb-2 -mx-1 -mt-1 overflow-hidden rounded-xl bg-white/5"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {msg.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? (
@@ -1672,7 +1673,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                               src={msg.imageUrl}
                               playsInline
                               muted
-                              preload="metadata"
+                              preload="none"
                               className="max-w-full max-h-72 w-full rounded-xl bg-black object-cover"
                               style={{ display: 'block', pointerEvents: 'none' }}
                             />

@@ -149,6 +149,17 @@
 .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
+/* Scroll container — hides scrollbar + prevents scroll-chaining to the parent */
+.scroll-container {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior-y: contain;
+}
+.scroll-container::-webkit-scrollbar { display: none; }
+
+/* GPU-accelerated layer for elements that animate via transform */
+.gpu-layer { transform: translateZ(0); }
+
 /* Hide all scrollbars globally */
 * { scrollbar-width: none; -ms-overflow-style: none; }
 *::-webkit-scrollbar { display: none; }
