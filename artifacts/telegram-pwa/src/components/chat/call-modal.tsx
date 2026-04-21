@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Phone, PhoneOff, PhoneIncoming, Mic, MicOff,
   Video, VideoOff, Monitor, MonitorOff, ChevronDown,
-  ChevronUp, ScreenShare, ScreenShareOff,
+  ChevronUp, ScreenShare, ScreenShareOff, Volume2, VolumeX,
 } from 'lucide-react';
 import { useCall } from '@/lib/call-context';
 
@@ -120,15 +120,16 @@ export function CallBanner() {
 export function CallModal() {
   const {
     callState, acceptCall, rejectCall, endCall,
-    toggleMute, toggleCamera, toggleScreenShare, minimize,
+    toggleMute, toggleCamera, toggleScreenShare, toggleSpeaker, minimize,
   } = useCall();
   const {
     status, peerName, peerAvatar, isVideo, localStream, remoteStream,
-    isMuted, isCameraOff, isScreenSharing, isMinimized, startedAt,
+    isMuted, isCameraOff, isScreenSharing, isMinimized, isSpeakerOn, startedAt,
   } = callState;
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const [duration, setDuration] = useState('0:00');
 
   useEffect(() => {
@@ -141,7 +142,40 @@ export function CallModal() {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
     }
+  }, [remoteStream, isVideo]);
+
+  // ── Always pipe remote stream into a hidden <audio> so audio plays even on
+  //    audio-only calls (the <video> element is conditionally rendered). ──
+  useEffect(() => {
+    const el = remoteAudioRef.current;
+    if (!el || !remoteStream) return;
+    el.srcObject = remoteStream;
+    // Unmute & play (must wait for user gesture, but accepting/initiating is one)
+    el.muted = false;
+    el.volume = 1;
+    el.play().catch(() => {});
   }, [remoteStream]);
+
+  // ── Speaker toggle: try setSinkId on supported browsers, fall back to volume ──
+  useEffect(() => {
+    const el = remoteAudioRef.current;
+    if (!el) return;
+    const anyEl = el as any;
+    if (typeof anyEl.setSinkId === 'function') {
+      // 'communications' = earpiece on supported devices, 'default' = speaker
+      const sinkId = isSpeakerOn ? 'default' : 'communications';
+      anyEl.setSinkId(sinkId).catch(() => {
+        // Fallback: use volume to simulate
+        el.volume = isSpeakerOn ? 1 : 0.4;
+      });
+    } else {
+      // Mobile browsers without setSinkId — simulate via volume
+      el.volume = isSpeakerOn ? 1 : 0.4;
+    }
+    // Also adjust the video element if present
+    const v = remoteVideoRef.current;
+    if (v) v.volume = isSpeakerOn ? 1 : 0.4;
+  }, [isSpeakerOn, remoteStream]);
 
   useEffect(() => {
     if (status !== 'active' || !startedAt) return;
@@ -224,6 +258,12 @@ export function CallModal() {
   const visible = !isMinimized && status !== 'idle';
 
   return (
+    <>
+      {/* Hidden remote audio element — always mounted while a call is active so
+          audio plays even when the modal is minimized or the call is audio-only. */}
+      {status !== 'idle' && (
+        <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+      )}
     <AnimatePresence>
       {visible && (
         <motion.div
@@ -390,6 +430,15 @@ export function CallModal() {
                     />
                   )}
 
+                  {/* Speaker toggle */}
+                  <CallCtrlBtn
+                    onClick={toggleSpeaker}
+                    active={!isSpeakerOn}
+                    activeColor="blue"
+                    icon={isSpeakerOn ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+                    label={isSpeakerOn ? 'Haut-parleur' : 'Écouteur'}
+                  />
+
                   {/* Screen share */}
                   <CallCtrlBtn
                     onClick={toggleScreenShare}
@@ -419,6 +468,7 @@ export function CallModal() {
         </motion.div>
       )}
     </AnimatePresence>
+    </>
   );
 }
 

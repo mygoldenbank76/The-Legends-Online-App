@@ -40,6 +40,7 @@ export type CallState = {
   isCameraOff: boolean;
   isScreenSharing: boolean;
   isMinimized: boolean;
+  isSpeakerOn: boolean;
   startedAt?: number;
   incomingOffer?: RTCSessionDescriptionInit;
 };
@@ -53,6 +54,7 @@ type CallContextType = {
   toggleMute: () => void;
   toggleCamera: () => void;
   toggleScreenShare: () => Promise<void>;
+  toggleSpeaker: () => void;
   minimize: () => void;
   maximize: () => void;
 };
@@ -61,7 +63,7 @@ const CallContext = createContext<CallContextType | undefined>(undefined);
 
 const IDLE: CallState = {
   status: 'idle', isVideo: false, isMuted: false, isCameraOff: false,
-  isScreenSharing: false, isMinimized: false,
+  isScreenSharing: false, isMinimized: false, isSpeakerOn: true,
 };
 
 export function CallProvider({ children }: { children: ReactNode }) {
@@ -144,7 +146,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
     setCallState({
       status: 'outgoing', conversationId, peerId, peerName, peerAvatar, isVideo,
-      localStream, isMuted: false, isCameraOff: false, isScreenSharing: false, isMinimized: false,
+      localStream, isMuted: false, isCameraOff: false, isScreenSharing: false, isMinimized: false, isSpeakerOn: true,
     });
 
     socket.emit('call_offer', {
@@ -179,7 +181,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
 
-    setCallState(prev => ({ ...prev, localStream, status: 'active', startedAt: Date.now(), isMinimized: false }));
+    setCallState(prev => ({ ...prev, localStream, status: 'active', startedAt: Date.now(), isMinimized: false, isSpeakerOn: prev.isSpeakerOn ?? true }));
     socket.emit('call_answer', { targetUserId: state.peerId, answer });
   }, [socket, createPC]);
 
@@ -277,6 +279,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
     screenTrack.onended = () => { stopScreenShare(); };
   }, [stopScreenShare]);
 
+  // ── Toggle speaker ─────────────────────────────────────────────────────────
+  const toggleSpeaker = useCallback(() => {
+    setCallState(prev => ({ ...prev, isSpeakerOn: !prev.isSpeakerOn }));
+  }, []);
+
   // ── Minimize / maximize ────────────────────────────────────────────────────
   const minimize = useCallback(() => {
     if (stateRef.current.status !== 'idle') {
@@ -369,7 +376,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
   return (
     <CallContext.Provider value={{
       callState, initiateCall, acceptCall, rejectCall, endCall,
-      toggleMute, toggleCamera, toggleScreenShare, minimize, maximize,
+      toggleMute, toggleCamera, toggleScreenShare, toggleSpeaker, minimize, maximize,
     }}>
       {children}
     </CallContext.Provider>
