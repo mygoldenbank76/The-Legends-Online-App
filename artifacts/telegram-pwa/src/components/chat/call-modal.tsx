@@ -130,6 +130,40 @@ export function CallModal() {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const [duration, setDuration] = useState('0:00');
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // True video call mode = active + video + remote stream → fullscreen WhatsApp-style UI
+  const isFullscreenVideo = status === 'active' && isVideo && !!remoteStream;
+
+  // Auto-hide controls after 4s during fullscreen video calls
+  const scheduleHide = () => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => setControlsVisible(false), 4000);
+  };
+
+  useEffect(() => {
+    if (!isFullscreenVideo) {
+      setControlsVisible(true);
+      if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
+      return;
+    }
+    setControlsVisible(true);
+    scheduleHide();
+    return () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFullscreenVideo]);
+
+  const toggleControls = () => {
+    if (!isFullscreenVideo) return;
+    if (controlsVisible) {
+      setControlsVisible(false);
+      if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
+    } else {
+      setControlsVisible(true);
+      scheduleHide();
+    }
+  };
 
   useEffect(() => {
     if (localVideoRef.current && localStream) {
@@ -232,111 +266,150 @@ export function CallModal() {
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.96 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[200] flex flex-col items-center justify-between"
-          style={{ background: 'linear-gradient(135deg, hsl(263 60% 10%), hsl(263 40% 5%))' }}
+          onClick={toggleControls}
+          className="fixed inset-0 z-[200] flex flex-col items-center justify-between select-none"
+          style={{
+            background: isFullscreenVideo
+              ? '#000'
+              : 'linear-gradient(135deg, hsl(263 60% 10%), hsl(263 40% 5%))',
+          }}
         >
-          {/* Animated background rings */}
-          <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            {[1, 2, 3].map(i => (
-              <motion.div
-                key={i}
-                className="absolute rounded-full border border-primary/20"
-                style={{ inset: `${(i - 1) * 15}%` }}
-                animate={{ scale: [1, 1.05, 1], opacity: [0.3, 0.1, 0.3] }}
-                transition={{ duration: 3, repeat: Infinity, delay: i * 0.6, ease: 'easeInOut' }}
-              />
-            ))}
-          </div>
+          {/* Remote video — full screen background when active video call */}
+          {isFullscreenVideo && (
+            <video
+              ref={remoteVideoRef}
+              autoPlay playsInline
+              className="absolute inset-0 w-full h-full object-cover bg-black"
+              style={{ zIndex: 0 }}
+            />
+          )}
 
-          {/* Top-right controls: minimize (only active/outgoing) */}
-          {(status === 'active' || status === 'outgoing') && (
-            <div className="absolute top-4 right-4 z-20">
-              <motion.button
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                onClick={minimize}
-                className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center"
-                title="Réduire"
-              >
-                <ChevronDown className="w-5 h-5 text-white" />
-              </motion.button>
+          {/* Animated background rings (only when no fullscreen video) */}
+          {!isFullscreenVideo && (
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              {[1, 2, 3].map(i => (
+                <motion.div
+                  key={i}
+                  className="absolute rounded-full border border-primary/20"
+                  style={{ inset: `${(i - 1) * 15}%` }}
+                  animate={{ scale: [1, 1.05, 1], opacity: [0.3, 0.1, 0.3] }}
+                  transition={{ duration: 3, repeat: Infinity, delay: i * 0.6, ease: 'easeInOut' }}
+                />
+              ))}
             </div>
           )}
 
-          {/* Main content */}
-          <div className="flex-1 flex flex-col items-center justify-center gap-4 pt-16 relative z-10 w-full">
-            {/* Remote video (video call active) */}
-            {isVideo && remoteStream && (
-              <video
-                ref={remoteVideoRef}
-                autoPlay playsInline muted
-                className="absolute inset-0 w-full h-full object-cover opacity-70"
-              />
-            )}
-
-            {/* Peer avatar */}
-            <motion.div
-              animate={status === 'incoming' ? { scale: [1, 1.08, 1] } : {}}
-              transition={{ repeat: Infinity, duration: 1.5 }}
-              className="relative"
-            >
-              <div className="w-28 h-28 rounded-full bg-primary/20 border-4 border-primary/40 flex items-center justify-center overflow-hidden shadow-2xl">
-                {peerAvatar
-                  ? <img src={peerAvatar} alt={peerName} className="w-full h-full object-cover" />
-                  : <span className="text-4xl font-bold text-primary">{peerName?.charAt(0).toUpperCase()}</span>
-                }
-              </div>
-              {status === 'active' && (
-                <motion.div
-                  className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-green-500 border-2 border-background flex items-center justify-center"
-                  initial={{ scale: 0 }} animate={{ scale: 1 }}
+          {/* Top bar: minimize + name (WhatsApp style during fullscreen video) */}
+          <AnimatePresence>
+            {(status === 'active' || status === 'outgoing') && (controlsVisible || !isFullscreenVideo) && (
+              <motion.div
+                key="top-bar"
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.2 }}
+                className="absolute top-0 left-0 right-0 z-30 flex items-center gap-3 px-4 pt-4 pb-6"
+                style={isFullscreenVideo ? {
+                  background: 'linear-gradient(180deg, rgba(0,0,0,0.6), transparent)',
+                } : undefined}
+                onClick={(e) => { e.stopPropagation(); }}
+              >
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={(e) => { e.stopPropagation(); minimize(); }}
+                  className="w-10 h-10 rounded-full bg-black/40 backdrop-blur flex items-center justify-center flex-shrink-0"
+                  title="Réduire"
                 >
-                  <Phone className="w-3.5 h-3.5 text-white" />
-                </motion.div>
-              )}
-            </motion.div>
-
-            <div className="text-center relative z-10">
-              <h2 className="text-2xl font-bold text-white">{peerName}</h2>
-              <p className="text-sm text-white/60 mt-1">
-                {status === 'outgoing' && 'Appel en cours…'}
-                {status === 'incoming' && (isVideo ? 'Appel vidéo entrant' : 'Appel audio entrant')}
-                {status === 'active' && (
-                  <span className="font-mono text-green-400">{duration}</span>
+                  <ChevronDown className="w-5 h-5 text-white" />
+                </motion.button>
+                {isFullscreenVideo && (
+                  <div className="flex-1 text-center">
+                    <p className="text-white font-semibold text-base leading-tight truncate">{peerName}</p>
+                    <p className="text-white/70 text-xs font-mono leading-tight">{duration}</p>
+                  </div>
                 )}
-              </p>
-              {isScreenSharing && (
-                <span className="mt-1 inline-flex items-center gap-1 text-xs text-blue-300 bg-blue-500/20 border border-blue-500/30 rounded-full px-2 py-0.5">
-                  <Monitor className="w-3 h-3" />
-                  Partage d'écran actif
-                </span>
+                {isFullscreenVideo && <div className="w-10 flex-shrink-0" />}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Main content (only when NOT in fullscreen video mode) */}
+          {!isFullscreenVideo && (
+            <div className="flex-1 flex flex-col items-center justify-center gap-4 pt-16 relative z-10 w-full">
+              {/* Peer avatar */}
+              <motion.div
+                animate={status === 'incoming' ? { scale: [1, 1.08, 1] } : {}}
+                transition={{ repeat: Infinity, duration: 1.5 }}
+                className="relative"
+              >
+                <div className="w-28 h-28 rounded-full bg-primary/20 border-4 border-primary/40 flex items-center justify-center overflow-hidden shadow-2xl">
+                  {peerAvatar
+                    ? <img src={peerAvatar} alt={peerName} className="w-full h-full object-cover" />
+                    : <span className="text-4xl font-bold text-primary">{peerName?.charAt(0).toUpperCase()}</span>
+                  }
+                </div>
+                {status === 'active' && (
+                  <motion.div
+                    className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-green-500 border-2 border-background flex items-center justify-center"
+                    initial={{ scale: 0 }} animate={{ scale: 1 }}
+                  >
+                    <Phone className="w-3.5 h-3.5 text-white" />
+                  </motion.div>
+                )}
+              </motion.div>
+
+              <div className="text-center relative z-10">
+                <h2 className="text-2xl font-bold text-white">{peerName}</h2>
+                <p className="text-sm text-white/60 mt-1">
+                  {status === 'outgoing' && 'Appel en cours…'}
+                  {status === 'incoming' && (isVideo ? 'Appel vidéo entrant' : 'Appel audio entrant')}
+                  {status === 'active' && (
+                    <span className="font-mono text-green-400">{duration}</span>
+                  )}
+                </p>
+                {isScreenSharing && (
+                  <span className="mt-1 inline-flex items-center gap-1 text-xs text-blue-300 bg-blue-500/20 border border-blue-500/30 rounded-full px-2 py-0.5">
+                    <Monitor className="w-3 h-3" />
+                    Partage d'écran actif
+                  </span>
+                )}
+              </div>
+
+              {/* Outgoing: animated dots */}
+              {status === 'outgoing' && (
+                <div className="flex gap-2 mt-2">
+                  {[0, 1, 2].map(i => (
+                    <motion.div key={i} className="w-2 h-2 rounded-full bg-primary"
+                      animate={{ y: [0, -8, 0] }}
+                      transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.2 }}
+                    />
+                  ))}
+                </div>
               )}
             </div>
+          )}
 
-            {/* Outgoing: animated dots */}
-            {status === 'outgoing' && (
-              <div className="flex gap-2 mt-2">
-                {[0, 1, 2].map(i => (
-                  <motion.div key={i} className="w-2 h-2 rounded-full bg-primary"
-                    animate={{ y: [0, -8, 0] }}
-                    transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.2 }}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Local video PiP */}
+          {/* Local video PiP — mirrored (selfie view feels natural) */}
           {(isVideo || isScreenSharing) && localStream && (
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="absolute top-4 left-4 w-28 h-40 rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl z-20"
+              animate={{
+                opacity: isFullscreenVideo && !controlsVisible ? 0.6 : 1,
+                scale: 1,
+              }}
+              transition={{ duration: 0.2 }}
+              onClick={(e) => e.stopPropagation()}
+              className="absolute w-24 h-36 sm:w-28 sm:h-40 rounded-2xl overflow-hidden border-2 border-white/30 shadow-2xl z-20 bg-black"
+              style={{ top: isFullscreenVideo ? '72px' : '16px', left: '16px' }}
             >
-              <video ref={localVideoRef} autoPlay playsInline muted
-                className="w-full h-full object-cover" />
+              <video
+                ref={localVideoRef}
+                autoPlay playsInline muted
+                className="w-full h-full object-cover"
+                style={{ transform: isScreenSharing ? 'none' : 'scaleX(-1)' }}
+              />
               {isCameraOff && !isScreenSharing && (
-                <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
+                <div className="absolute inset-0 bg-black/90 flex items-center justify-center">
                   <VideoOff className="w-6 h-6 text-white/60" />
                 </div>
               )}
@@ -344,7 +417,20 @@ export function CallModal() {
           )}
 
           {/* Controls */}
-          <div className="w-full px-6 pb-16 relative z-10">
+          <AnimatePresence>
+          {(controlsVisible || !isFullscreenVideo) && (
+          <motion.div
+            key="bottom-controls"
+            initial={isFullscreenVideo ? { opacity: 0, y: 30 } : false}
+            animate={{ opacity: 1, y: 0 }}
+            exit={isFullscreenVideo ? { opacity: 0, y: 30 } : undefined}
+            transition={{ duration: 0.2 }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full px-6 pb-12 pt-6 relative z-30"
+            style={isFullscreenVideo ? {
+              background: 'linear-gradient(0deg, rgba(0,0,0,0.7), transparent)',
+            } : undefined}
+          >
             {status === 'incoming' ? (
               /* Incoming: accept + reject */
               <div className="flex items-center justify-center gap-16">
@@ -424,7 +510,9 @@ export function CallModal() {
                 </div>
               </div>
             )}
-          </div>
+          </motion.div>
+          )}
+          </AnimatePresence>
         </motion.div>
       )}
     </AnimatePresence>
