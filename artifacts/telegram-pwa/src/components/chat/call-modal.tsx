@@ -129,7 +129,6 @@ export function CallModal() {
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const [duration, setDuration] = useState('0:00');
 
   useEffect(() => {
@@ -143,39 +142,6 @@ export function CallModal() {
       remoteVideoRef.current.srcObject = remoteStream;
     }
   }, [remoteStream, isVideo]);
-
-  // ── Always pipe remote stream into a hidden <audio> so audio plays even on
-  //    audio-only calls (the <video> element is conditionally rendered). ──
-  useEffect(() => {
-    const el = remoteAudioRef.current;
-    if (!el || !remoteStream) return;
-    el.srcObject = remoteStream;
-    // Unmute & play (must wait for user gesture, but accepting/initiating is one)
-    el.muted = false;
-    el.volume = 1;
-    el.play().catch(() => {});
-  }, [remoteStream]);
-
-  // ── Speaker toggle: try setSinkId on supported browsers, fall back to volume ──
-  useEffect(() => {
-    const el = remoteAudioRef.current;
-    if (!el) return;
-    const anyEl = el as any;
-    if (typeof anyEl.setSinkId === 'function') {
-      // 'communications' = earpiece on supported devices, 'default' = speaker
-      const sinkId = isSpeakerOn ? 'default' : 'communications';
-      anyEl.setSinkId(sinkId).catch(() => {
-        // Fallback: use volume to simulate
-        el.volume = isSpeakerOn ? 1 : 0.4;
-      });
-    } else {
-      // Mobile browsers without setSinkId — simulate via volume
-      el.volume = isSpeakerOn ? 1 : 0.4;
-    }
-    // Also adjust the video element if present
-    const v = remoteVideoRef.current;
-    if (v) v.volume = isSpeakerOn ? 1 : 0.4;
-  }, [isSpeakerOn, remoteStream]);
 
   useEffect(() => {
     if (status !== 'active' || !startedAt) return;
@@ -309,7 +275,7 @@ export function CallModal() {
             {isVideo && remoteStream && (
               <video
                 ref={remoteVideoRef}
-                autoPlay playsInline muted={false}
+                autoPlay playsInline muted
                 className="absolute inset-0 w-full h-full object-cover opacity-70"
               />
             )}

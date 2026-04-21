@@ -76,8 +76,38 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const stateRef = useRef<CallState>(IDLE);
   // Reference to the "real" camera stream so we can restore it after screen share ends
   const cameraStreamRef = useRef<MediaStream | null>(null);
+  // Always-mounted hidden audio element — primary remote audio output
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  // Web Audio nodes for speaker/earpiece simulation (low-pass filter + gain)
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const audioGainRef = useRef<GainNode | null>(null);
+  const audioFilterRef = useRef<BiquadFilterNode | null>(null);
 
   useEffect(() => { stateRef.current = callState; }, [callState]);
+
+  // ── Attach remote stream to the hidden <audio> element + Web Audio graph ──
+  const attachRemoteAudio = useCallback((stream: MediaStream) => {
+    const el = remoteAudioRef.current;
+    if (!el) return;
+    if (el.srcObject !== stream) {
+      el.srcObject = stream;
+    }
+    el.muted = false;
+    el.volume = 1;
+    el.play().catch(() => {});
+  }, []);
+
+  // ── Pre-warm audio playback inside a user gesture (so play() isn't blocked
+  //    later when the remote stream actually arrives via ontrack). ──
+  const unlockAudioPlayback = useCallback(() => {
+    const el = remoteAudioRef.current;
+    if (!el) return;
+    el.muted = false;
+    el.volume = 1;
+    // Calling play() with no srcObject is a no-op but consumes the gesture
+    el.play().catch(() => {});
+  }, []);
 
   // ── Create peer connection ─────────────────────────────────────────────────
   const createPC = useCallback((peerId: number) => {
@@ -92,6 +122,9 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
     pc.ontrack = (e) => {
       const [remoteStream] = e.streams;
+      // Pipe remote audio into our hidden <audio> element immediately so
+      // playback starts without waiting for React to re-render.
+      attachRemoteAudio(remoteStream);
       setCallState(prev => ({ ...prev, remoteStream, status: 'active', startedAt: prev.startedAt ?? Date.now() }));
     };
 
@@ -111,6 +144,19 @@ export function CallProvider({ children }: { children: ReactNode }) {
     stateRef.current.localStream?.getTracks().forEach(t => t.stop());
     cameraStreamRef.current?.getTracks().forEach(t => t.stop());
     cameraStreamRef.current = null;
+    // Detach remote audio + tear down Web Audio graph
+    const el = remoteAudioRef.current;
+    if (el) { try { el.pause(); } catch {} el.srcObject = null; }
+    try { audioSourceRef.current?.disconnect(); } catch {}
+    try { audioFilterRef.current?.disconnect(); } catch {}
+    try { audioGainRef.current?.disconnect(); } catch {}
+    audioSourceRef.current = null;
+    audioFilterRef.current = null;
+    audioGainRef.current = null;
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close().catch(() => {});
+      audioCtxRef.current = null;
+    }
     setCallState(IDLE);
   }, []);
 
@@ -137,6 +183,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
       return;
     }
     cameraStreamRef.current = localStream;
+    // Unlock audio playback NOW while still inside the user gesture
+    unlockAudioPlayback();
 
     const pc = createPC(peerId);
     localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
@@ -168,6 +216,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
       return;
     }
     cameraStreamRef.current = localStream;
+    // Unlock audio playback NOW while still inside the user gesture (the Accept tap)
+    unlockAudioPlayback();
 
     const pc = createPC(state.peerId);
     localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
@@ -280,9 +330,59 @@ export function CallProvider({ children }: { children: ReactNode }) {
   }, [stopScreenShare]);
 
   // ── Toggle speaker ─────────────────────────────────────────────────────────
-  const toggleSpeaker = useCallback(() => {
-    setCallState(prev => ({ ...prev, isSpeakerOn: !prev.isSpeakerOn }));
+  // True earpiece routing isn't possible on most browsers, so we simulate:
+  //  - try setSinkId('communications') when supported (Android Chrome, etc.)
+  //  - otherwise apply Web Audio gain (0.12) + low-pass filter (1500Hz)
+  //    which sounds noticeably "tinny / muffled" like a phone earpiece.
+  const applySpeakerMode = useCallback((speakerOn: boolean) => {
+    const el = remoteAudioRef.current;
+    if (!el) return;
+
+    const anyEl = el as any;
+    if (typeof anyEl.setSinkId === 'function') {
+      anyEl.setSinkId(speakerOn ? 'default' : 'communications')
+        .then(() => { el.volume = 1; })
+        .catch(() => { /* fall through to Web Audio simulation */ });
+    }
+
+    // Set up Web Audio graph once (lazy)
+    if (!audioCtxRef.current && el.srcObject) {
+      try {
+        const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+        const ctx: AudioContext = new AudioCtx();
+        const source = ctx.createMediaStreamSource(el.srcObject as MediaStream);
+        const gain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 22000; // bypass by default
+        source.connect(filter).connect(gain).connect(ctx.destination);
+        audioCtxRef.current = ctx;
+        audioSourceRef.current = source;
+        audioGainRef.current = gain;
+        audioFilterRef.current = filter;
+        // Mute the <audio> element so we don't get double playback
+        el.muted = true;
+      } catch {
+        // Web Audio failed — fall back to volume only
+        el.volume = speakerOn ? 1 : 0.12;
+        return;
+      }
+    }
+
+    if (audioGainRef.current && audioFilterRef.current) {
+      audioGainRef.current.gain.value = speakerOn ? 1.0 : 0.18;
+      audioFilterRef.current.frequency.value = speakerOn ? 22000 : 1500;
+    }
   }, []);
+
+  const toggleSpeaker = useCallback(() => {
+    setCallState(prev => {
+      const next = !prev.isSpeakerOn;
+      // Apply on next tick so the audio element ref is current
+      setTimeout(() => applySpeakerMode(next), 0);
+      return { ...prev, isSpeakerOn: next };
+    });
+  }, [applySpeakerMode]);
 
   // ── Minimize / maximize ────────────────────────────────────────────────────
   const minimize = useCallback(() => {
@@ -379,6 +479,16 @@ export function CallProvider({ children }: { children: ReactNode }) {
       toggleMute, toggleCamera, toggleScreenShare, toggleSpeaker, minimize, maximize,
     }}>
       {children}
+      {/* Always-mounted hidden remote audio element. Lives outside the CallModal
+          so playback isn't disrupted by modal mount/unmount, and play() can be
+          called inside user-gesture handlers (initiateCall, acceptCall) to
+          satisfy autoplay policies on iOS Safari and similar. */}
+      <audio
+        ref={remoteAudioRef}
+        autoPlay
+        playsInline
+        style={{ display: 'none' }}
+      />
     </CallContext.Provider>
   );
 }
