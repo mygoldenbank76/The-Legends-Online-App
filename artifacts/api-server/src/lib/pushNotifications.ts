@@ -46,6 +46,29 @@ async function pushToUser(userId: number, payload: object): Promise<void> {
 }
 
 /**
+ * Send an incoming call push notification to a specific user
+ */
+export async function notifyIncomingCall(opts: {
+  targetUserId: number;
+  callerName: string;
+  callerAvatar?: string;
+  conversationId: number;
+  isVideo: boolean;
+}): Promise<void> {
+  if (!VAPID_PUBLIC || !VAPID_PRIVATE) return;
+  const { targetUserId, callerName, conversationId, isVideo } = opts;
+  const payload = {
+    title: isVideo ? '📹 Appel vidéo entrant' : '📞 Appel entrant',
+    body: `${callerName} vous appelle — Touchez pour répondre`,
+    icon: '/icon-notification.png',
+    badge: '/icon-badge.png',
+    tag: `call-incoming-${targetUserId}`,
+    data: { type: 'incoming_call', conversationId, callerName, isVideo },
+  };
+  await pushToUser(targetUserId, payload);
+}
+
+/**
  * Notify all participants of a conversation (except the sender) about a new message
  */
 export async function notifyNewMessage(opts: {

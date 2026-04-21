@@ -12,7 +12,7 @@ import JoinGroup from "@/pages/join";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { SocketProvider } from "@/lib/socket-context";
 import { CallProvider } from "@/lib/call-context";
-import { CallModal } from "@/components/chat/call-modal";
+import { CallModal, CallBanner } from "@/components/chat/call-modal";
 import { PreferencesProvider } from "@/lib/preferences-context";
 import { ShieldOff, LogOut } from "lucide-react";
 import { createIDBPersister } from "@/lib/idb-persister";
@@ -156,8 +156,10 @@ function App() {
                     {/* Invisible background data loader — preloads all convs + media silently */}
                     <BackgroundLoader />
                     <AppRouter />
-                    {/* Full-screen call overlay — renders on top of everything */}
+                    {/* Full-screen call overlay */}
                     <CallModal />
+                    {/* Mini-banner shown when call is minimized — persists across pages */}
+                    <CallBanner />
                   </CallProvider>
                 </SocketProvider>
               </AuthProvider>

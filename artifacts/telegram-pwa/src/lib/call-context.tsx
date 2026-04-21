@@ -2,7 +2,7 @@
  * WebRTC call context — manages peer connections, signaling via Socket.io,
  * and exposes call state + actions to the rest of the app.
  *
- * Supports audio + optional video calls.
+ * Supports audio + optional video calls, screen sharing, and minimize-to-banner mode.
  * STUN: Google public servers (no TURN needed for most LAN/direct connections).
  */
 import {
@@ -22,10 +22,10 @@ const PC_CONFIG: RTCConfiguration = {
 
 export type CallStatus =
   | 'idle'
-  | 'outgoing'   // we initiated, waiting for answer
-  | 'incoming'   // we received an offer
-  | 'active'     // call is live
-  | 'ended';     // call ended (transient before back to idle)
+  | 'outgoing'
+  | 'incoming'
+  | 'active'
+  | 'ended';
 
 export type CallState = {
   status: CallStatus;
@@ -38,8 +38,9 @@ export type CallState = {
   remoteStream?: MediaStream;
   isMuted: boolean;
   isCameraOff: boolean;
+  isScreenSharing: boolean;
+  isMinimized: boolean;
   startedAt?: number;
-  // Held while incoming, used to answer
   incomingOffer?: RTCSessionDescriptionInit;
 };
 
@@ -51,11 +52,17 @@ type CallContextType = {
   endCall: () => void;
   toggleMute: () => void;
   toggleCamera: () => void;
+  toggleScreenShare: () => Promise<void>;
+  minimize: () => void;
+  maximize: () => void;
 };
 
 const CallContext = createContext<CallContextType | undefined>(undefined);
 
-const IDLE: CallState = { status: 'idle', isVideo: false, isMuted: false, isCameraOff: false };
+const IDLE: CallState = {
+  status: 'idle', isVideo: false, isMuted: false, isCameraOff: false,
+  isScreenSharing: false, isMinimized: false,
+};
 
 export function CallProvider({ children }: { children: ReactNode }) {
   const { socket } = useSocket();
@@ -65,11 +72,12 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const pendingCandidates = useRef<RTCIceCandidateInit[]>([]);
   const stateRef = useRef<CallState>(IDLE);
+  // Reference to the "real" camera stream so we can restore it after screen share ends
+  const cameraStreamRef = useRef<MediaStream | null>(null);
 
-  // Keep stateRef in sync so event handlers (closures) see current state
   useEffect(() => { stateRef.current = callState; }, [callState]);
 
-  // ── Create / destroy peer connection ──────────────────────────────────────
+  // ── Create peer connection ─────────────────────────────────────────────────
   const createPC = useCallback((peerId: number) => {
     const pc = new RTCPeerConnection(PC_CONFIG);
     pcRef.current = pc;
@@ -98,8 +106,9 @@ export function CallProvider({ children }: { children: ReactNode }) {
     const pc = pcRef.current;
     if (pc) { pc.close(); pcRef.current = null; }
     pendingCandidates.current = [];
-    // Stop all local tracks
     stateRef.current.localStream?.getTracks().forEach(t => t.stop());
+    cameraStreamRef.current?.getTracks().forEach(t => t.stop());
+    cameraStreamRef.current = null;
     setCallState(IDLE);
   }, []);
 
@@ -125,6 +134,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
       alert('Accès au micro refusé');
       return;
     }
+    cameraStreamRef.current = localStream;
 
     const pc = createPC(peerId);
     localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
@@ -134,12 +144,12 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
     setCallState({
       status: 'outgoing', conversationId, peerId, peerName, peerAvatar, isVideo,
-      localStream, isMuted: false, isCameraOff: false,
+      localStream, isMuted: false, isCameraOff: false, isScreenSharing: false, isMinimized: false,
     });
 
     socket.emit('call_offer', {
       targetUserId: peerId, offer, fromName: user.displayName,
-      fromAvatar: user.avatar, conversationId, isVideo,
+      fromAvatar: (user as any).avatar, conversationId, isVideo,
     });
   }, [socket, user, createPC]);
 
@@ -155,13 +165,12 @@ export function CallProvider({ children }: { children: ReactNode }) {
       alert('Accès au micro refusé');
       return;
     }
+    cameraStreamRef.current = localStream;
 
     const pc = createPC(state.peerId);
     localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
 
     await pc.setRemoteDescription(new RTCSessionDescription(state.incomingOffer));
-
-    // Flush any buffered ICE candidates
     for (const c of pendingCandidates.current) {
       await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
     }
@@ -170,8 +179,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
 
-    setCallState(prev => ({ ...prev, localStream, status: 'active', startedAt: Date.now() }));
-
+    setCallState(prev => ({ ...prev, localStream, status: 'active', startedAt: Date.now(), isMinimized: false }));
     socket.emit('call_answer', { targetUserId: state.peerId, answer });
   }, [socket, createPC]);
 
@@ -183,7 +191,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     cleanupPC();
   }, [socket, cleanupPC]);
 
-  // ── End active / outgoing call ─────────────────────────────────────────────
+  // ── End call ──────────────────────────────────────────────────────────────
   const endCall = useCallback(() => {
     const state = stateRef.current;
     if (state.peerId && socket) {
@@ -196,19 +204,102 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const toggleMute = useCallback(() => {
     const stream = stateRef.current.localStream;
     if (!stream) return;
-    const enabled = !stateRef.current.isMuted;
-    stream.getAudioTracks().forEach(t => { t.enabled = !enabled; });
-    setCallState(prev => ({ ...prev, isMuted: enabled }));
+    const willMute = !stateRef.current.isMuted;
+    stream.getAudioTracks().forEach(t => { t.enabled = !willMute; });
+    setCallState(prev => ({ ...prev, isMuted: willMute }));
   }, []);
 
   // ── Toggle camera ──────────────────────────────────────────────────────────
   const toggleCamera = useCallback(() => {
     const stream = stateRef.current.localStream;
     if (!stream) return;
-    const off = !stateRef.current.isCameraOff;
-    stream.getVideoTracks().forEach(t => { t.enabled = !off; });
-    setCallState(prev => ({ ...prev, isCameraOff: off }));
+    const willOff = !stateRef.current.isCameraOff;
+    stream.getVideoTracks().forEach(t => { t.enabled = !willOff; });
+    setCallState(prev => ({ ...prev, isCameraOff: willOff }));
   }, []);
+
+  // ── Screen share ───────────────────────────────────────────────────────────
+  const stopScreenShare = useCallback(async () => {
+    const pc = pcRef.current;
+    const cameraStream = cameraStreamRef.current;
+    if (!pc || !cameraStream) {
+      setCallState(prev => ({ ...prev, isScreenSharing: false }));
+      return;
+    }
+    // Restore camera video track
+    const cameraTrack = cameraStream.getVideoTracks()[0];
+    if (cameraTrack) {
+      const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+      if (sender) {
+        await sender.replaceTrack(cameraTrack).catch(() => {});
+      }
+    }
+    setCallState(prev => ({ ...prev, isScreenSharing: false, localStream: cameraStream }));
+  }, []);
+
+  const toggleScreenShare = useCallback(async () => {
+    if (stateRef.current.status !== 'active') return;
+
+    if (stateRef.current.isScreenSharing) {
+      await stopScreenShare();
+      return;
+    }
+
+    let screenStream: MediaStream;
+    try {
+      screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: 30 },
+        audio: false,
+      });
+    } catch {
+      return; // User cancelled or permission denied
+    }
+
+    const screenTrack = screenStream.getVideoTracks()[0];
+    const pc = pcRef.current;
+    if (!pc || !screenTrack) { screenStream.getTracks().forEach(t => t.stop()); return; }
+
+    // Replace video sender
+    const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+    if (sender) {
+      await sender.replaceTrack(screenTrack).catch(() => {});
+    } else {
+      pc.addTrack(screenTrack, screenStream);
+    }
+
+    // Create a combined stream with screen video + mic audio
+    const micTracks = cameraStreamRef.current?.getAudioTracks() ?? [];
+    const displayStream = new MediaStream([screenTrack, ...micTracks]);
+
+    setCallState(prev => ({ ...prev, isScreenSharing: true, localStream: displayStream }));
+
+    // When user stops via browser "Stop sharing" button
+    screenTrack.onended = () => { stopScreenShare(); };
+  }, [stopScreenShare]);
+
+  // ── Minimize / maximize ────────────────────────────────────────────────────
+  const minimize = useCallback(() => {
+    if (stateRef.current.status !== 'idle') {
+      setCallState(prev => ({ ...prev, isMinimized: true }));
+    }
+  }, []);
+
+  const maximize = useCallback(() => {
+    setCallState(prev => ({ ...prev, isMinimized: false }));
+  }, []);
+
+  // ── Service worker message listener (for notif action buttons) ───────────
+  useEffect(() => {
+    const onSWMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'ACCEPT_CALL') {
+        acceptCall();
+      } else if (event.data?.type === 'REJECT_CALL') {
+        rejectCall();
+      }
+    };
+    navigator.serviceWorker?.addEventListener('message', onSWMessage);
+    return () => navigator.serviceWorker?.removeEventListener('message', onSWMessage);
+  }, [acceptCall, rejectCall]);
 
   // ── Socket event listeners ─────────────────────────────────────────────────
   useEffect(() => {
@@ -218,7 +309,6 @@ export function CallProvider({ children }: { children: ReactNode }) {
       fromUserId: number; fromName: string; fromAvatar?: string;
       offer: RTCSessionDescriptionInit; conversationId: number; isVideo: boolean;
     }) => {
-      // Auto-reject if already in a call
       if (stateRef.current.status !== 'idle') {
         socket.emit('call_reject', { targetUserId: data.fromUserId });
         return;
@@ -233,6 +323,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
         incomingOffer: data.offer,
         isMuted: false,
         isCameraOff: false,
+        isScreenSharing: false,
+        isMinimized: false,
       });
     };
 
@@ -275,7 +367,10 @@ export function CallProvider({ children }: { children: ReactNode }) {
   }, [socket, cleanupPC]);
 
   return (
-    <CallContext.Provider value={{ callState, initiateCall, acceptCall, rejectCall, endCall, toggleMute, toggleCamera }}>
+    <CallContext.Provider value={{
+      callState, initiateCall, acceptCall, rejectCall, endCall,
+      toggleMute, toggleCamera, toggleScreenShare, minimize, maximize,
+    }}>
       {children}
     </CallContext.Provider>
   );

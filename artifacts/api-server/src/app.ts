@@ -9,6 +9,7 @@ import { Server as SocketIOServer } from "socket.io";
 import { verifyToken } from "./lib/auth";
 import { db, messagesTable, conversationParticipantsTable, usersTable } from "@workspace/db";
 import { eq, and, ne, gt } from "drizzle-orm";
+import { notifyIncomingCall } from "./lib/pushNotifications";
 
 const app: Express = express();
 export const httpServer = createServer(app);
@@ -71,7 +72,7 @@ io.on("connection", async (socket) => {
   }
 
   // ── WebRTC signaling relay ────────────────────────────────────────────────
-  socket.on("call_offer", ({ targetUserId, offer, fromName, fromAvatar, conversationId, isVideo }: { targetUserId: number; offer: RTCSessionDescriptionInit; fromName: string; fromAvatar?: string; conversationId: number; isVideo: boolean }) => {
+  socket.on("call_offer", async ({ targetUserId, offer, fromName, fromAvatar, conversationId, isVideo }: { targetUserId: number; offer: RTCSessionDescriptionInit; fromName: string; fromAvatar?: string; conversationId: number; isVideo: boolean }) => {
     if (!userId) return;
     const targetSockets = userSockets.get(targetUserId);
     if (targetSockets) {
@@ -79,6 +80,10 @@ io.on("connection", async (socket) => {
         io.to(sid).emit("call_offer", { fromUserId: userId, fromName, fromAvatar, offer, conversationId, isVideo });
       }
     }
+    // Also push a notification in case the app is in background / screen is off
+    try {
+      await notifyIncomingCall({ targetUserId, callerName: fromName, callerAvatar: fromAvatar, conversationId, isVideo });
+    } catch { /* non-critical */ }
   });
 
   socket.on("call_answer", ({ targetUserId, answer }: { targetUserId: number; answer: RTCSessionDescriptionInit }) => {

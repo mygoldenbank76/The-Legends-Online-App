@@ -166,12 +166,32 @@ self.addEventListener('push', (event) => {
     return origin + path;
   };
 
-  // Use conversation-specific tag so notifications can be grouped/replaced
+  // ── Incoming call notification ─────────────────────────────────────────────
+  if (data?.type === 'incoming_call') {
+    event.waitUntil(
+      self.registration.showNotification(title || '📞 Appel entrant', {
+        body: body || '',
+        icon: toAbsolute(icon),
+        badge: toAbsolute(badge),
+        tag: `call-incoming-${data.conversationId}`,
+        renotify: true,
+        data: data || {},
+        vibrate: [300, 150, 300, 150, 300],
+        requireInteraction: true, // keep visible until user interacts
+        actions: [
+          { action: 'accept_call', title: '✅ Accepter' },
+          { action: 'reject_call', title: '❌ Refuser' },
+        ],
+      })
+    );
+    return;
+  }
+
+  // ── Regular message notification ───────────────────────────────────────────
   const conversationId = data?.conversationId;
   const notifTag = conversationId ? `conv-${conversationId}` : 'legends-notification';
 
   event.waitUntil(
-    // Check existing notifications for this conversation to group them
     self.registration.getNotifications({ tag: notifTag }).then((existing) => {
       let finalTitle = title || 'The Legends Online';
       let finalBody = body || '';
@@ -188,7 +208,7 @@ self.addEventListener('push', (event) => {
         icon: toAbsolute(icon),
         badge: toAbsolute(badge),
         tag: notifTag,
-        renotify: true,          // vibrate/sound even when replacing same tag
+        renotify: true,
         data: data || {},
         vibrate: [200, 100, 200],
         requireInteraction: false,
@@ -230,6 +250,26 @@ self.addEventListener('notificationclick', (event) => {
     return clientList.find(
       (c) => c.url.startsWith(self.location.origin) && 'focus' in c
     ) || null;
+  }
+
+  // ── Call actions from notification ──────────────────────────────────────────
+  if (event.action === 'accept_call' || event.action === 'reject_call') {
+    const action = event.action === 'accept_call' ? 'ACCEPT_CALL' : 'REJECT_CALL';
+    event.waitUntil(
+      clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+        const appClient = findAppClient(clientList);
+        if (appClient) {
+          appClient.focus();
+          appClient.postMessage({ type: action, conversationId });
+          return;
+        }
+        // App not open — open it; user will see the call UI when they arrive
+        if (clients.openWindow) {
+          return clients.openWindow(conversationId ? `/?conv=${conversationId}&type=direct` : '/');
+        }
+      })
+    );
+    return;
   }
 
   if (event.action === 'reply' && event.reply && conversationId) {
