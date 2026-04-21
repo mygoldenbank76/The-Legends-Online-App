@@ -150,6 +150,76 @@ export function CallModal() {
     return () => clearInterval(id);
   }, [status, startedAt]);
 
+  // ── Ringtone (incoming) + dial tone (outgoing) ─────────────────────────────
+  // Generated with Web Audio API so we don't need an audio file.
+  useEffect(() => {
+    if (status !== 'incoming' && status !== 'outgoing') return;
+
+    const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+
+    const ctx: AudioContext = new AudioCtx();
+    let stopped = false;
+    const oscillators: OscillatorNode[] = [];
+    const gains: GainNode[] = [];
+
+    function playPattern() {
+      if (stopped || ctx.state === 'closed') return;
+      const now = ctx.currentTime;
+
+      if (status === 'incoming') {
+        // Two-tone ring (440Hz / 480Hz, 1s on / 2s off)
+        [440, 480].forEach((freq) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.frequency.value = freq;
+          osc.type = 'sine';
+          gain.gain.setValueAtTime(0, now);
+          gain.gain.linearRampToValueAtTime(0.15, now + 0.05);
+          gain.gain.setValueAtTime(0.15, now + 0.95);
+          gain.gain.linearRampToValueAtTime(0, now + 1);
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 1);
+          oscillators.push(osc);
+          gains.push(gain);
+        });
+        // Vibrate phone
+        if ('vibrate' in navigator) navigator.vibrate([400, 200, 400]);
+      } else {
+        // Outgoing dial tone — single beep, 350Hz, 1s on / 2s off
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.value = 350;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.08, now + 0.05);
+        gain.gain.setValueAtTime(0.08, now + 0.95);
+        gain.gain.linearRampToValueAtTime(0, now + 1);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 1);
+        oscillators.push(osc);
+        gains.push(gain);
+      }
+    }
+
+    // Resume audio context if suspended (autoplay policy)
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+    playPattern();
+    const intervalId = setInterval(playPattern, 3000);
+
+    return () => {
+      stopped = true;
+      clearInterval(intervalId);
+      oscillators.forEach(o => { try { o.stop(); o.disconnect(); } catch {} });
+      gains.forEach(g => { try { g.disconnect(); } catch {} });
+      if ('vibrate' in navigator) navigator.vibrate(0);
+      ctx.close().catch(() => {});
+    };
+  }, [status]);
+
   // Show full-screen modal when not minimized and not idle
   const visible = !isMinimized && status !== 'idle';
 
