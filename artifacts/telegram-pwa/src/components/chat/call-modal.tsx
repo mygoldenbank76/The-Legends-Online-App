@@ -426,9 +426,9 @@ export function CallModal() {
             exit={isFullscreenVideo ? { opacity: 0, y: 30 } : undefined}
             transition={{ duration: 0.2 }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full px-6 pb-12 pt-6 relative z-30"
+            className={`w-full px-6 pb-12 pt-6 z-30 ${isFullscreenVideo ? 'absolute bottom-0 left-0 right-0' : 'relative mt-auto'}`}
             style={isFullscreenVideo ? {
-              background: 'linear-gradient(0deg, rgba(0,0,0,0.7), transparent)',
+              background: 'linear-gradient(0deg, rgba(0,0,0,0.85), rgba(0,0,0,0.4) 70%, transparent)',
             } : undefined}
           >
             {status === 'incoming' ? (
