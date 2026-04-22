@@ -139,13 +139,13 @@ function AlbumGrid({ urls, onItemClick }: { urls: string[]; onItemClick: (i: num
   const shown = urls.slice(0, Math.min(count, 6));
   const gap = 2;
 
-  // Telegram exact corner radius map (outer corners only)
+  // WhatsApp-style corner radius map (outer corners only) — match bubble radius
   const r = (tl: boolean, tr: boolean, bl: boolean, br: boolean) =>
-    `${tl ? 10 : 2}px ${tr ? 10 : 2}px ${br ? 10 : 2}px ${bl ? 10 : 2}px`;
+    `${tl ? 5 : 1}px ${tr ? 5 : 1}px ${br ? 5 : 1}px ${bl ? 5 : 1}px`;
 
   const wrap = (content: React.ReactNode) => (
     <div
-      className="mb-2 -mx-1 -mt-1 overflow-hidden rounded-xl"
+      className="mb-1.5 -mx-1 -mt-0.5 overflow-hidden rounded-[5px]"
       onClick={e => e.stopPropagation()}
     >
       {content}
@@ -1740,19 +1740,19 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     {/* Single Image or Video */}
                     {msg.imageUrl && !(msg as any).mediaAlbum && !isPoll && (
                       <div
-                        className="mb-2 -mx-1 -mt-1 overflow-hidden rounded-xl bg-white/5"
+                        className="mb-1.5 -mx-1 -mt-0.5 overflow-hidden rounded-[5px] bg-white/5"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {msg.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? (
                           <VideoPlayer
                             src={msg.imageUrl}
-                            className="w-full rounded-xl"
+                            className="w-full rounded-[5px]"
                           />
                         ) : (
                           <CachedImg
                             src={msg.imageUrl}
                             alt="attached"
-                            className="max-w-full max-h-64 object-cover rounded-xl cursor-pointer active:opacity-80 transition-opacity"
+                            className="max-w-full max-h-64 object-cover rounded-[5px] cursor-pointer active:opacity-80 transition-opacity"
                             onClick={() => {
                               if (Date.now() - conversationOpenedAt.current < 900) return;
                               setMediaViewer({ urls: [msg.imageUrl!], index: 0 });
