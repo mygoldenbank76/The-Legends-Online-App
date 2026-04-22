@@ -1675,10 +1675,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   )}
 
                   {/* ── Bubble ── */}
-                  <div className={`rounded-[18px] px-2.5 py-1.5 text-[14.5px] shadow-sm leading-[1.35]
+                  <div className={`rounded-[7px] px-2 py-[5px] text-[14.5px] shadow-sm leading-[1.3]
                     ${isMine
-                      ? 'bg-primary text-primary-foreground rounded-br-[6px]'
-                      : 'bg-card text-card-foreground border border-border/60 rounded-bl-[6px]'
+                      ? 'bg-primary text-primary-foreground rounded-br-[2px]'
+                      : 'bg-card text-card-foreground border border-border/50 rounded-bl-[2px]'
                     }`}
                   >
                     {/* Reply preview inside bubble — WhatsApp style */}
