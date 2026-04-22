@@ -1684,7 +1684,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     {/* Reply preview inside bubble — WhatsApp style */}
                     {msg.replyTo && !msg.replyTo.isDeleted && (
                       <div
-                        className={`mb-2 rounded-lg overflow-hidden flex cursor-pointer
+                        className={`mb-1 -mx-1 rounded-[5px] overflow-hidden flex cursor-pointer
                           ${isMine ? 'bg-black/20' : 'bg-black/8'}`}
                         style={{ background: isMine ? 'rgba(0,0,0,0.20)' : 'rgba(0,0,0,0.07)' }}
                         onClick={(e) => {
