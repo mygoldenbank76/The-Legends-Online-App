@@ -1519,6 +1519,55 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             const isSearchMatch = searchOpen && searchQuery.trim().length > 0 && !!msg.content?.toLowerCase().includes(searchQuery.toLowerCase());
             const isCurrentMatch = isSearchMatch && searchMatches[searchMatchIdx] === i;
 
+            // Call events render as centered system pills (WhatsApp/Telegram style)
+            if (isCall) {
+              const isVideo = msg.callType === 'video';
+              const Icon = isVideo ? VideoIcon : Phone;
+              const status = msg.callStatus;
+              const dur = msg.callDuration ?? 0;
+              const formatDur = (s: number) => {
+                if (s < 60) return `${s} s`;
+                const m = Math.floor(s / 60);
+                const r = s % 60;
+                return r === 0 ? `${m} min` : `${m} min ${r}`;
+              };
+              const isMissed = status === 'missed' || status === 'declined';
+              let label = isVideo ? 'Appel vidéo' : 'Appel vocal';
+              let detail = '';
+              if (status === 'answered') detail = formatDur(dur);
+              else if (status === 'declined') detail = 'Refusé';
+              else { label = isVideo ? 'Appel vidéo manqué' : 'Appel vocal manqué'; detail = isMine ? 'Sans réponse' : 'Appuyez pour rappeler'; }
+
+              return (
+                <div key={msg.id} id={`msg-${msg.id}`} className={`flex justify-center w-full ${isSameAuthor ? 'mt-1' : 'mt-3'}`}>
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (conversation?.type !== 'group') {
+                        const other = (conversation as any)?.otherUser;
+                        if (other && initiateCall) {
+                          try {
+                            await initiateCall({
+                              peerId: other.id, peerName: other.displayName,
+                              peerAvatar: other.avatar || undefined, conversationId, isVideo,
+                            });
+                          } catch {/* mic/cam denied */}
+                        }
+                      }
+                    }}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.10] border border-white/10 backdrop-blur-sm transition-colors max-w-[85%]"
+                  >
+                    <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${isMissed ? 'text-rose-400' : 'text-emerald-400'}`} />
+                    <span className="text-[12px] text-foreground/85 font-medium truncate">{label}</span>
+                    <span className="text-[11px] text-muted-foreground flex-shrink-0">·</span>
+                    <span className="text-[11px] text-muted-foreground flex-shrink-0">{detail}</span>
+                    <span className="text-[10px] text-muted-foreground/60 ml-1 font-mono flex-shrink-0">{msgTime}</span>
+                  </button>
+                </div>
+              );
+            }
+
             return (
               <div
                 key={msg.id}
@@ -1626,10 +1675,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   )}
 
                   {/* ── Bubble ── */}
-                  <div className={`rounded-2xl px-3 py-2 text-sm shadow-sm
+                  <div className={`rounded-[18px] px-2.5 py-1.5 text-[14.5px] shadow-sm leading-[1.35]
                     ${isMine
-                      ? 'bg-primary text-primary-foreground rounded-br-sm'
-                      : 'bg-card text-card-foreground border border-border rounded-bl-sm'
+                      ? 'bg-primary text-primary-foreground rounded-br-[6px]'
+                      : 'bg-card text-card-foreground border border-border/60 rounded-bl-[6px]'
                     }`}
                   >
                     {/* Reply preview inside bubble — WhatsApp style */}
@@ -1824,7 +1873,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     )}
 
                     {/* Bottom row: reactions (left) + time (right) — inside bubble like Base44 */}
-                    <div className={`flex items-end justify-between gap-2 ${isPoll ? 'mt-2' : 'mt-1.5'}`}>
+                    <div className={`flex items-end justify-between gap-2 ${isPoll ? 'mt-2' : 'mt-0.5 -mb-0.5'}`}>
                       {/* Reactions inside bubble — animated with Framer Motion */}
                       {hasReactions ? (
                         <div className="flex flex-wrap gap-1">
