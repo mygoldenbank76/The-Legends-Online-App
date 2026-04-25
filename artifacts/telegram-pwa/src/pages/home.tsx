@@ -8,7 +8,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useQueryClient } from '@tanstack/react-query';
 import { getListConversationsQueryKey } from '@workspace/api-client-react';
 import { AnimatedBackground } from '@/components/animated-background';
-import { Users, MessageSquare, ShoppingBag, Settings, Zap, LogOut, Globe, Languages, ChevronDown, Shield, X, ChevronRight, Pencil, Download, Smartphone, CheckCircle2, Share, Bell, BellOff, Sun, Moon, Monitor, Sparkles } from 'lucide-react';
+import { Users, MessageSquare, ShoppingBag, Settings, Zap, LogOut, Globe, Languages, ChevronDown, Shield, X, ChevronRight, Pencil, Download, Smartphone, CheckCircle2, Share, Bell, BellOff } from 'lucide-react';
 import { AdminPanel } from '@/components/admin/admin-panel';
 import { ProfileEditorSheet } from '@/components/profile/profile-editor-sheet';
 import { usePreferences } from '@/lib/preferences-context';
@@ -505,7 +505,7 @@ function SettingsPage({
   onLogout: () => void;
   onRefetchUser: () => void;
 }) {
-  const { t, appLanguage, setAppLanguage, translateLanguage, setTranslateLanguage, theme, resolvedTheme, setTheme, effectsEnabled, setEffectsEnabled } = usePreferences();
+  const { t, appLanguage, setAppLanguage, translateLanguage, setTranslateLanguage } = usePreferences();
   const [openLangMenu, setOpenLangMenu] = useState<'app' | 'translate' | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showProfileEditor, setShowProfileEditor] = useState(false);
@@ -576,96 +576,6 @@ function SettingsPage({
           onSaved={() => { onRefetchUser(); setShowProfileEditor(false); }}
         />
       )}
-
-      {/* Appearance section — theme + visual effects */}
-      <div>
-        <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider px-1 mb-2">{t.settings.appearance}</p>
-        <div className="glass rounded-2xl overflow-hidden [&>*+*]:border-t [&>*+*]:border-foreground/5">
-
-          {/* Theme toggle (segmented control: Dark / Light / System) */}
-          <div className="flex items-center gap-3 px-4 py-3.5">
-            <div className="w-8 h-8 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
-              {theme === 'system'
-                ? <Monitor className="w-4 h-4 text-primary" />
-                : resolvedTheme === 'dark'
-                  ? <Moon className="w-4 h-4 text-primary" />
-                  : <Sun className="w-4 h-4 text-primary" />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium">{t.settings.theme}</p>
-              <p className="text-xs text-muted-foreground">{t.settings.themeDesc}</p>
-            </div>
-            <div className="flex items-center gap-1 p-1 rounded-full bg-foreground/10 flex-shrink-0">
-              <button
-                type="button"
-                onClick={() => setTheme('dark')}
-                aria-pressed={theme === 'dark'}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
-                  theme === 'dark'
-                    ? 'gradient-primary text-white glow-primary-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Moon className="w-3.5 h-3.5" />
-                <span>{t.settings.themeDark}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setTheme('light')}
-                aria-pressed={theme === 'light'}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
-                  theme === 'light'
-                    ? 'gradient-primary text-white glow-primary-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Sun className="w-3.5 h-3.5" />
-                <span>{t.settings.themeLight}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setTheme('system')}
-                aria-pressed={theme === 'system'}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
-                  theme === 'system'
-                    ? 'gradient-primary text-white glow-primary-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Monitor className="w-3.5 h-3.5" />
-                <span>{t.settings.themeSystem}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Visual effects toggle (switch) */}
-          <button
-            type="button"
-            onClick={() => setEffectsEnabled(!effectsEnabled)}
-            aria-pressed={effectsEnabled}
-            className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-foreground/5 transition-colors text-left"
-          >
-            <div className="w-8 h-8 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
-              <Sparkles className="w-4 h-4 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium">{t.settings.visualEffects}</p>
-              <p className="text-xs text-muted-foreground">{t.settings.visualEffectsDesc}</p>
-            </div>
-            <span
-              className={`relative w-11 h-6 rounded-full flex-shrink-0 transition-colors ${
-                effectsEnabled ? 'gradient-primary glow-primary-sm' : 'bg-foreground/15'
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
-                  effectsEnabled ? 'translate-x-5' : 'translate-x-0'
-                }`}
-              />
-            </span>
-          </button>
-        </div>
-      </div>
 
       {/* Preferences section */}
       <div>

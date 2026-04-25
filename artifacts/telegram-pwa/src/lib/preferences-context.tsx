@@ -57,36 +57,19 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     return (localStorage.getItem('telechat_translate_lang') as TranslateLang) ?? 'fr';
   });
 
-  const [theme, setThemeState] = useState<Theme>(readStoredTheme);
-  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(getSystemTheme);
-  const [effectsEnabled, setEffectsEnabledState] = useState<boolean>(readStoredEffects);
+  // Theme + visual effects are locked platform-wide (always dark, always on).
+  const theme: Theme = 'dark';
+  const resolvedTheme: ResolvedTheme = 'dark';
+  const effectsEnabled = true;
 
-  const resolvedTheme: ResolvedTheme = theme === 'system' ? systemTheme : theme;
-
-  // Listen to OS-level color-scheme changes (live update when in 'system' mode)
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-    const mql = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = (e: MediaQueryListEvent) => setSystemTheme(e.matches ? 'dark' : 'light');
-    if (typeof mql.addEventListener === 'function') {
-      mql.addEventListener('change', handler);
-      return () => mql.removeEventListener('change', handler);
-    }
-    // Safari < 14 fallback
-    mql.addListener(handler);
-    return () => mql.removeListener(handler);
-  }, []);
-
-  // Apply resolved theme to <html> + sync the PWA theme-color meta tag
+  // Ensure <html> always reflects the locked dark theme + meta theme-color.
   useEffect(() => {
     const html = document.documentElement;
-    html.dataset.theme = resolvedTheme;
-    html.classList.toggle('dark', resolvedTheme === 'dark');
+    html.dataset.theme = 'dark';
+    html.classList.add('dark');
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) {
-      meta.setAttribute('content', resolvedTheme === 'dark' ? THEME_COLOR_DARK : THEME_COLOR_LIGHT);
-    }
-  }, [resolvedTheme]);
+    if (meta) meta.setAttribute('content', THEME_COLOR_DARK);
+  }, []);
 
   const setAppLanguage = (lang: AppLang) => {
     setAppLanguageState(lang);
@@ -98,15 +81,9 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('telechat_translate_lang', lang);
   };
 
-  const setTheme = (next: Theme) => {
-    setThemeState(next);
-    localStorage.setItem(THEME_KEY, next);
-  };
-
-  const setEffectsEnabled = (enabled: boolean) => {
-    setEffectsEnabledState(enabled);
-    localStorage.setItem(EFFECTS_KEY, enabled ? '1' : '0');
-  };
+  // Theme & effects are locked — setters are kept for type compatibility but no-op.
+  const setTheme = (_next: Theme) => {};
+  const setEffectsEnabled = (_enabled: boolean) => {};
 
   return (
     <PreferencesContext.Provider
