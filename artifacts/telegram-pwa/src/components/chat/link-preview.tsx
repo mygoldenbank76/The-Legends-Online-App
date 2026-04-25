@@ -37,12 +37,20 @@ function PlatformBadge({ platform, siteName }: { platform?: string | null; siteN
   const cfg = platform ? PLATFORM_CONFIG[platform] : null;
   const label = cfg?.label ?? siteName ?? platform;
   if (!label) return null;
+  // No platform color → use the app's primary gradient pill (matches poll-option highlight pattern).
+  if (!cfg?.color) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full gradient-primary-soft border border-primary/35 text-foreground">
+        {label}
+      </span>
+    );
+  }
   return (
     <span
       className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-      style={{ background: cfg?.color ? `${cfg.color}22` : 'rgba(170,170,170,0.1)', color: cfg?.color ?? '#aaa', border: `1px solid ${cfg?.color ? cfg.color + '44' : '#aaa4'}` }}
+      style={{ background: `${cfg.color}22`, color: cfg.color, border: `1px solid ${cfg.color}44` }}
     >
-      {cfg?.icon}
+      {cfg.icon}
       {label}
     </span>
   );
@@ -197,8 +205,10 @@ export function LinkPreviewCard({ preview, isMine }: Props) {
   const platform = preview.platform ?? null;
   const cfg = platform ? PLATFORM_CONFIG[platform] : null;
 
-  const containerClass = `mt-2 rounded-xl overflow-hidden text-xs
-    ${isMine ? 'bg-black/15 border border-white/10' : 'bg-background/60 border border-border'}`;
+  const containerClass = `mt-2 rounded-xl overflow-hidden text-xs transition-all
+    ${isMine
+      ? 'bg-black/15 border border-white/10 hover:border-white/25'
+      : 'bg-background/60 border border-border hover:border-primary/40 hover:glow-primary-sm'}`;
 
   const blockProps = {
     onTouchStart: stopTouch,
@@ -249,7 +259,7 @@ export function LinkPreviewCard({ preview, isMine }: Props) {
       href={preview.url}
       target="_blank"
       rel="noopener noreferrer"
-      className={containerClass + ' block hover:opacity-90 transition-opacity'}
+      className={containerClass + ' block'}
       {...blockProps}
     >
       {hasImage && <GenericImage src={preview.image!} alt={preview.title ?? ''} />}

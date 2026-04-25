@@ -76,7 +76,7 @@ export function GifPicker({ open, onClose, onSelect }: Props) {
         >
           <div className="surface-floating rounded-2xl overflow-hidden mx-3">
             {/* Search bar */}
-            <div className="flex items-center gap-2 px-3 pt-3 pb-2">
+            <div className="flex items-center gap-2 px-3 pt-3 pb-2 gradient-hairline-bottom">
               <div className="flex-1 relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                 <Input
@@ -85,7 +85,7 @@ export function GifPicker({ open, onClose, onSelect }: Props) {
                   onChange={e => setRawQuery(e.target.value)}
                   onKeyDown={handleKey}
                   placeholder="Rechercher des GIF…"
-                  className="h-8 pl-7 text-xs bg-background/40 border-border/40 rounded-xl focus-visible:ring-1 focus-visible:ring-primary/50"
+                  className="h-8 pl-7 text-xs bg-background/40 border-border/40 rounded-xl focus-visible:ring-1 focus-visible:ring-primary/60 focus-visible:border-primary/40"
                 />
               </div>
               <button
@@ -97,7 +97,7 @@ export function GifPicker({ open, onClose, onSelect }: Props) {
             </div>
 
             {/* Section label */}
-            <p className="px-3 pb-1 text-[10px] text-muted-foreground font-semibold tracking-widest uppercase">
+            <p className="px-3 pt-2 pb-1 text-[10px] font-semibold tracking-widest uppercase text-gradient-primary">
               {rawQuery.trim() ? 'Résultats' : 'Tendances'}
             </p>
 
@@ -105,7 +105,7 @@ export function GifPicker({ open, onClose, onSelect }: Props) {
             <div className="overflow-y-auto" style={{ maxHeight: 264 }}>
               {loading ? (
                 <div className="flex items-center justify-center h-28">
-                  <Loader2 className="w-5 h-5 animate-spin text-primary/60" />
+                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
                 </div>
               ) : results.length === 0 ? (
                 <div className="flex items-center justify-center h-28 text-sm text-muted-foreground">
@@ -117,7 +117,7 @@ export function GifPicker({ open, onClose, onSelect }: Props) {
                     <button
                       key={gif.id}
                       onClick={() => { onSelect(gif); onClose(); }}
-                      className="relative rounded-xl overflow-hidden bg-background/30 hover:ring-2 hover:ring-primary/70 active:scale-95 transition-all aspect-video"
+                      className="relative rounded-xl overflow-hidden gradient-primary-soft ring-1 ring-white/5 hover:ring-2 hover:ring-primary hover:glow-primary-sm active:scale-95 transition-all aspect-video"
                     >
                       <img
                         src={gif.preview}
