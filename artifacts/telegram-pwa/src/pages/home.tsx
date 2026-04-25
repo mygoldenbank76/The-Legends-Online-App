@@ -346,7 +346,7 @@ function MobileBottomNav({ activeTab, onSelect }: { activeTab: Tab; onSelect: (t
   const { t } = usePreferences();
   const tabs: Tab[] = ['groups', 'messages', 'shop', 'settings'];
   return (
-    <nav className="flex-shrink-0 safe-area-bottom px-3 pt-1.5 pb-4 relative">
+    <nav className="flex-shrink-0 safe-area-bottom px-3 pt-1.5 pb-6 relative">
       {/* Floating capsule shell */}
       <div className="glass gradient-hairline-top shadow-floating-capsule relative flex items-stretch rounded-[20px] px-1.5 py-1 overflow-hidden">
         {tabs.map((id) => {

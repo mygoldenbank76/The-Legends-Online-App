@@ -1,6 +1,6 @@
-const CACHE_NAME = 'legends-v5';
-const STATIC_CACHE = 'legends-static-v5';
-const MEDIA_CACHE = 'legends-media-v5';
+const CACHE_NAME = 'legends-v6';
+const STATIC_CACHE = 'legends-static-v6';
+const MEDIA_CACHE = 'legends-media-v6';
 
 // ── Install ──────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
