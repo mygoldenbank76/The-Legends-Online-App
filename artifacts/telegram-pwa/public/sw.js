@@ -1,28 +1,33 @@
-const CACHE_NAME = 'legends-v6';
-const STATIC_CACHE = 'legends-static-v6';
-const MEDIA_CACHE = 'legends-media-v6';
+const CACHE_NAME = 'legends-v7';
+const STATIC_CACHE = 'legends-static-v7';
+const MEDIA_CACHE = 'legends-media-v7';
 
 // ── Install ──────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
   self.skipWaiting();
-  event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => {
-      return cache.addAll(['/manifest.json', '/icon-192.png']);
-    })
-  );
 });
 
-// ── Activate: delete old caches ──────────────────────────────────────────────
+// Allow the page to force activation of an installed-but-waiting SW.
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
+// ── Activate: nuke ALL old caches (any version), then claim ──────────────────
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys
-          .filter((k) => k !== CACHE_NAME && k !== STATIC_CACHE && k !== MEDIA_CACHE)
-          .map((k) => caches.delete(k))
-      );
-    }).then(() => self.clients.claim())
-  );
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(
+      keys
+        .filter((k) => k !== CACHE_NAME && k !== STATIC_CACHE && k !== MEDIA_CACHE)
+        .map((k) => caches.delete(k))
+    );
+    await self.clients.claim();
+    // Tell all open clients a new SW is controlling them so they can reload.
+    const clientsList = await self.clients.matchAll({ type: 'window' });
+    clientsList.forEach((c) => c.postMessage({ type: 'SW_UPDATED' }));
+  })());
 });
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -112,19 +117,10 @@ self.addEventListener('fetch', (event) => {
   // Skip cross-origin non-media
   if (url.origin !== self.location.origin) return;
 
-  // ── 3. Navigation requests — Network First, cache fallback ───────────────
+  // ── 3. Navigation requests — ALWAYS network, never cache HTML ────────────
+  // Caching index.html breaks deploys (old HTML references missing JS/CSS hashes).
   if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((c) => c.put(request, clone));
-          return response;
-        })
-        .catch(() =>
-          caches.match(request).then((cached) => cached || caches.match('/index.html'))
-        )
-    );
+    event.respondWith(fetch(request));
     return;
   }
 
