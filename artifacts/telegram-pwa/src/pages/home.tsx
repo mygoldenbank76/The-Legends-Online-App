@@ -141,7 +141,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-background text-foreground relative">
+    <div className="flex h-full w-full overflow-hidden text-foreground relative">
       <AnimatedBackground />
 
       {/* ── Desktop sidebar ── */}
