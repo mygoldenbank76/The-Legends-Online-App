@@ -2,7 +2,8 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import type { AppLang, TranslateLang } from './i18n';
 import { i18n } from './i18n';
 
-export type Theme = 'dark' | 'light';
+export type Theme = 'dark' | 'light' | 'system';
+export type ResolvedTheme = 'dark' | 'light';
 
 interface PreferencesContextType {
   appLanguage: AppLang;
@@ -10,6 +11,7 @@ interface PreferencesContextType {
   translateLanguage: TranslateLang;
   setTranslateLanguage: (lang: TranslateLang) => void;
   theme: Theme;
+  resolvedTheme: ResolvedTheme;
   setTheme: (theme: Theme) => void;
   effectsEnabled: boolean;
   setEffectsEnabled: (enabled: boolean) => void;
@@ -21,16 +23,29 @@ const PreferencesContext = createContext<PreferencesContextType | undefined>(und
 const THEME_KEY = 'telechat_theme';
 const EFFECTS_KEY = 'telechat_effects';
 
+const THEME_COLOR_DARK = '#0e121c';
+const THEME_COLOR_LIGHT = '#f9f9fc';
+
 function readStoredTheme(): Theme {
-  if (typeof window === 'undefined') return 'dark';
+  if (typeof window === 'undefined') return 'system';
   const stored = window.localStorage.getItem(THEME_KEY);
-  return stored === 'light' ? 'light' : 'dark';
+  if (stored === 'light' || stored === 'dark' || stored === 'system') return stored;
+  return 'system';
 }
 
 function readStoredEffects(): boolean {
   if (typeof window === 'undefined') return true;
   const stored = window.localStorage.getItem(EFFECTS_KEY);
   return stored === null ? true : stored === '1';
+}
+
+function getSystemTheme(): ResolvedTheme {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return 'dark';
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function resolveTheme(theme: Theme): ResolvedTheme {
+  return theme === 'system' ? getSystemTheme() : theme;
 }
 
 export function PreferencesProvider({ children }: { children: ReactNode }) {
@@ -43,14 +58,35 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   });
 
   const [theme, setThemeState] = useState<Theme>(readStoredTheme);
+  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(getSystemTheme);
   const [effectsEnabled, setEffectsEnabledState] = useState<boolean>(readStoredEffects);
 
-  // Apply theme to <html> (also kept in sync at boot by main.tsx to avoid flash)
+  const resolvedTheme: ResolvedTheme = theme === 'system' ? systemTheme : theme;
+
+  // Listen to OS-level color-scheme changes (live update when in 'system' mode)
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mql = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e: MediaQueryListEvent) => setSystemTheme(e.matches ? 'dark' : 'light');
+    if (typeof mql.addEventListener === 'function') {
+      mql.addEventListener('change', handler);
+      return () => mql.removeEventListener('change', handler);
+    }
+    // Safari < 14 fallback
+    mql.addListener(handler);
+    return () => mql.removeListener(handler);
+  }, []);
+
+  // Apply resolved theme to <html> + sync the PWA theme-color meta tag
   useEffect(() => {
     const html = document.documentElement;
-    html.dataset.theme = theme;
-    html.classList.toggle('dark', theme === 'dark');
-  }, [theme]);
+    html.dataset.theme = resolvedTheme;
+    html.classList.toggle('dark', resolvedTheme === 'dark');
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) {
+      meta.setAttribute('content', resolvedTheme === 'dark' ? THEME_COLOR_DARK : THEME_COLOR_LIGHT);
+    }
+  }, [resolvedTheme]);
 
   const setAppLanguage = (lang: AppLang) => {
     setAppLanguageState(lang);
@@ -80,6 +116,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         translateLanguage,
         setTranslateLanguage,
         theme,
+        resolvedTheme,
         setTheme,
         effectsEnabled,
         setEffectsEnabled,
@@ -96,3 +133,5 @@ export function usePreferences() {
   if (!ctx) throw new Error('usePreferences must be used within PreferencesProvider');
   return ctx;
 }
+
+export { resolveTheme };

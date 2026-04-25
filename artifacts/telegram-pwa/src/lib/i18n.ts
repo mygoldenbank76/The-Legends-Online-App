@@ -59,6 +59,7 @@ type Dict = {
     themeDesc: string;
     themeDark: string;
     themeLight: string;
+    themeSystem: string;
     visualEffects: string;
     visualEffectsDesc: string;
   };
@@ -188,6 +189,7 @@ export const i18n: Record<AppLang, Dict> = {
       themeDesc: "Choisir l'apparence de l'application",
       themeDark: 'Sombre',
       themeLight: 'Clair',
+      themeSystem: 'Système',
       visualEffects: 'Effets visuels',
       visualEffectsDesc: 'Désactive les animations pour économiser la batterie',
     },
@@ -316,6 +318,7 @@ export const i18n: Record<AppLang, Dict> = {
       themeDesc: 'Choose the look of the app',
       themeDark: 'Dark',
       themeLight: 'Light',
+      themeSystem: 'System',
       visualEffects: 'Visual effects',
       visualEffectsDesc: 'Disable animations to save battery',
     },
@@ -447,6 +450,7 @@ export const i18n: Record<AppLang, Dict> = {
       themeDesc: 'Elige el aspecto de la aplicación',
       themeDark: 'Oscuro',
       themeLight: 'Claro',
+      themeSystem: 'Sistema',
       visualEffects: 'Efectos visuales',
       visualEffectsDesc: 'Desactiva las animaciones para ahorrar batería',
     },
@@ -578,6 +582,7 @@ export const i18n: Record<AppLang, Dict> = {
       themeDesc: 'اختر مظهر التطبيق',
       themeDark: 'داكن',
       themeLight: 'فاتح',
+      themeSystem: 'النظام',
       visualEffects: 'التأثيرات البصرية',
       visualEffectsDesc: 'عطّل الرسوم المتحركة لتوفير البطارية',
     },
@@ -709,6 +714,7 @@ export const i18n: Record<AppLang, Dict> = {
       themeDesc: 'Escolha a aparência do app',
       themeDark: 'Escuro',
       themeLight: 'Claro',
+      themeSystem: 'Sistema',
       visualEffects: 'Efeitos visuais',
       visualEffectsDesc: 'Desative as animações para economizar bateria',
     },
@@ -840,6 +846,7 @@ export const i18n: Record<AppLang, Dict> = {
       themeDesc: 'Wähle das Aussehen der App',
       themeDark: 'Dunkel',
       themeLight: 'Hell',
+      themeSystem: 'System',
       visualEffects: 'Visuelle Effekte',
       visualEffectsDesc: 'Animationen deaktivieren, um Akku zu sparen',
     },

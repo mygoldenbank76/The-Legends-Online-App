@@ -8,7 +8,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useQueryClient } from '@tanstack/react-query';
 import { getListConversationsQueryKey } from '@workspace/api-client-react';
 import { AnimatedBackground } from '@/components/animated-background';
-import { Users, MessageSquare, ShoppingBag, Settings, Zap, LogOut, Globe, Languages, ChevronDown, Shield, X, ChevronRight, Pencil, Download, Smartphone, CheckCircle2, Share, Bell, BellOff, Sun, Moon, Sparkles } from 'lucide-react';
+import { Users, MessageSquare, ShoppingBag, Settings, Zap, LogOut, Globe, Languages, ChevronDown, Shield, X, ChevronRight, Pencil, Download, Smartphone, CheckCircle2, Share, Bell, BellOff, Sun, Moon, Monitor, Sparkles } from 'lucide-react';
 import { AdminPanel } from '@/components/admin/admin-panel';
 import { ProfileEditorSheet } from '@/components/profile/profile-editor-sheet';
 import { usePreferences } from '@/lib/preferences-context';
@@ -511,7 +511,7 @@ function SettingsPage({
   onLogout: () => void;
   onRefetchUser: () => void;
 }) {
-  const { t, appLanguage, setAppLanguage, translateLanguage, setTranslateLanguage, theme, setTheme, effectsEnabled, setEffectsEnabled } = usePreferences();
+  const { t, appLanguage, setAppLanguage, translateLanguage, setTranslateLanguage, theme, resolvedTheme, setTheme, effectsEnabled, setEffectsEnabled } = usePreferences();
   const [openLangMenu, setOpenLangMenu] = useState<'app' | 'translate' | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showProfileEditor, setShowProfileEditor] = useState(false);
@@ -588,10 +588,14 @@ function SettingsPage({
         <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider px-1 mb-2">{t.settings.appearance}</p>
         <div className="glass rounded-2xl overflow-hidden divide-y divide-white/5 dark:divide-white/5 [&>*+*]:border-t [&>*+*]:border-black/5 dark:[&>*+*]:border-white/5">
 
-          {/* Theme toggle (segmented control: Dark / Light) */}
+          {/* Theme toggle (segmented control: Dark / Light / System) */}
           <div className="flex items-center gap-3 px-4 py-3.5">
             <div className="w-8 h-8 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
-              {theme === 'dark' ? <Moon className="w-4 h-4 text-primary" /> : <Sun className="w-4 h-4 text-primary" />}
+              {theme === 'system'
+                ? <Monitor className="w-4 h-4 text-primary" />
+                : resolvedTheme === 'dark'
+                  ? <Moon className="w-4 h-4 text-primary" />
+                  : <Sun className="w-4 h-4 text-primary" />}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium">{t.settings.theme}</p>
@@ -623,6 +627,19 @@ function SettingsPage({
               >
                 <Sun className="w-3.5 h-3.5" />
                 <span>{t.settings.themeLight}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTheme('system')}
+                aria-pressed={theme === 'system'}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
+                  theme === 'system'
+                    ? 'gradient-primary text-white glow-primary-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Monitor className="w-3.5 h-3.5" />
+                <span>{t.settings.themeSystem}</span>
               </button>
             </div>
           </div>
