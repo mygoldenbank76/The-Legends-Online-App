@@ -310,12 +310,12 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.03, duration: 0.2 }}
                   className={cn(
-                    'w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-colors text-left select-none',
+                    'w-full flex items-center gap-3 px-3 py-3 rounded-[14px] transition-colors text-left select-none',
                     isActive
                       ? 'gradient-primary-soft border border-primary/35 glow-primary-sm'
                       : isRevealed
                       ? 'bg-red-500/8 border border-red-500/20'
-                      : 'hover:bg-white/5 border border-transparent'
+                      : 'surface-elevated hover:border-white/15'
                   )}
                 >
                   {/* Avatar — gradient ring when unread, glow when active */}

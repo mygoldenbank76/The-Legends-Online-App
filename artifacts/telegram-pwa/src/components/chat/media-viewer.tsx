@@ -170,7 +170,7 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
         }}
       >
         <button onClick={onClose}
-          className="w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 transition-colors"
+          className="w-10 h-10 flex items-center justify-center rounded-full glass hover:bg-white/15 active:scale-95 transition-all"
           style={{ pointerEvents: 'auto' }}>
           <X className="w-5 h-5 text-white" />
         </button>
@@ -186,7 +186,7 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
         ) : <span />}
 
         <button onClick={download}
-          className="w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 transition-colors"
+          className="w-10 h-10 flex items-center justify-center rounded-full glass hover:bg-white/15 active:scale-95 transition-all"
           style={{ pointerEvents: 'auto' }}>
           <Download className="w-4 h-4 text-white" />
         </button>
@@ -266,13 +266,13 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
         {/* Desktop navigation arrows */}
         {count > 1 && idx > 0 && (
           <button onClick={(e) => { e.stopPropagation(); goTo(idx - 1); }}
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors z-10 hidden sm:flex">
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full glass flex items-center justify-center hover:bg-white/15 active:scale-95 transition-all z-10 hidden sm:flex">
             <ChevronLeft className="w-6 h-6 text-white" />
           </button>
         )}
         {count > 1 && idx < count - 1 && (
           <button onClick={(e) => { e.stopPropagation(); goTo(idx + 1); }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors z-10 hidden sm:flex">
+            className="absolute right-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full glass flex items-center justify-center hover:bg-white/15 active:scale-95 transition-all z-10 hidden sm:flex">
             <ChevronRight className="w-6 h-6 text-white" />
           </button>
         )}
