@@ -319,16 +319,11 @@ function DesktopTabs({ activeTab, onSelect }: { activeTab: Tab; onSelect: (t: Ta
 function MobileHeader({ user }: { user: { displayName: string } }) {
   return (
     <div
-      className="flex-shrink-0 flex items-center justify-between px-4 gradient-hairline-bottom relative"
+      className="flex-shrink-0 flex items-center justify-between px-4 gradient-hairline-bottom relative surface-header"
       style={{
         paddingTop: `calc(env(safe-area-inset-top, 0px) + 12px)`,
         paddingBottom: 12,
         minHeight: '3.5rem',
-        background:
-          'linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)), rgba(14, 18, 28, 0.85)',
-        backdropFilter: 'blur(22px) saturate(140%)',
-        WebkitBackdropFilter: 'blur(22px) saturate(140%)',
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
       }}
     >
       <div className="flex items-center gap-2.5 relative z-10">
@@ -353,8 +348,7 @@ function MobileBottomNav({ activeTab, onSelect }: { activeTab: Tab; onSelect: (t
   return (
     <nav className="flex-shrink-0 safe-area-bottom px-3 pt-1.5 pb-1.5 relative">
       {/* Floating capsule shell */}
-      <div className="glass gradient-hairline-top relative flex items-stretch rounded-[20px] px-1.5 py-1 overflow-hidden"
-           style={{ boxShadow: '0 14px 32px -16px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)' }}>
+      <div className="glass gradient-hairline-top shadow-floating-capsule relative flex items-stretch rounded-[20px] px-1.5 py-1 overflow-hidden">
         {tabs.map((id) => {
           const Icon = NAV_ICONS[id];
           const active = activeTab === id;
@@ -550,7 +544,7 @@ function SettingsPage({
       {/* Profile card — clickable to edit */}
       <button
         onClick={() => setShowProfileEditor(true)}
-        className="glass rounded-2xl p-4 flex items-center gap-4 w-full text-left hover:bg-white/5 transition-colors group"
+        className="glass rounded-2xl p-4 flex items-center gap-4 w-full text-left hover:bg-foreground/5 transition-colors group"
       >
         <div className="relative flex-shrink-0">
           <div className="w-16 h-16 rounded-2xl bg-primary/20 overflow-hidden flex items-center justify-center">
@@ -586,7 +580,7 @@ function SettingsPage({
       {/* Appearance section — theme + visual effects */}
       <div>
         <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider px-1 mb-2">{t.settings.appearance}</p>
-        <div className="glass rounded-2xl overflow-hidden divide-y divide-white/5 dark:divide-white/5 [&>*+*]:border-t [&>*+*]:border-black/5 dark:[&>*+*]:border-white/5">
+        <div className="glass rounded-2xl overflow-hidden [&>*+*]:border-t [&>*+*]:border-foreground/5">
 
           {/* Theme toggle (segmented control: Dark / Light / System) */}
           <div className="flex items-center gap-3 px-4 py-3.5">
@@ -601,7 +595,7 @@ function SettingsPage({
               <p className="text-sm font-medium">{t.settings.theme}</p>
               <p className="text-xs text-muted-foreground">{t.settings.themeDesc}</p>
             </div>
-            <div className="flex items-center gap-1 p-1 rounded-full bg-black/10 dark:bg-white/10 flex-shrink-0">
+            <div className="flex items-center gap-1 p-1 rounded-full bg-foreground/10 flex-shrink-0">
               <button
                 type="button"
                 onClick={() => setTheme('dark')}
@@ -649,7 +643,7 @@ function SettingsPage({
             type="button"
             onClick={() => setEffectsEnabled(!effectsEnabled)}
             aria-pressed={effectsEnabled}
-            className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left"
+            className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-foreground/5 transition-colors text-left"
           >
             <div className="w-8 h-8 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
               <Sparkles className="w-4 h-4 text-primary" />
@@ -660,7 +654,7 @@ function SettingsPage({
             </div>
             <span
               className={`relative w-11 h-6 rounded-full flex-shrink-0 transition-colors ${
-                effectsEnabled ? 'gradient-primary glow-primary-sm' : 'bg-black/15 dark:bg-white/15'
+                effectsEnabled ? 'gradient-primary glow-primary-sm' : 'bg-foreground/15'
               }`}
             >
               <span
@@ -676,13 +670,13 @@ function SettingsPage({
       {/* Preferences section */}
       <div>
         <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider px-1 mb-2">{t.settings.preferences}</p>
-        <div className="glass rounded-2xl overflow-hidden divide-y divide-white/5">
+        <div className="glass rounded-2xl overflow-hidden divide-y divide-foreground/5">
 
           {/* App language */}
           <div className="relative">
             <button
               onClick={() => setOpenLangMenu(openLangMenu === 'app' ? null : 'app')}
-              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 transition-colors text-left"
+              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-foreground/5 transition-colors text-left"
             >
               <div className="w-8 h-8 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
                 <Globe className="w-4 h-4 text-primary" />
@@ -708,7 +702,7 @@ function SettingsPage({
                       className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all ${
                         active
                           ? 'gradient-primary-soft border border-primary/35 text-primary font-semibold'
-                          : 'border border-transparent text-foreground hover:bg-white/5'
+                          : 'border border-transparent text-foreground hover:bg-foreground/5'
                       }`}
                     >
                       <span className="text-base">{lang.flag}</span>
@@ -725,7 +719,7 @@ function SettingsPage({
           <div className="relative">
             <button
               onClick={() => setOpenLangMenu(openLangMenu === 'translate' ? null : 'translate')}
-              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 transition-colors text-left"
+              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-foreground/5 transition-colors text-left"
             >
               <div className="w-8 h-8 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
                 <Languages className="w-4 h-4 text-primary" />
@@ -751,7 +745,7 @@ function SettingsPage({
                       className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all ${
                         active
                           ? 'gradient-primary-soft border border-primary/35 text-primary font-semibold'
-                          : 'border border-transparent text-foreground hover:bg-white/5'
+                          : 'border border-transparent text-foreground hover:bg-foreground/5'
                       }`}
                     >
                       <span className="text-base">{lang.flag}</span>
@@ -817,7 +811,7 @@ function SettingsPage({
                       onClick={e => e.stopPropagation()}
                     >
                       <div className="flex justify-center pt-3 pb-1 flex-shrink-0 sm:hidden">
-                        <div className="w-10 h-1 rounded-full bg-white/20" />
+                        <div className="w-10 h-1 rounded-full bg-foreground/20" />
                       </div>
                       <div className="flex items-center justify-between px-5 py-3 gradient-hairline-bottom flex-shrink-0">
                         <div className="flex items-center gap-3">
@@ -831,7 +825,7 @@ function SettingsPage({
                         </div>
                         <button
                           onClick={() => setShowAdmin(false)}
-                          className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/15 flex items-center justify-center transition-colors"
+                          className="w-8 h-8 rounded-xl bg-foreground/10 hover:bg-foreground/15 flex items-center justify-center transition-colors"
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -923,7 +917,7 @@ function SettingsPage({
                 )}
               </div>
               {!pushLoading && pushPermission !== 'denied' && (
-                <div className={`w-10 h-6 rounded-full transition-colors flex-shrink-0 ${pushSubscribed ? 'bg-green-500' : 'bg-white/10'}`}>
+                <div className={`w-10 h-6 rounded-full transition-colors flex-shrink-0 ${pushSubscribed ? 'bg-green-500' : 'bg-foreground/15'}`}>
                   <div className={`w-5 h-5 bg-white rounded-full shadow m-0.5 transition-transform ${pushSubscribed ? 'translate-x-4' : 'translate-x-0'}`} />
                 </div>
               )}
@@ -948,7 +942,7 @@ function SettingsPage({
             >
               <div className="glass-strong rounded-t-3xl p-6 pb-10">
                 <div className="flex justify-center mb-4">
-                  <div className="w-10 h-1 rounded-full bg-white/20" />
+                  <div className="w-10 h-1 rounded-full bg-foreground/20" />
                 </div>
                 <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-3">
@@ -961,7 +955,7 @@ function SettingsPage({
                     </div>
                   </div>
                   <button onClick={() => setShowIosInstructions(false)}
-                    className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/15 flex items-center justify-center">
+                    className="w-8 h-8 rounded-xl bg-foreground/10 hover:bg-foreground/15 flex items-center justify-center">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -1010,7 +1004,7 @@ function SettingsPage({
             >
               <div className="glass-strong rounded-t-3xl p-6 pb-10">
                 <div className="flex justify-center mb-4">
-                  <div className="w-10 h-1 rounded-full bg-white/20" />
+                  <div className="w-10 h-1 rounded-full bg-foreground/20" />
                 </div>
                 <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-3">
@@ -1023,7 +1017,7 @@ function SettingsPage({
                     </div>
                   </div>
                   <button onClick={() => setShowAndroidInstructions(false)}
-                    className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/15 flex items-center justify-center">
+                    className="w-8 h-8 rounded-xl bg-foreground/10 hover:bg-foreground/15 flex items-center justify-center">
                     <X className="w-4 h-4" />
                   </button>
                 </div>

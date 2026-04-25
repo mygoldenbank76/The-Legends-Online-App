@@ -229,6 +229,18 @@ html:not(.dark) .glass-strong {
   background: radial-gradient(circle at 70% 70%, hsl(190 100% 50% / 0.32), transparent 65%);
   animation: blob-drift-b 40s ease-in-out infinite;
 }
+/* Light mode — softer, airier ambient blobs (no punchy purple/cyan haze) */
+html:not(.dark) .ambient-blobs::before,
+html:not(.dark) .ambient-blobs::after {
+  opacity: 0.32;
+  filter: blur(110px);
+}
+html:not(.dark) .ambient-blobs::before {
+  background: radial-gradient(circle at 30% 30%, hsl(263 85% 70% / 0.38), transparent 65%);
+}
+html:not(.dark) .ambient-blobs::after {
+  background: radial-gradient(circle at 70% 70%, hsl(200 85% 65% / 0.28), transparent 65%);
+}
 @keyframes blob-drift-a {
   0%, 100% { transform: translate(0, 0) scale(1); }
   50% { transform: translate(8vw, 6vh) scale(1.1); }
@@ -308,6 +320,9 @@ html:not(.dark) .surface-floating {
   background: linear-gradient(135deg, hsl(263 92% 65%), hsl(295 92% 62%) 60%, hsl(190 100% 55%));
   box-shadow: 0 0 12px -2px hsl(263 90% 65% / 0.55);
 }
+html:not(.dark) .avatar-ring-unread {
+  box-shadow: 0 4px 12px -4px hsl(263 80% 55% / 0.30);
+}
 
 /* ── Safe area bottom (PWA on iOS) ── */
 .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
@@ -330,6 +345,54 @@ html:not(.dark) .surface-floating {
   height: 1px;
   background: linear-gradient(90deg, transparent 0%, hsl(263 92% 65% / 0.55) 30%, hsl(280 90% 60% / 0.55) 70%, transparent 100%);
   pointer-events: none;
+}
+html:not(.dark) .gradient-hairline-bottom::after,
+html:not(.dark) .gradient-hairline-top::after {
+  background: linear-gradient(90deg, transparent 0%, hsl(263 80% 55% / 0.32) 30%, hsl(280 76% 55% / 0.32) 70%, transparent 100%);
+}
+
+/* ── Floating popover surface (header menu, emoji picker, mention list) ── */
+.popover-floating {
+  background: rgba(18, 24, 40, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(40px) saturate(150%);
+  -webkit-backdrop-filter: blur(40px) saturate(150%);
+  box-shadow: 0 18px 50px -18px rgba(0, 0, 0, 0.65);
+}
+html:not(.dark) .popover-floating {
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(35, 30, 70, 0.10);
+  box-shadow:
+    0 18px 50px -18px rgba(35, 30, 70, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+/* ── Floating capsule shadow (mobile bottom nav) ── */
+.shadow-floating-capsule {
+  box-shadow:
+    0 14px 32px -16px rgba(0, 0, 0, 0.60),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+html:not(.dark) .shadow-floating-capsule {
+  box-shadow:
+    0 14px 32px -16px rgba(35, 30, 70, 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+/* ── Tinted top-bar / header surface (mobile header) ── */
+.surface-header {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)),
+    rgba(14, 18, 28, 0.85);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+html:not(.dark) .surface-header {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,255,255,0.78)),
+    rgba(245, 247, 255, 0.85);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
 /* Hide scrollbar */

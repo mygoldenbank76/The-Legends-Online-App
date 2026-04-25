@@ -112,7 +112,7 @@ function MediaThumb({
   const vid = /\.(mp4|webm|mov|avi|mkv)$/i.test(url);
   return (
     <div
-      className="relative w-full h-full overflow-hidden bg-white/6 cursor-pointer active:opacity-80 transition-opacity"
+      className="relative w-full h-full overflow-hidden bg-foreground/10 cursor-pointer active:opacity-80 transition-opacity"
       style={{ borderRadius: radius }}
       onClick={(e) => { e.stopPropagation(); onClick(); }}
     >
@@ -258,8 +258,8 @@ function SheetItem({
 }) {
   return (
     <button
-      className={`w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 transition-colors text-left
-        ${divider ? 'border-t border-white/5' : ''}
+      className={`w-full flex items-center gap-3 px-4 py-3.5 hover:bg-foreground/5 transition-colors text-left
+        ${divider ? 'border-t border-foreground/5' : ''}
         ${danger ? 'text-red-400' : 'text-foreground'}`}
       onClick={onClick}
     >
@@ -288,21 +288,18 @@ function MessagesSkeleton() {
     <div className="flex flex-col justify-end gap-1.5 px-3 pb-3 pt-6 min-h-full">
       {/* Date pill */}
       <div className="flex justify-center mb-2">
-        <div className="h-5 w-28 rounded-full animate-pulse" style={{ background: 'rgba(255,255,255,0.07)' }} />
+        <div className="h-5 w-28 rounded-full animate-pulse bg-foreground/10" />
       </div>
       {SKELETON_ROWS.map((row, i) => (
         <div key={i} className={`flex items-end gap-2 ${row.mine ? 'justify-end' : 'justify-start'}`}>
           {!row.mine && (
-            <div className="w-7 h-7 rounded-full flex-shrink-0 animate-pulse" style={{ background: 'rgba(255,255,255,0.10)' }} />
+            <div className="w-7 h-7 rounded-full flex-shrink-0 animate-pulse bg-foreground/10" />
           )}
           <div
-            className="rounded-2xl animate-pulse"
+            className={`rounded-2xl animate-pulse ${row.mine ? 'bg-primary/20' : 'bg-foreground/10'}`}
             style={{
               width: row.w,
               height: row.h,
-              background: row.mine
-                ? 'rgba(139, 92, 246, 0.18)'
-                : 'rgba(255, 255, 255, 0.07)',
               animationDelay: `${i * 60}ms`,
             }}
           />
@@ -1404,11 +1401,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
               {headerMenuOpen && (
                 <div
-                  className="absolute right-0 top-9 w-56 rounded-xl shadow-2xl overflow-hidden z-50 py-1"
-                  style={{ background: 'rgba(22,26,40,0.97)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)' }}
+                  className="popover-floating absolute right-0 top-9 w-56 rounded-xl overflow-hidden z-50 py-1"
                 >
                   <button
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-white/5 active:bg-white/10 transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-foreground/5 active:bg-foreground/10 transition-colors text-left"
                     onClick={toggleMute}
                   >
                     {isMuted
@@ -1419,7 +1415,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   </button>
 
                   <button
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-white/5 active:bg-white/10 transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-foreground/5 active:bg-foreground/10 transition-colors text-left"
                     onClick={() => { setSearchOpen(true); setHeaderMenuOpen(false); }}
                   >
                     <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
@@ -1556,7 +1552,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                         }
                       }
                     }}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.10] border border-white/10 backdrop-blur-sm transition-colors max-w-[85%]"
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-foreground/[0.06] hover:bg-foreground/[0.10] border border-foreground/10 backdrop-blur-sm transition-colors max-w-[85%]"
                   >
                     <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${isMissed ? 'text-rose-400' : 'text-emerald-400'}`} />
                     <span className="text-[12px] text-foreground/85 font-medium truncate">{label}</span>
@@ -1740,7 +1736,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     {/* Single Image or Video */}
                     {msg.imageUrl && !(msg as any).mediaAlbum && !isPoll && (
                       <div
-                        className="mb-1.5 -mx-1 -mt-0.5 overflow-hidden rounded-[5px] bg-white/5"
+                        className="mb-1.5 -mx-1 -mt-0.5 overflow-hidden rounded-[5px] bg-foreground/5"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {msg.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? (
@@ -2031,9 +2027,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
               exit={{ opacity: 0, y: 10, scale: 0.97 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
             >
-              <div className="border border-white/[0.09] rounded-2xl shadow-xl backdrop-blur-[40px]" style={{ background: 'rgba(18,24,40,0.97)' }}>
+              <div className="popover-floating rounded-2xl overflow-hidden">
                 {/* Header — outside the scroll area so it stays fixed */}
-                <div className="flex items-center px-4 pt-3 pb-2 border-b border-white/5 rounded-t-2xl" style={{ background: 'rgba(18,24,40,0.97)' }}>
+                <div className="flex items-center px-4 pt-3 pb-2 border-b border-foreground/5">
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-primary/70">Mentions</span>
                 </div>
                 {/* Scrollable list — touch-action pan-y allows native vertical scroll */}
@@ -2043,7 +2039,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       key={p.id}
                       onMouseDown={(e) => { e.preventDefault(); handleMentionSelect(p); }}
                       onClick={() => handleMentionSelect(p)}
-                      className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-primary/10 active:bg-primary/20 transition-colors text-left ${idx > 0 ? 'border-t border-white/5' : ''}`}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-primary/10 active:bg-primary/20 transition-colors text-left ${idx > 0 ? 'border-t border-foreground/5' : ''}`}
                     >
                       <Avatar className="w-8 h-8 flex-shrink-0">
                         <AvatarImage src={p.avatar || ''} />
@@ -2081,12 +2077,12 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
               exit={{ opacity: 0, y: 10, scale: 0.97 }}
               transition={{ duration: 0.16, ease: 'easeOut' }}
             >
-              <div className="border border-white/[0.09] rounded-2xl overflow-hidden shadow-xl mx-3 backdrop-blur-[40px]" style={{ background: 'rgba(18,24,40,0.97)' }}>
+              <div className="popover-floating rounded-2xl overflow-hidden mx-3">
                 <div className="flex items-center justify-between px-3 pt-3 pb-2">
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Emojis</span>
                   <button
                     onClick={() => setEmojiOpen(false)}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors"
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-foreground/10 transition-colors"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -2094,7 +2090,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                 <div className="grid grid-cols-8 gap-0.5 px-2 pb-3 max-h-[240px] overflow-y-auto no-scrollbar">
                   {PICKER_EMOJIS.map(e => (
                     <button key={e} onClick={() => { setContent(p => p + e); setEmojiOpen(false); }}
-                      className="text-xl hover:bg-white/10 rounded p-1 transition-colors leading-none">{e}</button>
+                      className="text-xl hover:bg-foreground/10 rounded p-1 transition-colors leading-none">{e}</button>
                   ))}
                 </div>
               </div>
@@ -2261,7 +2257,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   {/* Back header */}
                   <button
                     onClick={() => setCtxPanel(null)}
-                    className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 border-b border-white/5 text-foreground"
+                    className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-foreground/5 border-b border-foreground/5 text-foreground"
                   >
                     <ArrowLeft size={18} className="text-muted-foreground" />
                     <span className="text-sm font-medium">{uiT.chat.back}</span>
@@ -2286,7 +2282,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                           const avatar = reactorUser?.avatar ?? null;
                           const initials = name.substring(0, 2).toUpperCase();
                           return (
-                            <div key={userId} className="flex items-center gap-3 px-4 py-3 border-t border-white/5 first:border-0">
+                            <div key={userId} className="flex items-center gap-3 px-4 py-3 border-t border-foreground/5 first:border-0">
                               <Avatar className="w-9 h-9 flex-shrink-0">
                                 <AvatarImage src={avatar || ''} />
                                 <AvatarFallback className="bg-primary/20 text-primary text-xs">{initials}</AvatarFallback>
@@ -2308,7 +2304,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                         ctxReaders.map(reader => {
                           const initials = reader.displayName.substring(0, 2).toUpperCase();
                           return (
-                            <div key={reader.id} className="flex items-center gap-3 px-4 py-3 border-t border-white/5 first:border-0">
+                            <div key={reader.id} className="flex items-center gap-3 px-4 py-3 border-t border-foreground/5 first:border-0">
                               <Avatar className="w-9 h-9 flex-shrink-0">
                                 <AvatarImage src={reader.avatar || ''} />
                                 <AvatarFallback className="bg-primary/20 text-primary text-xs">{initials}</AvatarFallback>
@@ -2339,10 +2335,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   </div>
 
                   {/* Reactions + Views summary row */}
-                  <div className="glass-strong rounded-2xl mb-2 flex divide-x divide-white/10 overflow-hidden">
+                  <div className="glass-strong rounded-2xl mb-2 flex divide-x divide-foreground/10 overflow-hidden">
                     <button
                       onClick={() => setCtxPanel('reactions')}
-                      className="flex-1 flex items-center gap-2 px-4 py-3 hover:bg-white/5 transition-colors"
+                      className="flex-1 flex items-center gap-2 px-4 py-3 hover:bg-foreground/5 transition-colors"
                     >
                       <Heart size={15} className="text-red-400 flex-shrink-0" />
                       <span className="text-sm font-medium text-foreground">{ctxMsg.reactions.length}</span>
@@ -2360,7 +2356,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     </button>
                     <button
                       onClick={() => setCtxPanel('views')}
-                      className="flex-1 flex items-center gap-2 px-4 py-3 hover:bg-white/5 transition-colors"
+                      className="flex-1 flex items-center gap-2 px-4 py-3 hover:bg-foreground/5 transition-colors"
                     >
                       <CheckCheck size={15} className="text-primary flex-shrink-0" />
                       <span className="text-sm font-medium text-foreground">{ctxReadersLoading ? '…' : ctxReaders.length}</span>
@@ -2417,7 +2413,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
                     {canDeleteCtx && (
                       deleteConfirm === ctxMenu.msgId ? (
-                        <div className="flex items-center gap-3 px-4 py-3.5 border-t border-white/5" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-3 px-4 py-3.5 border-t border-foreground/5" onClick={(e) => e.stopPropagation()}>
                           <span className="text-sm text-red-400 flex-1">{uiT.chat.confirmDelete}</span>
                           <button onClick={() => handleDeleteConfirm(ctxMenu.msgId)} className="text-xs text-red-400 font-semibold hover:text-red-300 px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20">
                             {uiT.chat.delete}

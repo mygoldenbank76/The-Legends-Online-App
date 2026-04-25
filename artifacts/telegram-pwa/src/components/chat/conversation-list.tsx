@@ -240,10 +240,10 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
           <div className="flex flex-col gap-1 pt-1">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-3 py-3 rounded-xl animate-pulse">
-                <div className="w-12 h-12 rounded-full bg-white/8 flex-shrink-0" />
+                <div className="w-12 h-12 rounded-full bg-foreground/10 flex-shrink-0" />
                 <div className="flex-1 flex flex-col gap-2">
-                  <div className="h-3.5 rounded-full bg-white/8" style={{ width: `${55 + (i % 3) * 15}%` }} />
-                  <div className="h-2.5 rounded-full bg-white/5" style={{ width: `${40 + (i % 4) * 10}%` }} />
+                  <div className="h-3.5 rounded-full bg-foreground/10" style={{ width: `${55 + (i % 3) * 15}%` }} />
+                  <div className="h-2.5 rounded-full bg-foreground/5" style={{ width: `${40 + (i % 4) * 10}%` }} />
                 </div>
               </div>
             ))}
@@ -315,7 +315,7 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
                       ? 'gradient-primary-soft border border-primary/35 glow-primary-sm'
                       : isRevealed
                       ? 'bg-red-500/8 border border-red-500/20'
-                      : 'hover:bg-white/[0.04]'
+                      : 'hover:bg-foreground/[0.04]'
                   )}
                 >
                   {/* Avatar — gradient ring when unread, glow when active */}
@@ -328,7 +328,7 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
                         'w-11 h-11 rounded-xl flex items-center justify-center text-sm font-bold overflow-hidden',
                         isActive
                           ? 'gradient-primary text-white shadow-[0_4px_14px_-2px_hsl(263_90%_65%/0.55)]'
-                          : 'bg-white/8 text-muted-foreground'
+                          : 'bg-foreground/10 text-muted-foreground'
                       )}
                     >
                       {avatarUrl ? (
