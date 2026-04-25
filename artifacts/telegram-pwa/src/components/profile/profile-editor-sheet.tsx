@@ -176,8 +176,8 @@ export function ProfileEditorSheet({ user, onClose, onSaved }: Props) {
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 flex-shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-primary/20 flex items-center justify-center">
-                  <User className="w-4 h-4 text-primary" />
+                <div className="w-8 h-8 rounded-xl gradient-primary glow-primary-sm flex items-center justify-center">
+                  <User className="w-4 h-4 text-white" />
                 </div>
                 <div>
                   <p className="font-bold text-sm">{p.editProfile}</p>
@@ -217,7 +217,7 @@ export function ProfileEditorSheet({ user, onClose, onSaved }: Props) {
                   {/* Camera button overlay */}
                   <button
                     onClick={() => fileRef.current?.click()}
-                    className="absolute -bottom-1 -right-1 w-8 h-8 rounded-xl bg-primary flex items-center justify-center shadow-lg hover:bg-primary/90 transition-colors"
+                    className="absolute -bottom-1 -right-1 w-8 h-8 rounded-xl gradient-primary glow-primary-sm flex items-center justify-center shadow-lg hover:opacity-90 active:scale-95 transition-all"
                   >
                     <Camera className="w-4 h-4 text-white" />
                   </button>
@@ -227,7 +227,7 @@ export function ProfileEditorSheet({ user, onClose, onSaved }: Props) {
                 <div className="flex gap-2">
                   <button
                     onClick={() => fileRef.current?.click()}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-primary/15 text-primary hover:bg-primary/25 transition-colors"
+                    className="text-xs px-3 py-1.5 rounded-lg gradient-primary-soft border border-primary/30 text-primary hover:opacity-90 active:scale-95 transition-all"
                   >
                     {avatar ? p.changePhoto : p.addPhoto}
                   </button>
@@ -313,7 +313,7 @@ export function ProfileEditorSheet({ user, onClose, onSaved }: Props) {
                     saved
                       ? 'bg-green-500 text-white'
                       : hasChanges
-                        ? 'bg-primary text-white hover:bg-primary/90'
+                        ? 'gradient-primary glow-primary-sm text-white hover:opacity-95 active:scale-[0.97]'
                         : 'bg-white/10 text-muted-foreground cursor-not-allowed'
                   }`}
                 >

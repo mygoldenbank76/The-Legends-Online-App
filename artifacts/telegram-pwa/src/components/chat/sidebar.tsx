@@ -94,7 +94,7 @@ export function Sidebar({ activeConversationId, onSelectConversation }: SidebarP
                     )}
                   </p>
                   {conv.unreadCount > 0 && (
-                    <div className="ml-2 bg-primary text-primary-foreground text-xs rounded-full min-w-5 h-5 flex items-center justify-center px-1.5 font-medium">
+                    <div className="ml-2 gradient-primary pulse-glow text-white text-xs rounded-full min-w-5 h-5 flex items-center justify-center px-1.5 font-medium">
                       {conv.unreadCount}
                     </div>
                   )}

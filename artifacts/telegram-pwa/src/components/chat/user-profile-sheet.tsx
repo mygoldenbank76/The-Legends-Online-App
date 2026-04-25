@@ -169,7 +169,7 @@ export function UserProfileSheet({ user, currentUserId, onClose, onOpenConversat
               <button
                 onClick={handleSendMessage}
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-2.5 py-3 px-5 rounded-2xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed mt-1"
+                className="w-full flex items-center justify-center gap-2.5 py-3 px-5 rounded-2xl gradient-primary glow-primary-sm text-white font-semibold text-sm hover:opacity-95 active:scale-[0.97] transition-all disabled:opacity-60 disabled:cursor-not-allowed mt-1"
               >
                 {loading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

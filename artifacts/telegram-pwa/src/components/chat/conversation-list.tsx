@@ -318,8 +318,11 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
                       : 'hover:bg-white/5 border border-transparent'
                   )}
                 >
-                  {/* Avatar */}
-                  <div className="relative flex-shrink-0">
+                  {/* Avatar — gradient ring when unread, glow when active */}
+                  <div className={cn(
+                    'relative flex-shrink-0',
+                    conv.unreadCount > 0 && !isActive && 'avatar-ring-unread'
+                  )}>
                     <div
                       className={cn(
                         'w-11 h-11 rounded-xl flex items-center justify-center text-sm font-bold overflow-hidden',

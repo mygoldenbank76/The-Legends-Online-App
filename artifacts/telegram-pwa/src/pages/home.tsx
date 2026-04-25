@@ -335,34 +335,44 @@ function MobileBottomNav({ activeTab, onSelect }: { activeTab: Tab; onSelect: (t
   const { t } = usePreferences();
   const tabs: Tab[] = ['groups', 'messages', 'shop', 'settings'];
   return (
-    <nav className="flex-shrink-0 glass gradient-hairline-top flex items-stretch safe-area-bottom relative">
-      {tabs.map((id) => {
-        const Icon = NAV_ICONS[id];
-        const active = activeTab === id;
-        return (
-          <button
-            key={id}
-            onClick={() => onSelect(id)}
-            className={`flex-1 relative flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors ${
-              active ? 'text-primary' : 'text-muted-foreground'
-            }`}
-          >
-            {active && (
+    <nav className="flex-shrink-0 safe-area-bottom px-3 pt-1.5 pb-1.5 relative">
+      {/* Floating capsule shell */}
+      <div className="glass gradient-hairline-top relative flex items-stretch rounded-[20px] px-1.5 py-1 overflow-hidden"
+           style={{ boxShadow: '0 14px 32px -16px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)' }}>
+        {tabs.map((id) => {
+          const Icon = NAV_ICONS[id];
+          const active = activeTab === id;
+          return (
+            <button
+              key={id}
+              onClick={() => onSelect(id)}
+              className={`flex-1 relative flex flex-col items-center justify-center py-2 gap-0.5 transition-colors ${
+                active ? 'text-white' : 'text-muted-foreground'
+              }`}
+            >
+              {active && (
+                <motion.span
+                  layoutId="activeTabPill"
+                  className="absolute inset-x-1 inset-y-0.5 rounded-2xl gradient-primary-soft border border-primary/40"
+                  style={{ boxShadow: '0 6px 20px -6px hsl(263 90% 65% / 0.55), inset 0 1px 0 rgba(255,255,255,0.10)' }}
+                  transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+                />
+              )}
               <motion.span
-                layoutId="activeTabPill"
-                className="absolute left-2 right-2 top-1.5 bottom-1.5 rounded-2xl gradient-primary-soft border border-primary/35"
-                style={{ boxShadow: '0 6px 20px -6px hsl(263 90% 65% / 0.55), inset 0 1px 0 rgba(255,255,255,0.08)' }}
-                transition={{ type: 'spring', damping: 26, stiffness: 320 }}
-              />
-            )}
-            <Icon
-              className="w-5 h-5 relative z-10"
-              style={active ? { filter: 'drop-shadow(0 0 6px hsl(263 92% 65% / 0.7))' } : undefined}
-            />
-            <span className="text-[10px] font-medium relative z-10">{t.tabs[id]}</span>
-          </button>
-        );
-      })}
+                animate={{ scale: active ? 1.12 : 1 }}
+                transition={{ type: 'spring', damping: 22, stiffness: 320 }}
+                className="relative z-10 inline-flex"
+                style={active ? { filter: 'drop-shadow(0 0 8px hsl(263 92% 65% / 0.85))' } : undefined}
+              >
+                <Icon className="w-5 h-5" />
+              </motion.span>
+              <span className={`text-[10px] font-medium relative z-10 transition-opacity ${active ? 'opacity-100' : 'opacity-80'}`}>
+                {t.tabs[id]}
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </nav>
   );
 }

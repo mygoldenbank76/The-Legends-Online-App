@@ -466,7 +466,7 @@ export function MediaPickerModal({ initialFiles, onClose, onSend, addMoreInputRe
         <button
           onClick={handleSend}
           disabled={sending}
-          className="flex-shrink-0 w-10 h-10 rounded-xl bg-primary/20 border border-primary/30 hover:bg-primary/30 text-primary transition-colors flex items-center justify-center active:scale-95 disabled:opacity-60"
+          className="flex-shrink-0 w-10 h-10 rounded-xl gradient-primary glow-primary-sm text-white transition-all flex items-center justify-center hover:opacity-95 active:scale-95 disabled:opacity-60"
         >
           {sending ? (
             <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
