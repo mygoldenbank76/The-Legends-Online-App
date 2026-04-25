@@ -2011,8 +2011,8 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         )}
       </AnimatePresence>
 
-      {/* ── Input bar — Base44 style ── */}
-      <div className="flex-shrink-0 glass border-t border-border/50 relative">
+      {/* ── Input bar — floating, no background frame ── */}
+      <div className="flex-shrink-0 relative">
 
         {/* @mention suggestions — floats above the input bar, same pattern as emoji/GIF */}
         <AnimatePresence>
