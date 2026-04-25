@@ -59,7 +59,7 @@ export function AttachmentSheet({ open, onClose, onCamera, onGallery, onDocument
                     }}
                     className="flex flex-col items-center gap-2 group"
                   >
-                    <div className={`w-14 h-14 rounded-2xl ${item.bg} flex items-center justify-center shadow-lg group-active:scale-95 transition-transform`}>
+                    <div className={`w-14 h-14 rounded-2xl ${item.bg} flex items-center justify-center glow-primary-sm group-active:scale-95 transition-transform`}>
                       <item.icon className="w-7 h-7 text-white" />
                     </div>
                     <span className="text-xs text-foreground font-medium">{item.label}</span>

@@ -98,8 +98,8 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
 
                 {/* Avatar + name */}
                 <div className="flex flex-col items-center pb-4 px-4">
-                  <div className="w-20 h-20 rounded-2xl bg-primary/20 flex items-center justify-center mb-3">
-                    <span className="text-3xl font-bold text-primary">{initial}</span>
+                  <div className="w-20 h-20 rounded-2xl gradient-primary glow-primary-sm flex items-center justify-center mb-3">
+                    <span className="text-3xl font-bold text-white">{initial}</span>
                   </div>
                   <h2 className="text-lg font-bold text-foreground">{title}</h2>
                   <p className="text-sm text-muted-foreground">{memberCount} {t.groupInfo.members}</p>
@@ -107,7 +107,7 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
 
                 {/* Group link */}
                 <div className="mx-4 mb-4 glass rounded-2xl px-4 py-3 flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                  <div className="w-8 h-8 rounded-full gradient-primary-soft border border-primary/30 flex items-center justify-center flex-shrink-0">
                     <Link2 className="w-4 h-4 text-primary" />
                   </div>
                   <div className="flex-1 min-w-0">

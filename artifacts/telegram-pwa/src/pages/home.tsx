@@ -271,30 +271,46 @@ function DesktopHeader({ user, onLogout }: { user: { displayName: string }; onLo
   );
 }
 
-/* ── Desktop tab pills ── */
+/* ── Desktop tab pills (shared visual language with mobile capsule) ── */
 function DesktopTabs({ activeTab, onSelect }: { activeTab: Tab; onSelect: (t: Tab) => void }) {
   const { t } = usePreferences();
   const tabs: Tab[] = ['groups', 'messages', 'shop', 'settings'];
   return (
-    <div className="flex-shrink-0 grid grid-cols-4 gap-1 px-2 py-2 border-b border-border/30">
-      {tabs.map((id) => {
-        const Icon = NAV_ICONS[id];
-        const label = t.tabs[id];
-        return (
-          <button
-            key={id}
-            onClick={() => onSelect(id)}
-            className={`flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-lg text-[11px] font-medium transition-all min-w-0 ${
-              activeTab === id
-                ? 'bg-primary/15 text-primary border border-primary/20'
-                : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-            }`}
-          >
-            <Icon className="w-3.5 h-3.5 flex-shrink-0" />
-            <span className="truncate w-full text-center leading-none">{label}</span>
-          </button>
-        );
-      })}
+    <div className="flex-shrink-0 px-2 py-2 gradient-hairline-bottom">
+      <div className="glass relative grid grid-cols-4 gap-0.5 rounded-2xl p-1 overflow-hidden">
+        {tabs.map((id) => {
+          const Icon = NAV_ICONS[id];
+          const label = t.tabs[id];
+          const active = activeTab === id;
+          return (
+            <button
+              key={id}
+              onClick={() => onSelect(id)}
+              className={`relative flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-xl text-[11px] font-medium transition-colors min-w-0 ${
+                active ? 'text-white' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {active && (
+                <motion.span
+                  layoutId="activeDesktopTabPill"
+                  className="absolute inset-0 rounded-xl gradient-primary-soft border border-primary/40"
+                  style={{ boxShadow: '0 4px 14px -6px hsl(263 90% 65% / 0.55), inset 0 1px 0 rgba(255,255,255,0.08)' }}
+                  transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+                />
+              )}
+              <motion.span
+                animate={{ scale: active ? 1.1 : 1 }}
+                transition={{ type: 'spring', damping: 22, stiffness: 320 }}
+                className="relative z-10 inline-flex"
+                style={active ? { filter: 'drop-shadow(0 0 6px hsl(263 92% 65% / 0.8))' } : undefined}
+              >
+                <Icon className="w-3.5 h-3.5 flex-shrink-0" />
+              </motion.span>
+              <span className="truncate w-full text-center leading-none relative z-10">{label}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

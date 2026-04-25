@@ -230,6 +230,12 @@
   50% { box-shadow: 0 0 0 6px hsl(263 90% 65% / 0); }
 }
 .pulse-glow { animation: pulse-glow 2s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .pulse-glow {
+    animation: none;
+    box-shadow: 0 0 0 1.5px hsl(263 90% 65% / 0.45);
+  }
+}
 
 /* ── Surface helpers (consistent radius/elevation) ── */
 .surface-elevated {
