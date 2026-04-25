@@ -2011,8 +2011,14 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         )}
       </AnimatePresence>
 
-      {/* ── Input bar — floating, no background frame ── */}
-      <div className="flex-shrink-0 relative">
+      {/* ── Input bar — floating with frosted-glass blur (no dark frame) ── */}
+      <div
+        className="flex-shrink-0 relative"
+        style={{
+          backdropFilter: 'blur(24px) saturate(150%)',
+          WebkitBackdropFilter: 'blur(24px) saturate(150%)',
+        }}
+      >
 
         {/* @mention suggestions — floats above the input bar, same pattern as emoji/GIF */}
         <AnimatePresence>
