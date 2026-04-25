@@ -382,6 +382,75 @@ html, body {
   }
 
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    @apply font-sans antialiased text-foreground;
+    background-color: hsl(230 28% 4%);
+    background-image:
+      radial-gradient(ellipse 90% 60% at 18% -10%, hsl(263 70% 22% / 0.55), transparent 60%),
+      radial-gradient(ellipse 80% 55% at 110% 110%, hsl(220 80% 18% / 0.45), transparent 60%),
+      linear-gradient(180deg, hsl(232 30% 6%) 0%, hsl(230 28% 4%) 100%);
+    background-attachment: fixed;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────
+   Chat-bubble & composer aesthetics (futuristic refresh)
+   ───────────────────────────────────────────────────────────────── */
+
+/* Sent (own) message bubble — purple/blue gradient + soft glow */
+.bubble-sent {
+  background: linear-gradient(135deg, hsl(263 92% 62%) 0%, hsl(248 90% 58%) 55%, hsl(220 92% 56%) 100%);
+  color: #fff;
+  border: 1px solid hsl(263 90% 75% / 0.32);
+  box-shadow:
+    0 8px 22px -10px hsl(248 90% 55% / 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+/* Received (peer) message bubble — glass dark, semi-transparent, readable */
+.bubble-received {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.014)),
+    rgba(22, 26, 42, 0.72);
+  color: hsl(0 0% 95%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 6px 18px -10px rgba(0, 0, 0, 0.5);
+}
+
+/* Floating glass capsule for the message composer */
+.composer-pill {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.018)),
+    rgba(20, 26, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 9999px;
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 10px 28px -14px rgba(0, 0, 0, 0.55);
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+.composer-pill:focus-within {
+  border-color: hsl(263 90% 65% / 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 10px 30px -12px hsl(263 90% 60% / 0.45),
+    0 0 0 3px hsl(263 90% 65% / 0.10);
+}
+
+/* Circular gradient send button with neon glow */
+.send-circle {
+  background: linear-gradient(135deg, hsl(263 92% 65%) 0%, hsl(248 92% 60%) 55%, hsl(220 95% 58%) 100%);
+  color: #fff;
+  border: 1px solid hsl(263 90% 78% / 0.45);
+  box-shadow:
+    0 8px 22px -8px hsl(248 90% 55% / 0.7),
+    0 0 0 1px hsl(263 90% 60% / 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+.send-circle:hover { filter: brightness(1.06); }
+.send-circle:active { transform: scale(0.96); }

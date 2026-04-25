@@ -1675,10 +1675,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   )}
 
                   {/* ── Bubble ── */}
-                  <div className={`rounded-[7px] px-2 py-[5px] text-[14.5px] shadow-sm leading-[1.3]
+                  <div className={`rounded-[14px] px-2.5 py-[6px] text-[14.5px] leading-[1.3]
                     ${isMine
-                      ? 'bg-primary text-primary-foreground rounded-br-[2px]'
-                      : 'bg-card text-card-foreground border border-border/50 rounded-bl-[2px]'
+                      ? 'bubble-sent rounded-br-[4px]'
+                      : 'bubble-received rounded-bl-[4px]'
                     }`}
                   >
                     {/* Reply preview inside bubble — WhatsApp style */}
@@ -2118,8 +2118,8 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             />
           ) : (
             <>
-              {/* ── Text input field ─────────────────────────────────── */}
-              <div className="flex-1 glass rounded-2xl border border-border/50 focus-within:border-primary/40 transition-colors flex items-end overflow-hidden">
+              {/* ── Text input field — floating glass capsule ─────────── */}
+              <div className="flex-1 composer-pill flex items-end overflow-hidden">
 
                 {/* Left icon: GIF (idle) ↔ Emoji (typing) */}
                 <AnimatePresence mode="wait" initial={false}>
@@ -2203,7 +2203,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.5, opacity: 0 }}
                     transition={{ duration: 0.15 }}
-                    className="flex-shrink-0 w-10 h-10 rounded-xl gradient-primary text-white glow-primary-sm transition-transform flex items-center justify-center mb-0.5 active:scale-95"
+                    className="flex-shrink-0 w-11 h-11 rounded-full send-circle transition-all flex items-center justify-center mb-0.5"
                   >
                     {sending
                       ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -2217,7 +2217,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.5, opacity: 0 }}
                     transition={{ duration: 0.15 }}
-                    className="flex-shrink-0 w-10 h-10 rounded-xl gradient-primary text-white glow-primary-sm transition-transform flex items-center justify-center mb-0.5 active:scale-95"
+                    className="flex-shrink-0 w-11 h-11 rounded-full send-circle transition-all flex items-center justify-center mb-0.5"
                   >
                     <Mic className="w-4 h-4" />
                   </motion.button>
