@@ -54,6 +54,13 @@ type Dict = {
     installAppIos: string;
     installAppDesc: string;
     installAppIosDesc: string;
+    appearance: string;
+    theme: string;
+    themeDesc: string;
+    themeDark: string;
+    themeLight: string;
+    visualEffects: string;
+    visualEffectsDesc: string;
   };
   chat: {
     reply: string;
@@ -176,6 +183,13 @@ export const i18n: Record<AppLang, Dict> = {
       installAppIos: 'Installer sur iPhone / iPad',
       installAppDesc: 'Installer en application native',
       installAppIosDesc: "Ajouter à l'écran d'accueil via Safari",
+      appearance: 'Apparence',
+      theme: 'Thème',
+      themeDesc: "Choisir l'apparence de l'application",
+      themeDark: 'Sombre',
+      themeLight: 'Clair',
+      visualEffects: 'Effets visuels',
+      visualEffectsDesc: 'Désactive les animations pour économiser la batterie',
     },
     chat: {
       reply: 'Répondre',
@@ -297,6 +311,13 @@ export const i18n: Record<AppLang, Dict> = {
       installAppIos: 'Install on iPhone / iPad',
       installAppDesc: 'Install as a native app',
       installAppIosDesc: 'Add to home screen via Safari',
+      appearance: 'Appearance',
+      theme: 'Theme',
+      themeDesc: 'Choose the look of the app',
+      themeDark: 'Dark',
+      themeLight: 'Light',
+      visualEffects: 'Visual effects',
+      visualEffectsDesc: 'Disable animations to save battery',
     },
     chat: {
       reply: 'Reply',
@@ -421,6 +442,13 @@ export const i18n: Record<AppLang, Dict> = {
       installAppIos: 'Instalar en iPhone / iPad',
       installAppDesc: 'Instalar como aplicación nativa',
       installAppIosDesc: 'Añadir a la pantalla de inicio con Safari',
+      appearance: 'Apariencia',
+      theme: 'Tema',
+      themeDesc: 'Elige el aspecto de la aplicación',
+      themeDark: 'Oscuro',
+      themeLight: 'Claro',
+      visualEffects: 'Efectos visuales',
+      visualEffectsDesc: 'Desactiva las animaciones para ahorrar batería',
     },
     chat: {
       reply: 'Responder',
@@ -545,6 +573,13 @@ export const i18n: Record<AppLang, Dict> = {
       installAppIos: 'تثبيت على iPhone / iPad',
       installAppDesc: 'تثبيت كتطبيق أصلي',
       installAppIosDesc: 'أضف إلى الشاشة الرئيسية عبر Safari',
+      appearance: 'المظهر',
+      theme: 'السمة',
+      themeDesc: 'اختر مظهر التطبيق',
+      themeDark: 'داكن',
+      themeLight: 'فاتح',
+      visualEffects: 'التأثيرات البصرية',
+      visualEffectsDesc: 'عطّل الرسوم المتحركة لتوفير البطارية',
     },
     chat: {
       reply: 'رد',
@@ -669,6 +704,13 @@ export const i18n: Record<AppLang, Dict> = {
       installAppIos: 'Instalar no iPhone / iPad',
       installAppDesc: 'Instalar como aplicativo nativo',
       installAppIosDesc: 'Adicionar à tela inicial pelo Safari',
+      appearance: 'Aparência',
+      theme: 'Tema',
+      themeDesc: 'Escolha a aparência do app',
+      themeDark: 'Escuro',
+      themeLight: 'Claro',
+      visualEffects: 'Efeitos visuais',
+      visualEffectsDesc: 'Desative as animações para economizar bateria',
     },
     chat: {
       reply: 'Responder',
@@ -793,6 +835,13 @@ export const i18n: Record<AppLang, Dict> = {
       installAppIos: 'Auf iPhone / iPad installieren',
       installAppDesc: 'Als native App installieren',
       installAppIosDesc: 'Zum Startbildschirm via Safari hinzufügen',
+      appearance: 'Erscheinungsbild',
+      theme: 'Design',
+      themeDesc: 'Wähle das Aussehen der App',
+      themeDark: 'Dunkel',
+      themeLight: 'Hell',
+      visualEffects: 'Visuelle Effekte',
+      visualEffectsDesc: 'Animationen deaktivieren, um Akku zu sparen',
     },
     chat: {
       reply: 'Antworten',

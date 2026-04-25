@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { usePreferences } from '@/lib/preferences-context';
 
 const PARTICLE_COUNT = 40;
 const COLORS = ['rgba(139,92,246,', 'rgba(0,245,255,', 'rgba(255,77,157,'];
@@ -6,9 +7,11 @@ const COLORS = ['rgba(139,92,246,', 'rgba(0,245,255,', 'rgba(255,77,157,'];
 const FRAME_INTERVAL = 1000 / 30;
 
 export function AnimatedBackground() {
+  const { effectsEnabled } = usePreferences();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
+    if (!effectsEnabled) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d', { alpha: true });
@@ -65,7 +68,9 @@ export function AnimatedBackground() {
       cancelAnimationFrame(animFrameId);
       window.removeEventListener('resize', resize);
     };
-  }, []);
+  }, [effectsEnabled]);
+
+  if (!effectsEnabled) return null;
 
   return (
     <>

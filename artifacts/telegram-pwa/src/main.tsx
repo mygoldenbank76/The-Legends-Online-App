@@ -4,7 +4,11 @@ import "./index.css";
 import App from "./App.tsx";
 import "./lib/auth-fetch"; // Initialize auth fetch
 
-document.documentElement.classList.add("dark");
+// Apply persisted theme before React mounts to avoid a flash of wrong theme
+const _storedTheme = localStorage.getItem("telechat_theme");
+const _initialTheme = _storedTheme === "light" ? "light" : "dark";
+document.documentElement.dataset.theme = _initialTheme;
+if (_initialTheme === "dark") document.documentElement.classList.add("dark");
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
