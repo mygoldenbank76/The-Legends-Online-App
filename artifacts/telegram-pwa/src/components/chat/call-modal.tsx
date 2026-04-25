@@ -542,19 +542,36 @@ function CallCtrlBtn({
   label: string;
 }) {
   const colorMap = {
-    red:   { bg: 'bg-red-500/20 border-red-500/40',   text: 'text-red-400', glow: '' },
-    blue:  { bg: 'gradient-primary-soft border-primary/50', text: 'text-primary', glow: 'glow-primary-sm' },
-    green: { bg: 'bg-green-500/20 border-green-500/40', text: 'text-green-400', glow: '' },
+    red: {
+      bg: 'bg-gradient-to-br from-red-500/35 to-rose-500/20 border-red-400/50',
+      text: 'text-red-200',
+      glow: 'glow-danger-sm',
+    },
+    blue: {
+      bg: 'gradient-primary-soft border-primary/55',
+      text: 'text-primary',
+      glow: 'glow-primary-sm',
+    },
+    green: {
+      bg: 'bg-gradient-to-br from-emerald-500/35 to-green-500/20 border-emerald-400/50',
+      text: 'text-emerald-200',
+      glow: 'glow-success-sm',
+    },
   };
   const { bg, text, glow } = colorMap[activeColor];
+
+  // Inactive: soft glassy gradient surface to match the modal's polish.
+  const inactiveClasses =
+    'bg-gradient-to-b from-white/[0.14] to-white/[0.04] border-white/15 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md';
 
   return (
     <div className="flex flex-col items-center gap-1.5">
       <motion.button
         whileTap={{ scale: 0.9 }}
+        whileHover={{ scale: 1.06 }}
         onClick={onClick}
-        className={`w-12 h-12 rounded-full flex items-center justify-center border transition-colors ${
-          active ? `${bg} ${text} ${glow}` : 'bg-white/10 border-white/20 text-white'
+        className={`w-12 h-12 rounded-full flex items-center justify-center border transition-[background-color,box-shadow,filter,border-color] duration-200 hover:brightness-110 active:brightness-95 ${
+          active ? `${bg} ${text} ${glow}` : inactiveClasses
         }`}
       >
         {icon}
