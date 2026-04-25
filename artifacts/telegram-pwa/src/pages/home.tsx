@@ -608,18 +608,25 @@ function SettingsPage({
               </div>
             </button>
             {openLangMenu === 'app' && (
-              <div className="glass-strong border-t border-white/5 py-1">
-                {SUPPORTED_APP_LANGUAGES.map(lang => (
-                  <button
-                    key={lang.code}
-                    onClick={() => { setAppLanguage(lang.code); setOpenLangMenu(null); }}
-                    className={`w-full flex items-center gap-3 px-5 py-2.5 text-sm transition-colors hover:bg-white/5 ${appLanguage === lang.code ? 'text-primary font-semibold' : 'text-foreground'}`}
-                  >
-                    <span className="text-base">{lang.flag}</span>
-                    <span>{lang.label}</span>
-                    {appLanguage === lang.code && <span className="ml-auto text-primary text-xs">✓</span>}
-                  </button>
-                ))}
+              <div className="glass-strong gradient-hairline-top py-1.5 px-1.5 flex flex-col gap-0.5">
+                {SUPPORTED_APP_LANGUAGES.map(lang => {
+                  const active = appLanguage === lang.code;
+                  return (
+                    <button
+                      key={lang.code}
+                      onClick={() => { setAppLanguage(lang.code); setOpenLangMenu(null); }}
+                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all ${
+                        active
+                          ? 'gradient-primary-soft border border-primary/35 text-primary font-semibold'
+                          : 'border border-transparent text-foreground hover:bg-white/5'
+                      }`}
+                    >
+                      <span className="text-base">{lang.flag}</span>
+                      <span>{lang.label}</span>
+                      {active && <span className="ml-auto text-primary text-xs">✓</span>}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -644,18 +651,25 @@ function SettingsPage({
               </div>
             </button>
             {openLangMenu === 'translate' && (
-              <div className="glass-strong border-t border-white/5 py-1">
-                {SUPPORTED_TRANSLATE_LANGUAGES.map(lang => (
-                  <button
-                    key={lang.code}
-                    onClick={() => { setTranslateLanguage(lang.code); setOpenLangMenu(null); }}
-                    className={`w-full flex items-center gap-3 px-5 py-2.5 text-sm transition-colors hover:bg-white/5 ${translateLanguage === lang.code ? 'text-primary font-semibold' : 'text-foreground'}`}
-                  >
-                    <span className="text-base">{lang.flag}</span>
-                    <span>{lang.label}</span>
-                    {translateLanguage === lang.code && <span className="ml-auto text-primary text-xs">✓</span>}
-                  </button>
-                ))}
+              <div className="glass-strong gradient-hairline-top py-1.5 px-1.5 flex flex-col gap-0.5">
+                {SUPPORTED_TRANSLATE_LANGUAGES.map(lang => {
+                  const active = translateLanguage === lang.code;
+                  return (
+                    <button
+                      key={lang.code}
+                      onClick={() => { setTranslateLanguage(lang.code); setOpenLangMenu(null); }}
+                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all ${
+                        active
+                          ? 'gradient-primary-soft border border-primary/35 text-primary font-semibold'
+                          : 'border border-transparent text-foreground hover:bg-white/5'
+                      }`}
+                    >
+                      <span className="text-base">{lang.flag}</span>
+                      <span>{lang.label}</span>
+                      {active && <span className="ml-auto text-primary text-xs">✓</span>}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -715,10 +729,10 @@ function SettingsPage({
                       <div className="flex justify-center pt-3 pb-1 flex-shrink-0 sm:hidden">
                         <div className="w-10 h-1 rounded-full bg-white/20" />
                       </div>
-                      <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 flex-shrink-0">
+                      <div className="flex items-center justify-between px-5 py-3 gradient-hairline-bottom flex-shrink-0">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-xl bg-primary/20 flex items-center justify-center">
-                            <Shield className="w-4 h-4 text-primary" />
+                          <div className="w-8 h-8 rounded-xl gradient-primary glow-primary-sm flex items-center justify-center">
+                            <Shield className="w-4 h-4 text-white" />
                           </div>
                           <div>
                             <p className="font-bold text-sm">{t.settings.adminPanel}</p>
@@ -848,8 +862,8 @@ function SettingsPage({
                 </div>
                 <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-primary/20 flex items-center justify-center">
-                      <Smartphone className="w-5 h-5 text-primary" />
+                    <div className="w-10 h-10 rounded-2xl gradient-primary glow-primary-sm flex items-center justify-center">
+                      <Smartphone className="w-5 h-5 text-white" />
                     </div>
                     <div>
                       <p className="font-bold text-sm">Installer sur iOS</p>
@@ -863,21 +877,21 @@ function SettingsPage({
                 </div>
                 <div className="flex flex-col gap-4">
                   <div className="flex items-start gap-4">
-                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">1</div>
+                    <div className="w-8 h-8 rounded-full gradient-primary glow-primary-sm flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">1</div>
                     <div>
                       <p className="text-sm font-medium">Ouvre Safari</p>
                       <p className="text-xs text-muted-foreground">L'installation nécessite le navigateur Safari d'Apple</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-4">
-                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">2</div>
+                    <div className="w-8 h-8 rounded-full gradient-primary glow-primary-sm flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">2</div>
                     <div className="flex-1">
                       <p className="text-sm font-medium flex items-center gap-1.5">Appuie sur <Share className="w-4 h-4 text-primary inline" /> Partager</p>
                       <p className="text-xs text-muted-foreground">En bas de l'écran dans la barre Safari</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-4">
-                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">3</div>
+                    <div className="w-8 h-8 rounded-full gradient-primary glow-primary-sm flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">3</div>
                     <div>
                       <p className="text-sm font-medium">« Sur l'écran d'accueil »</p>
                       <p className="text-xs text-muted-foreground">Fais défiler et sélectionne cette option, puis confirme</p>
@@ -910,8 +924,8 @@ function SettingsPage({
                 </div>
                 <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-primary/20 flex items-center justify-center">
-                      <Download className="w-5 h-5 text-primary" />
+                    <div className="w-10 h-10 rounded-2xl gradient-primary glow-primary-sm flex items-center justify-center">
+                      <Download className="w-5 h-5 text-white" />
                     </div>
                     <div>
                       <p className="font-bold text-sm">Installer sur Android</p>
@@ -925,21 +939,21 @@ function SettingsPage({
                 </div>
                 <div className="flex flex-col gap-4">
                   <div className="flex items-start gap-4">
-                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">1</div>
+                    <div className="w-8 h-8 rounded-full gradient-primary glow-primary-sm flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">1</div>
                     <div>
                       <p className="text-sm font-medium">Ouvre Chrome ou ton navigateur</p>
                       <p className="text-xs text-muted-foreground">Assure-toi d'utiliser Chrome pour Android</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-4">
-                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">2</div>
+                    <div className="w-8 h-8 rounded-full gradient-primary glow-primary-sm flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">2</div>
                     <div>
                       <p className="text-sm font-medium">Menu ⋮ → « Ajouter à l'écran d'accueil »</p>
                       <p className="text-xs text-muted-foreground">Les trois points en haut à droite du navigateur</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-4">
-                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">3</div>
+                    <div className="w-8 h-8 rounded-full gradient-primary glow-primary-sm flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">3</div>
                     <div>
                       <p className="text-sm font-medium">Confirme l'installation</p>
                       <p className="text-xs text-muted-foreground">Appuie sur "Installer" dans la fenêtre qui apparaît</p>

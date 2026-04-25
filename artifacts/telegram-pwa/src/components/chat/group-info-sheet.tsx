@@ -126,20 +126,31 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
                 </div>
 
                 {/* Tabs */}
-                <div className="flex border-b border-border/50 mx-4">
-                  {tabs.map(tabItem => (
-                    <button
-                      key={tabItem.key}
-                      onClick={() => setTab(tabItem.key)}
-                      className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                        tab === tabItem.key
-                          ? 'text-primary border-b-2 border-primary -mb-px'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      {tabItem.label}
-                    </button>
-                  ))}
+                <div className="mx-4 gradient-hairline-bottom pb-2">
+                  <div className="glass relative grid grid-cols-3 gap-0.5 rounded-2xl p-1 overflow-hidden">
+                    {tabs.map(tabItem => {
+                      const active = tab === tabItem.key;
+                      return (
+                        <button
+                          key={tabItem.key}
+                          onClick={() => setTab(tabItem.key)}
+                          className={`relative py-2 rounded-xl text-xs font-medium transition-colors ${
+                            active ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          {active && (
+                            <motion.span
+                              layoutId="activeGroupInfoTabPill"
+                              className="absolute inset-0 rounded-xl gradient-primary-soft border border-primary/35"
+                              style={{ boxShadow: '0 4px 14px -6px hsl(263 90% 65% / 0.45), inset 0 1px 0 rgba(255,255,255,0.06)' }}
+                              transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+                            />
+                          )}
+                          <span className="relative z-10">{tabItem.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* Tab content */}

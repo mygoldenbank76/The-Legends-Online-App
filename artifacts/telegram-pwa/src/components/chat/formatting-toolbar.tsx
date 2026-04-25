@@ -99,7 +99,7 @@ export function FormattingToolbar({
                 <button
                   onMouseDown={e => { e.preventDefault(); onLinkConfirm(); }}
                   onTouchEnd={e => { e.preventDefault(); onLinkConfirm(); }}
-                  className="text-xs px-3 py-1 rounded-full gradient-primary glow-primary-sm text-white font-semibold hover:opacity-95 active:scale-95 transition-all flex-shrink-0"
+                  className="text-xs px-3 py-1 rounded-full gradient-primary glow-primary text-white font-semibold hover:opacity-95 active:scale-95 transition-all flex-shrink-0"
                 >
                   OK
                 </button>

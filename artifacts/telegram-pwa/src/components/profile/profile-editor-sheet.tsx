@@ -313,7 +313,7 @@ export function ProfileEditorSheet({ user, onClose, onSaved }: Props) {
                     saved
                       ? 'bg-green-500 text-white'
                       : hasChanges
-                        ? 'gradient-primary glow-primary-sm text-white hover:opacity-95 active:scale-[0.97]'
+                        ? 'gradient-primary glow-primary text-white hover:opacity-95 active:scale-[0.97]'
                         : 'bg-white/10 text-muted-foreground cursor-not-allowed'
                   }`}
                 >

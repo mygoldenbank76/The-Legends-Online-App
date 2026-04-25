@@ -15,10 +15,10 @@ export function AttachmentSheet({ open, onClose, onCamera, onGallery, onDocument
   const { t } = usePreferences();
 
   const items = [
-    { key: 'camera',   label: t.attachments.camera,   icon: Camera,    bg: 'bg-pink-600'   },
-    { key: 'gallery',  label: t.attachments.gallery,  icon: ImageIcon, bg: 'bg-blue-600'   },
-    { key: 'document', label: t.attachments.document, icon: FileText,  bg: 'bg-purple-600' },
-    { key: 'poll',     label: t.attachments.poll,     icon: BarChart2, bg: 'bg-amber-700'  },
+    { key: 'camera',   label: t.attachments.camera,   icon: Camera    },
+    { key: 'gallery',  label: t.attachments.gallery,  icon: ImageIcon },
+    { key: 'document', label: t.attachments.document, icon: FileText  },
+    { key: 'poll',     label: t.attachments.poll,     icon: BarChart2 },
   ];
 
   const handlers: Record<string, () => void> = {
@@ -59,7 +59,7 @@ export function AttachmentSheet({ open, onClose, onCamera, onGallery, onDocument
                     }}
                     className="flex flex-col items-center gap-2 group"
                   >
-                    <div className={`w-14 h-14 rounded-2xl ${item.bg} flex items-center justify-center glow-primary-sm group-active:scale-95 transition-transform`}>
+                    <div className="w-14 h-14 rounded-2xl gradient-primary glow-primary flex items-center justify-center group-active:scale-95 transition-transform">
                       <item.icon className="w-7 h-7 text-white" />
                     </div>
                     <span className="text-xs text-foreground font-medium">{item.label}</span>
