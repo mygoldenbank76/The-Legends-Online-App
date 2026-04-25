@@ -312,7 +312,7 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
                   className={cn(
                     'w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-colors text-left select-none',
                     isActive
-                      ? 'bg-primary/15 border border-primary/20'
+                      ? 'gradient-primary-soft border border-primary/35 glow-primary-sm'
                       : isRevealed
                       ? 'bg-red-500/8 border border-red-500/20'
                       : 'hover:bg-white/5 border border-transparent'
@@ -323,7 +323,9 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
                     <div
                       className={cn(
                         'w-11 h-11 rounded-xl flex items-center justify-center text-sm font-bold overflow-hidden',
-                        isActive ? 'bg-primary/25 text-primary' : 'bg-white/8 text-muted-foreground'
+                        isActive
+                          ? 'gradient-primary text-white shadow-[0_4px_14px_-2px_hsl(263_90%_65%/0.55)]'
+                          : 'bg-white/8 text-muted-foreground'
                       )}
                     >
                       {avatarUrl ? (
@@ -396,7 +398,7 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
                         </p>
                       )}
                       {conv.unreadCount > 0 && (
-                        <span className="flex-shrink-0 bg-primary text-primary-foreground text-[10px] font-bold rounded-full min-w-5 h-5 flex items-center justify-center px-1.5">
+                        <span className="flex-shrink-0 gradient-primary text-white text-[10px] font-bold rounded-full min-w-5 h-5 flex items-center justify-center px-1.5 pulse-glow">
                           {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
                         </span>
                       )}

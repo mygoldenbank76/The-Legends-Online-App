@@ -142,11 +142,11 @@ export default function Register() {
       <div className="relative z-10 w-full max-w-sm flex flex-col gap-6">
         {/* Logo + titre */}
         <div className="flex flex-col items-center gap-3 text-center">
-          <div className="w-20 h-20 rounded-3xl bg-primary/20 border border-primary/30 flex items-center justify-center shadow-lg shadow-primary/20">
-            <Zap className="w-10 h-10 text-primary" />
+          <div className="w-20 h-20 rounded-3xl gradient-primary flex items-center justify-center glow-primary-strong">
+            <Zap className="w-10 h-10 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">{t.title}</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-gradient-primary">{t.title}</h1>
             <p className="text-sm text-muted-foreground mt-1">{t.subtitle}</p>
           </div>
         </div>
@@ -209,7 +209,7 @@ export default function Register() {
               />
               <Button
                 type="submit"
-                className="w-full h-11 rounded-xl font-semibold bg-primary hover:bg-primary/90 text-white mt-2"
+                className="w-full h-11 rounded-xl font-semibold gradient-primary glow-primary text-white mt-2 border-0 hover:opacity-95 active:scale-[0.98] transition-all"
                 disabled={isLoading}
               >
                 {isLoading ? t.loading : t.submit}

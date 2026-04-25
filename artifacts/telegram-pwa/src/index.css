@@ -130,19 +130,128 @@
   --ring: 263 90% 65%;
 }
 
-/* ── Glassmorphism (Base44 style) ── */
+/* ── Glassmorphism (Base44 futuristic) ── */
 .glass {
-  background: rgba(15, 21, 35, 0.60);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.012)),
+    rgba(15, 21, 35, 0.62);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .glass-strong {
-  background: rgba(18, 24, 40, 0.88);
-  backdrop-filter: blur(40px);
-  -webkit-backdrop-filter: blur(40px);
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.018)),
+    rgba(18, 24, 40, 0.86);
+  backdrop-filter: blur(44px) saturate(150%);
+  -webkit-backdrop-filter: blur(44px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 12px 40px -12px rgba(0, 0, 0, 0.55);
+}
+
+/* ── Gradients & glow utilities ── */
+.gradient-primary {
+  background: linear-gradient(135deg, hsl(263 92% 65%) 0%, hsl(280 86% 60%) 50%, hsl(295 82% 58%) 100%);
+}
+.gradient-primary-soft {
+  background: linear-gradient(135deg, hsl(263 90% 65% / .22) 0%, hsl(280 88% 60% / .18) 100%);
+}
+.glow-primary {
+  box-shadow: 0 8px 24px -6px hsl(263 90% 65% / .55), 0 0 0 1px hsl(263 90% 65% / .22);
+}
+.glow-primary-sm {
+  box-shadow: 0 4px 14px -2px hsl(263 90% 65% / .50);
+}
+.glow-primary-strong {
+  box-shadow: 0 14px 38px -10px hsl(263 90% 65% / .75), 0 0 30px hsl(280 88% 60% / .28);
+}
+.text-gradient-primary {
+  background: linear-gradient(135deg, hsl(263 95% 78%) 0%, hsl(295 95% 72%) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ── Ambient floating gradient blobs (background decoration) ── */
+.ambient-blobs {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+.ambient-blobs::before,
+.ambient-blobs::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(85px);
+  opacity: 0.55;
+  will-change: transform;
+}
+.ambient-blobs::before {
+  top: -12%;
+  left: -10%;
+  width: 60vw;
+  height: 60vw;
+  max-width: 540px;
+  max-height: 540px;
+  background: radial-gradient(circle at 30% 30%, hsl(263 92% 60% / 0.62), transparent 65%);
+  animation: blob-drift-a 22s ease-in-out infinite;
+}
+.ambient-blobs::after {
+  bottom: -15%;
+  right: -10%;
+  width: 65vw;
+  height: 65vw;
+  max-width: 580px;
+  max-height: 580px;
+  background: radial-gradient(circle at 70% 70%, hsl(190 100% 50% / 0.32), transparent 65%);
+  animation: blob-drift-b 26s ease-in-out infinite;
+}
+@keyframes blob-drift-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(8vw, 6vh) scale(1.1); }
+}
+@keyframes blob-drift-b {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-6vw, -4vh) scale(1.08); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ambient-blobs::before,
+  .ambient-blobs::after { animation: none; }
+}
+
+/* ── Pulse-glow used on unread badges, online dots ── */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(263 90% 65% / 0.55); }
+  50% { box-shadow: 0 0 0 6px hsl(263 90% 65% / 0); }
+}
+.pulse-glow { animation: pulse-glow 2s ease-out infinite; }
+
+/* ── Safe area bottom (PWA on iOS) ── */
+.safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* ── Gradient hairlines (1px) for headers / tab bars ── */
+.gradient-hairline-bottom { position: relative; }
+.gradient-hairline-bottom::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, hsl(263 92% 65% / 0.55) 30%, hsl(280 90% 60% / 0.55) 70%, transparent 100%);
+  pointer-events: none;
+}
+.gradient-hairline-top { position: relative; }
+.gradient-hairline-top::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, hsl(263 92% 65% / 0.55) 30%, hsl(280 90% 60% / 0.55) 70%, transparent 100%);
+  pointer-events: none;
 }
 
 /* Hide scrollbar */

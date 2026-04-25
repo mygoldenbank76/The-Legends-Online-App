@@ -2203,7 +2203,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.5, opacity: 0 }}
                     transition={{ duration: 0.15 }}
-                    className="flex-shrink-0 w-10 h-10 rounded-xl bg-primary/20 border border-primary/30 hover:bg-primary/30 text-primary transition-colors flex items-center justify-center mb-0.5 active:scale-95"
+                    className="flex-shrink-0 w-10 h-10 rounded-xl gradient-primary text-white glow-primary-sm transition-transform flex items-center justify-center mb-0.5 active:scale-95"
                   >
                     {sending
                       ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -2217,7 +2217,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.5, opacity: 0 }}
                     transition={{ duration: 0.15 }}
-                    className="flex-shrink-0 w-10 h-10 rounded-xl bg-primary/20 border border-primary/30 hover:bg-primary/30 text-primary transition-colors flex items-center justify-center mb-0.5"
+                    className="flex-shrink-0 w-10 h-10 rounded-xl gradient-primary text-white glow-primary-sm transition-transform flex items-center justify-center mb-0.5 active:scale-95"
                   >
                     <Mic className="w-4 h-4" />
                   </motion.button>

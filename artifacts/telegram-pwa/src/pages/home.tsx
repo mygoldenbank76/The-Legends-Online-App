@@ -257,12 +257,12 @@ export default function Home() {
 /* ── Desktop header ── */
 function DesktopHeader({ user, onLogout }: { user: { displayName: string }; onLogout: () => void }) {
   return (
-    <div className="flex-shrink-0 h-14 flex items-center justify-between px-4 border-b border-border/50 glass">
+    <div className="flex-shrink-0 h-14 flex items-center justify-between px-4 glass gradient-hairline-bottom">
       <div className="flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-xl bg-primary/20 flex items-center justify-center">
-          <Zap className="w-4 h-4 text-primary" />
+        <div className="w-8 h-8 rounded-xl gradient-primary flex items-center justify-center glow-primary-sm">
+          <Zap className="w-4 h-4 text-white" />
         </div>
-        <span className="font-bold text-base text-primary">The Legends Online</span>
+        <span className="font-bold text-base text-gradient-primary">The Legends Online</span>
       </div>
       <button onClick={onLogout} className="text-muted-foreground hover:text-foreground transition-colors p-1">
         <LogOut className="w-5 h-5" />
@@ -303,25 +303,26 @@ function DesktopTabs({ activeTab, onSelect }: { activeTab: Tab; onSelect: (t: Ta
 function MobileHeader({ user }: { user: { displayName: string } }) {
   return (
     <div
-      className="flex-shrink-0 flex items-center justify-between px-4 border-b border-border/50"
+      className="flex-shrink-0 flex items-center justify-between px-4 gradient-hairline-bottom relative"
       style={{
-        borderTop: 'none',
         paddingTop: `calc(env(safe-area-inset-top, 0px) + 12px)`,
         paddingBottom: 12,
         minHeight: '3.5rem',
-        background: 'rgb(14, 18, 28)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
+        background:
+          'linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)), rgba(14, 18, 28, 0.85)',
+        backdropFilter: 'blur(22px) saturate(140%)',
+        WebkitBackdropFilter: 'blur(22px) saturate(140%)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
       }}
     >
-      <div className="flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-xl bg-primary/20 flex items-center justify-center">
-          <Zap className="w-4 h-4 text-primary" />
+      <div className="flex items-center gap-2.5 relative z-10">
+        <div className="w-8 h-8 rounded-xl gradient-primary flex items-center justify-center glow-primary-sm">
+          <Zap className="w-4 h-4 text-white" />
         </div>
-        <span className="font-bold text-base text-primary">The Legends Online</span>
+        <span className="font-bold text-base text-gradient-primary">The Legends Online</span>
       </div>
-      <div className="flex items-center gap-2">
-        <div className="w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center">
+      <div className="flex items-center gap-2 relative z-10">
+        <div className="w-7 h-7 rounded-lg gradient-primary-soft border border-primary/35 flex items-center justify-center">
           <span className="text-xs font-bold text-primary">{user.displayName.substring(0, 2).toUpperCase()}</span>
         </div>
       </div>
@@ -329,24 +330,36 @@ function MobileHeader({ user }: { user: { displayName: string } }) {
   );
 }
 
-/* ── Mobile bottom nav ── */
+/* ── Mobile bottom nav — floating glass capsule with sliding active pill ── */
 function MobileBottomNav({ activeTab, onSelect }: { activeTab: Tab; onSelect: (t: Tab) => void }) {
   const { t } = usePreferences();
   const tabs: Tab[] = ['groups', 'messages', 'shop', 'settings'];
   return (
-    <nav className="flex-shrink-0 glass border-t border-border/50 flex items-stretch safe-area-bottom">
+    <nav className="flex-shrink-0 glass gradient-hairline-top flex items-stretch safe-area-bottom relative">
       {tabs.map((id) => {
         const Icon = NAV_ICONS[id];
+        const active = activeTab === id;
         return (
           <button
             key={id}
             onClick={() => onSelect(id)}
-            className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-all ${
-              activeTab === id ? 'text-primary' : 'text-muted-foreground'
+            className={`flex-1 relative flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors ${
+              active ? 'text-primary' : 'text-muted-foreground'
             }`}
           >
-            <Icon className="w-5 h-5" />
-            <span className="text-[10px] font-medium">{t.tabs[id]}</span>
+            {active && (
+              <motion.span
+                layoutId="activeTabPill"
+                className="absolute left-2 right-2 top-1.5 bottom-1.5 rounded-2xl gradient-primary-soft border border-primary/35"
+                style={{ boxShadow: '0 6px 20px -6px hsl(263 90% 65% / 0.55), inset 0 1px 0 rgba(255,255,255,0.08)' }}
+                transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+              />
+            )}
+            <Icon
+              className="w-5 h-5 relative z-10"
+              style={active ? { filter: 'drop-shadow(0 0 6px hsl(263 92% 65% / 0.7))' } : undefined}
+            />
+            <span className="text-[10px] font-medium relative z-10">{t.tabs[id]}</span>
           </button>
         );
       })}

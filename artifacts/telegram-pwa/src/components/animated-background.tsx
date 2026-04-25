@@ -68,10 +68,13 @@ export function AnimatedBackground() {
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="fixed inset-0 pointer-events-none z-0"
-      style={{ opacity: 0.6, transform: 'translateZ(0)' }}
-    />
+    <>
+      <div className="ambient-blobs" aria-hidden="true" />
+      <canvas
+        ref={canvasRef}
+        className="fixed inset-0 pointer-events-none z-0"
+        style={{ opacity: 0.6, transform: 'translateZ(0)' }}
+      />
+    </>
   );
 }
