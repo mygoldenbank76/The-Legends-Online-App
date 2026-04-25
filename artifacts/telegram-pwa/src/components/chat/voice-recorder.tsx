@@ -213,8 +213,12 @@ export function VoiceRecorder({ onSend, onCancel }: Props) {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
         className="flex-1 flex items-center gap-2 glass rounded-2xl border border-red-500/40 px-3 py-2"
+        style={{ boxShadow: '0 4px 14px -4px hsl(0 75% 55% / 0.35)' }}
       >
-        <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+        <div className="relative flex-shrink-0">
+          <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
+          <div className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-60" />
+        </div>
         <span className="text-red-400 text-sm font-mono flex-shrink-0 w-10">{formatTime(elapsed)}</span>
         {/* Live waveform canvas */}
         <canvas
@@ -245,7 +249,8 @@ export function VoiceRecorder({ onSend, onCancel }: Props) {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-      className="flex-1 flex items-center gap-2 glass rounded-2xl border border-primary/30 px-3 py-2"
+      className="flex-1 flex items-center gap-2 glass rounded-2xl border border-primary/35 px-3 py-2"
+      style={{ boxShadow: '0 4px 14px -4px hsl(263 90% 65% / 0.35)' }}
     >
       <div className="flex gap-0.5 flex-1 items-center min-w-0">
         {snapshotBars.map((val, i) => (
@@ -266,7 +271,7 @@ export function VoiceRecorder({ onSend, onCancel }: Props) {
       <button
         onClick={sendVoice}
         disabled={sending}
-        className="w-9 h-9 rounded-xl bg-primary/20 border border-primary/30 hover:bg-primary/30 text-primary flex items-center justify-center flex-shrink-0 transition-colors disabled:opacity-50"
+        className="w-9 h-9 rounded-xl gradient-primary glow-primary-sm text-white flex items-center justify-center flex-shrink-0 hover:opacity-95 active:scale-95 transition-all disabled:opacity-50"
       >
         {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
       </button>

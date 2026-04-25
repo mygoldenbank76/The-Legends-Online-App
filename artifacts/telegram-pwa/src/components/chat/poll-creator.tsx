@@ -83,9 +83,9 @@ export function PollCreator({ open, onClose, onSubmit }: Props) {
           >
             <div className="glass-strong rounded-t-3xl sm:rounded-3xl max-h-[85dvh] overflow-y-auto">
               {/* Header */}
-              <div className="flex items-center gap-3 p-4 pb-3 sticky top-0 glass-strong">
-                <div className="w-10 h-10 rounded-xl bg-amber-700/30 flex items-center justify-center">
-                  <BarChart2 className="w-5 h-5 text-amber-400" />
+              <div className="flex items-center gap-3 p-4 pb-3 sticky top-0 glass-strong gradient-hairline-bottom">
+                <div className="w-10 h-10 rounded-xl gradient-primary glow-primary-sm flex items-center justify-center">
+                  <BarChart2 className="w-5 h-5 text-white" />
                 </div>
                 <h2 className="text-base font-bold text-foreground flex-1">{t.poll.title}</h2>
                 <button onClick={handleClose} className="text-muted-foreground hover:text-foreground p-1 transition-colors">
@@ -96,7 +96,7 @@ export function PollCreator({ open, onClose, onSubmit }: Props) {
               <div className="px-4 pb-6 space-y-4">
                 {/* Question */}
                 <div>
-                  <label className="text-xs font-semibold text-amber-400 mb-2 block">{t.poll.question}</label>
+                  <label className="text-xs font-semibold text-primary mb-2 block">{t.poll.question}</label>
                   <textarea
                     value={question}
                     onChange={e => setQuestion(e.target.value)}
@@ -108,27 +108,34 @@ export function PollCreator({ open, onClose, onSubmit }: Props) {
 
                 {/* Options */}
                 <div>
-                  <label className="text-xs font-semibold text-amber-400 mb-2 block">{t.poll.options}</label>
+                  <label className="text-xs font-semibold text-primary mb-2 block">{t.poll.options}</label>
                   <div className="space-y-2">
-                    {options.map((opt, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <input
-                          value={opt}
-                          onChange={e => updateOption(idx, e.target.value)}
-                          placeholder={`Option ${idx + 1}`}
-                          className="flex-1 glass rounded-xl px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground border border-border/50 focus:border-primary/40 focus:outline-none"
-                        />
-                        {options.length > 2 && (
-                          <button onClick={() => removeOption(idx)} className="text-muted-foreground hover:text-red-400 transition-colors p-1">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                    {options.map((opt, idx) => {
+                      const filled = opt.trim().length > 0;
+                      return (
+                        <div key={idx} className="flex items-center gap-2">
+                          <input
+                            value={opt}
+                            onChange={e => updateOption(idx, e.target.value)}
+                            placeholder={`Option ${idx + 1}`}
+                            className={`flex-1 rounded-xl px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground border focus:outline-none transition-colors ${
+                              filled
+                                ? 'gradient-primary-soft border-primary/35 focus:border-primary/55'
+                                : 'glass border-border/50 focus:border-primary/40'
+                            }`}
+                          />
+                          {options.length > 2 && (
+                            <button onClick={() => removeOption(idx)} className="text-muted-foreground hover:text-red-400 transition-colors p-1">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                   {options.length < maxOptions && (
                     <button onClick={addOption} className="flex items-center gap-2 mt-2 text-sm text-primary hover:text-primary/80 transition-colors">
-                      <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
+                      <div className="w-6 h-6 rounded-full gradient-primary-soft border border-primary/30 flex items-center justify-center">
                         <Plus className="w-3 h-3" />
                       </div>
                       {t.poll.addOption}
@@ -141,7 +148,7 @@ export function PollCreator({ open, onClose, onSubmit }: Props) {
 
                 {/* Settings */}
                 <div>
-                  <label className="text-xs font-semibold text-amber-400 mb-3 block">{t.poll.settings}</label>
+                  <label className="text-xs font-semibold text-primary mb-3 block">{t.poll.settings}</label>
                   <div className="space-y-3">
                     <Toggle label={t.poll.anonymousVote} value={isAnonymous} onChange={setIsAnonymous} />
                     <Toggle label={t.poll.multipleChoice} value={isMultipleChoice} onChange={setIsMultipleChoice} />
@@ -152,7 +159,7 @@ export function PollCreator({ open, onClose, onSubmit }: Props) {
                 <button
                   onClick={handleSubmit}
                   disabled={!canSubmit}
-                  className="w-full py-3.5 rounded-2xl bg-primary/20 border border-primary/30 hover:bg-primary/30 text-primary font-semibold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full py-3.5 rounded-2xl gradient-primary glow-primary text-white font-semibold text-sm flex items-center justify-center gap-2 hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:opacity-40"
                 >
                   <BarChart2 className="w-4 h-4" />
                   {t.poll.create}

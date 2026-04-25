@@ -293,7 +293,7 @@ export function MediaPickerModal({ initialFiles, onClose, onSend, addMoreInputRe
               onClick={() => setQuality(q)}
               className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
                 quality === q
-                  ? 'bg-white text-black shadow'
+                  ? 'gradient-primary glow-primary-sm text-white'
                   : 'text-white/70 hover:text-white'
               }`}
             >
@@ -373,9 +373,9 @@ export function MediaPickerModal({ initialFiles, onClose, onSend, addMoreInputRe
               <div
                 key={m.id}
                 className={`flex-shrink-0 relative rounded-lg overflow-hidden transition-all duration-150 cursor-grab active:cursor-grabbing ${
-                  isActive && dragIdx === null ? 'ring-2 ring-white scale-105' : ''
+                  isActive && dragIdx === null ? 'ring-2 ring-primary scale-105 glow-primary-sm' : ''
                 } ${isDragged ? 'opacity-40 scale-95 ring-2 ring-primary' : ''}
-                ${isOver ? 'ring-2 ring-white/70 scale-110' : ''}
+                ${isOver ? 'ring-2 ring-primary/70 scale-110' : ''}
                 ${!isActive && dragIdx === null ? 'opacity-60' : ''}`}
                 style={{ width: 60, height: 60, touchAction: 'none' }}
                 onPointerDown={e => onThumbPointerDown(e, i)}

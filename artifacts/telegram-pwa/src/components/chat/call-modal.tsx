@@ -64,7 +64,7 @@ export function CallBanner() {
           </div>
 
           {/* Avatar */}
-          <div className="w-7 h-7 rounded-full bg-primary/20 flex-shrink-0 overflow-hidden border border-primary/30">
+          <div className="w-7 h-7 rounded-full gradient-primary-soft flex-shrink-0 overflow-hidden border border-primary/40">
             {peerAvatar
               ? <img src={peerAvatar} alt={peerName} className="w-full h-full object-cover" />
               : <span className="w-full h-full flex items-center justify-center text-xs font-bold text-primary">
@@ -83,7 +83,7 @@ export function CallBanner() {
                 </span>
               )}
               {isVideo && !isScreenSharing && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/20 border border-primary/30 text-primary flex-shrink-0">
+                <span className="text-[10px] px-1.5 py-0.5 rounded gradient-primary-soft border border-primary/40 text-primary flex-shrink-0">
                   Vidéo
                 </span>
               )}
@@ -342,10 +342,13 @@ export function CallModal() {
                 transition={{ repeat: Infinity, duration: 1.5 }}
                 className="relative"
               >
-                <div className="w-28 h-28 rounded-full bg-primary/20 border-4 border-primary/40 flex items-center justify-center overflow-hidden shadow-2xl">
+                <div
+                  className="w-28 h-28 rounded-full gradient-primary-soft border-4 border-primary/50 flex items-center justify-center overflow-hidden shadow-2xl"
+                  style={{ boxShadow: '0 14px 38px -10px hsl(263 90% 65% / .55), 0 0 30px hsl(280 88% 60% / .25)' }}
+                >
                   {peerAvatar
                     ? <img src={peerAvatar} alt={peerName} className="w-full h-full object-cover" />
-                    : <span className="text-4xl font-bold text-primary">{peerName?.charAt(0).toUpperCase()}</span>
+                    : <span className="text-4xl font-bold text-white">{peerName?.charAt(0).toUpperCase()}</span>
                   }
                 </div>
                 {status === 'active' && (
@@ -530,11 +533,11 @@ function CallCtrlBtn({
   label: string;
 }) {
   const colorMap = {
-    red:   { bg: 'bg-red-500/20 border-red-500/40',   text: 'text-red-400' },
-    blue:  { bg: 'bg-blue-500/20 border-blue-500/40', text: 'text-blue-400' },
-    green: { bg: 'bg-green-500/20 border-green-500/40', text: 'text-green-400' },
+    red:   { bg: 'bg-red-500/20 border-red-500/40',   text: 'text-red-400', glow: '' },
+    blue:  { bg: 'gradient-primary-soft border-primary/50', text: 'text-primary', glow: 'glow-primary-sm' },
+    green: { bg: 'bg-green-500/20 border-green-500/40', text: 'text-green-400', glow: '' },
   };
-  const { bg, text } = colorMap[activeColor];
+  const { bg, text, glow } = colorMap[activeColor];
 
   return (
     <div className="flex flex-col items-center gap-1.5">
@@ -542,7 +545,7 @@ function CallCtrlBtn({
         whileTap={{ scale: 0.9 }}
         onClick={onClick}
         className={`w-12 h-12 rounded-full flex items-center justify-center border transition-colors ${
-          active ? `${bg} ${text}` : 'bg-white/10 border-white/20 text-white'
+          active ? `${bg} ${text} ${glow}` : 'bg-white/10 border-white/20 text-white'
         }`}
       >
         {icon}

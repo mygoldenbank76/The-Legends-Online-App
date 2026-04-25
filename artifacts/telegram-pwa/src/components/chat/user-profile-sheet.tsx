@@ -129,12 +129,14 @@ export function UserProfileSheet({ user, currentUserId, onClose, onOpenConversat
           <div className="flex flex-col items-center px-6 gap-4">
             {/* Avatar with online indicator */}
             <div className="relative">
-              <Avatar className="w-20 h-20 ring-2 ring-primary/30">
-                <AvatarImage src={user.avatar || ''} />
-                <AvatarFallback className="bg-primary/20 text-primary text-2xl font-bold">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
+              <div className="avatar-ring-unread">
+                <Avatar className="w-20 h-20 ring-2 ring-background">
+                  <AvatarImage src={user.avatar || ''} />
+                  <AvatarFallback className="gradient-primary-soft text-primary text-2xl font-bold">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
               {user.isOnline && (
                 <span className="absolute bottom-0.5 right-0.5 w-4 h-4 bg-green-500 border-2 border-background rounded-full" />
               )}
