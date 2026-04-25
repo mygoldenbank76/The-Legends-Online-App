@@ -1477,7 +1477,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           </motion.button>
         )}
       </AnimatePresence>
-      <div ref={scrollRef} className="h-full overflow-y-auto scroll-container px-3 pt-4 pb-2 bg-background" style={{ visibility: searchOpen || scrollReady || isLoading || messages.length === 0 ? 'visible' : 'hidden' }}>
+      <div ref={scrollRef} className="h-full overflow-y-auto scroll-container px-3 pt-4 pb-2" style={{ visibility: searchOpen || scrollReady || isLoading || messages.length === 0 ? 'visible' : 'hidden' }}>
         {/* Sentinel — triggers loading older messages on scroll to top */}
         <div ref={sentinelRef} className="h-1" />
         {/* Spinner while loading older messages */}
