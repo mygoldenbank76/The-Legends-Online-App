@@ -315,7 +315,7 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
                       ? 'gradient-primary-soft border border-primary/35 glow-primary-sm'
                       : isRevealed
                       ? 'bg-red-500/8 border border-red-500/20'
-                      : 'surface-elevated hover:border-white/15'
+                      : 'hover:bg-white/[0.04]'
                   )}
                 >
                   {/* Avatar — gradient ring when unread, glow when active */}
