@@ -70,7 +70,7 @@ export function FormattingToolbar({
           animate={{ opacity: 1, height: 'auto' }}
           exit={{ opacity: 0, height: 0 }}
           transition={{ duration: 0.15 }}
-          className="overflow-hidden border-b border-border/30 bg-card/60 backdrop-blur-md"
+          className="overflow-hidden glass gradient-hairline-bottom"
         >
           <AnimatePresence mode="wait">
             {linkMode ? (

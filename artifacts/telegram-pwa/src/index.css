@@ -199,7 +199,7 @@
   max-width: 540px;
   max-height: 540px;
   background: radial-gradient(circle at 30% 30%, hsl(263 92% 60% / 0.62), transparent 65%);
-  animation: blob-drift-a 22s ease-in-out infinite;
+  animation: blob-drift-a 36s ease-in-out infinite;
 }
 .ambient-blobs::after {
   bottom: -15%;
@@ -209,7 +209,7 @@
   max-width: 580px;
   max-height: 580px;
   background: radial-gradient(circle at 70% 70%, hsl(190 100% 50% / 0.32), transparent 65%);
-  animation: blob-drift-b 26s ease-in-out infinite;
+  animation: blob-drift-b 40s ease-in-out infinite;
 }
 @keyframes blob-drift-a {
   0%, 100% { transform: translate(0, 0) scale(1); }
