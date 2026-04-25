@@ -452,6 +452,9 @@ importers:
       '@tanstack/react-query-persist-client':
         specifier: ^5.97.0
         version: 5.97.0(@tanstack/react-query@5.90.21(react@19.1.0))(react@19.1.0)
+      express:
+        specifier: ^5
+        version: 5.2.1
       socket.io-client:
         specifier: ^4.8.3
         version: 4.8.3
