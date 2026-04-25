@@ -192,6 +192,56 @@ html:not(.dark) .glass-strong {
   color: transparent;
 }
 
+/* Success (accept-call) — emerald → green gradient + glow */
+.gradient-success {
+  background: linear-gradient(135deg, hsl(152 80% 52%) 0%, hsl(142 76% 42%) 100%);
+}
+.glow-success {
+  box-shadow:
+    0 10px 28px -8px hsl(142 76% 42% / .65),
+    0 0 22px hsl(152 80% 50% / .35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+.glow-success-strong {
+  box-shadow:
+    0 14px 38px -10px hsl(142 78% 45% / .75),
+    0 0 32px hsl(152 85% 55% / .45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+/* Danger (end-call / reject) — red → pink gradient + glow */
+.gradient-danger {
+  background: linear-gradient(135deg, hsl(0 85% 60%) 0%, hsl(340 82% 55%) 100%);
+}
+.glow-danger {
+  box-shadow:
+    0 10px 28px -8px hsl(350 82% 50% / .60),
+    0 0 22px hsl(0 85% 60% / .32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.20);
+}
+.glow-danger-strong {
+  box-shadow:
+    0 14px 38px -10px hsl(350 85% 52% / .72),
+    0 0 32px hsl(0 88% 60% / .42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26);
+}
+
+/* Pulsing halo specifically for an incoming accept button */
+@keyframes accept-pulse-halo {
+  0%, 100% { box-shadow:
+    0 10px 28px -8px hsl(142 76% 42% / .65),
+    0 0 0 0 hsl(152 85% 55% / .55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22); }
+  50% { box-shadow:
+    0 12px 32px -8px hsl(142 76% 42% / .75),
+    0 0 0 14px hsl(152 85% 55% / 0),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26); }
+}
+.pulse-glow-success { animation: accept-pulse-halo 1.6s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .pulse-glow-success { animation: none; }
+}
+
 /* ── Ambient floating gradient blobs (background decoration) ── */
 .ambient-blobs {
   position: fixed;

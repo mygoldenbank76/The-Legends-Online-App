@@ -105,10 +105,10 @@ export function CallBanner() {
           {/* End call button */}
           <button
             onClick={endCall}
-            className="w-8 h-8 rounded-full bg-red-500/80 hover:bg-red-500 flex items-center justify-center flex-shrink-0 transition-colors"
+            className="w-8 h-8 rounded-full gradient-danger glow-danger flex items-center justify-center flex-shrink-0 border border-white/15 transition-[filter] hover:brightness-110 active:brightness-95"
             title="Terminer l'appel"
           >
-            <PhoneOff className="w-4 h-4 text-white" />
+            <PhoneOff className="w-4 h-4 text-white drop-shadow" />
           </button>
         </motion.div>
       )}
@@ -438,18 +438,26 @@ export function CallModal() {
               /* Incoming: accept + reject */
               <div className="flex items-center justify-center gap-16">
                 <div className="flex flex-col items-center gap-2">
-                  <motion.button whileTap={{ scale: 0.9 }} onClick={rejectCall}
-                    className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center shadow-lg">
-                    <PhoneOff className="w-7 h-7 text-white" />
+                  <motion.button
+                    whileTap={{ scale: 0.92 }}
+                    whileHover={{ scale: 1.04 }}
+                    onClick={rejectCall}
+                    className="w-16 h-16 rounded-full gradient-danger glow-danger flex items-center justify-center border border-white/15 transition-[filter] hover:brightness-110 active:brightness-95"
+                  >
+                    <PhoneOff className="w-7 h-7 text-white drop-shadow" />
                   </motion.button>
                   <span className="text-xs text-white/60">Refuser</span>
                 </div>
                 <div className="flex flex-col items-center gap-2">
-                  <motion.button whileTap={{ scale: 0.9 }} onClick={acceptCall}
-                    className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center shadow-lg"
-                    animate={{ scale: [1, 1.1, 1] }}
-                    transition={{ repeat: Infinity, duration: 1.2 }}>
-                    <PhoneIncoming className="w-7 h-7 text-white" />
+                  <motion.button
+                    whileTap={{ scale: 0.92 }}
+                    whileHover={{ scale: 1.04 }}
+                    onClick={acceptCall}
+                    className="w-16 h-16 rounded-full gradient-success pulse-glow-success flex items-center justify-center border border-white/15 transition-[filter] hover:brightness-110 active:brightness-95"
+                    animate={{ scale: [1, 1.08, 1] }}
+                    transition={{ repeat: Infinity, duration: 1.4, ease: 'easeInOut' }}
+                  >
+                    <PhoneIncoming className="w-7 h-7 text-white drop-shadow" />
                   </motion.button>
                   <span className="text-xs text-white/60">Accepter</span>
                 </div>
@@ -502,11 +510,12 @@ export function CallModal() {
                 <div className="flex items-center justify-center">
                   <div className="flex flex-col items-center gap-1">
                     <motion.button
-                      whileTap={{ scale: 0.9 }}
+                      whileTap={{ scale: 0.92 }}
+                      whileHover={{ scale: 1.04 }}
                       onClick={endCall}
-                      className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center shadow-lg"
+                      className="w-16 h-16 rounded-full gradient-danger glow-danger-strong flex items-center justify-center border border-white/15 transition-[filter] hover:brightness-110 active:brightness-95"
                     >
-                      <PhoneOff className="w-7 h-7 text-white" />
+                      <PhoneOff className="w-7 h-7 text-white drop-shadow" />
                     </motion.button>
                     <span className="text-[10px] text-white/50">Terminer</span>
                   </div>
