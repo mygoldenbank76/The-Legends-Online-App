@@ -2128,9 +2128,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       exit={{ opacity: 0, x: -8 }}
                       transition={{ duration: 0.13 }}
                       onClick={() => setGifOpen(v => !v)}
-                      className={`flex-shrink-0 ml-3 mr-3 self-center h-6 w-[38px] flex items-center justify-center rounded-full text-xs font-bold border transition-colors
+                      className={`flex-shrink-0 ml-3 mr-3 self-center h-6 w-[38px] flex items-center justify-center rounded-full text-xs font-bold border transition-all
                         ${gifOpen
-                          ? 'bg-primary/20 border-primary text-primary'
+                          ? 'gradient-primary-soft border-primary text-primary glow-primary-sm'
                           : 'border-foreground/40 text-foreground/60 hover:border-primary hover:text-primary'
                         }`}
                     >
@@ -2145,9 +2145,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       exit={{ opacity: 0, x: -8 }}
                       transition={{ duration: 0.13 }}
                       onClick={() => setEmojiOpen(v => !v)}
-                      className={`flex-shrink-0 ml-3 mr-3 self-center h-6 w-[38px] flex items-center justify-center rounded-full border transition-colors
+                      className={`flex-shrink-0 ml-3 mr-3 self-center h-6 w-[38px] flex items-center justify-center rounded-full border transition-all
                         ${emojiOpen
-                          ? 'bg-primary/20 border-primary text-primary'
+                          ? 'gradient-primary-soft border-primary text-primary glow-primary-sm'
                           : 'border-foreground/40 text-foreground/60 hover:border-primary hover:text-primary'
                         }`}
                     >
