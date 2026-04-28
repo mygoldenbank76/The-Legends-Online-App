@@ -1738,7 +1738,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     arrow sits above the avatar and only takes space while
                     the user is actively swiping. */}
                 {!isMine && (
-                  <div className="flex-shrink-0 self-start flex flex-col items-center mt-1" style={{ width: 28 }}>
+                  <div className="flex-shrink-0 self-start flex flex-col items-center mt-1" style={{ width: 32 }}>
                     {/* Swipe reply arrow — above avatar */}
                     <div
                       style={{
@@ -1765,14 +1765,14 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                           }
                         }}
                       >
-                        <Avatar className="w-7 h-7">
+                        <Avatar className="w-8 h-8">
                           <AvatarImage src={msg.sender?.avatar || ''} />
-                          <AvatarFallback className="bg-primary/20 text-primary text-[10px]">
+                          <AvatarFallback className="bg-primary/20 text-primary text-[11px]">
                             {(msg.sender?.displayName || '?').substring(0, 2).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                       </button>
-                    ) : <div className="w-7 h-7" />}
+                    ) : <div className="w-8 h-8" />}
                   </div>
                 )}
 
@@ -2074,7 +2074,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       {/* Time + edited — read-receipt indicators removed:
                           users can still see "vu par" via the message
                           context menu (long-press) for any sent message. */}
-                      <div className={`text-[10px] flex items-center gap-1 flex-shrink-0 ${isMine ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>
+                      <div className={`text-[11px] flex items-center gap-1 flex-shrink-0 ${isMine ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>
                         {msg.editedAt && <span className="italic opacity-80">modifié</span>}
                         <span>{msgTime}</span>
                       </div>
