@@ -1690,7 +1690,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     {/* Reply preview inside bubble — WhatsApp style */}
                     {msg.replyTo && !msg.replyTo.isDeleted && (
                       <div
-                        className={`mb-1 -mx-1 rounded-[5px] overflow-hidden flex cursor-pointer
+                        className={`mb-1 -mx-1.5 -mt-0.5 rounded-[10px] overflow-hidden flex cursor-pointer
                           ${isMine ? 'bg-black/20' : 'bg-black/8'}`}
                         style={{ background: isMine ? 'rgba(0,0,0,0.20)' : 'rgba(0,0,0,0.07)' }}
                         onClick={(e) => {
@@ -1700,7 +1700,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                         }}
                       >
                         {/* Accent bar — thick, full height */}
-                        <div className={`w-[3.5px] flex-shrink-0 rounded-l-sm ${isMine ? 'bg-white' : 'bg-primary'}`} />
+                        <div className={`w-[3.5px] flex-shrink-0 ${isMine ? 'bg-white' : 'bg-primary'}`} />
                         {/* Content */}
                         <div className="flex-1 min-w-0 px-3 py-2">
                           <p className={`text-[11px] font-semibold leading-tight mb-[3px] truncate
