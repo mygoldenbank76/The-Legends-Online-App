@@ -97,7 +97,7 @@ export function FormattingToolbar({
                     placeholder="https://..."
                     type="url"
                     inputMode="url"
-                    className="flex-1 bg-transparent text-[12px] text-primary font-semibold leading-tight outline-none placeholder:text-muted-foreground/50 min-w-0"
+                    className="flex-1 bg-background/30 border border-foreground/15 rounded-md px-2 py-1 text-[12px] text-primary font-semibold leading-tight outline-none focus:border-primary/50 placeholder:text-muted-foreground/50 placeholder:font-normal min-w-0 transition-colors"
                   />
                   <button
                     onMouseDown={e => { e.preventDefault(); onLinkConfirm(); }}
