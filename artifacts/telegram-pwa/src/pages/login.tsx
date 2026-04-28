@@ -138,13 +138,13 @@ export default function Login() {
 
       {/* min-h-full + flex centering: content is vertically centered when it fits,
           and scrolls naturally on smaller screens (e.g. landscape mobile). */}
-      <div className="relative z-10 min-h-full w-full flex flex-col items-center justify-center px-4 py-8">
-        <div className="w-full max-w-sm flex flex-col items-center gap-6">
+      <div className="relative z-10 min-h-full w-full flex flex-col items-center justify-center px-4 py-4">
+        <div className="w-full max-w-sm flex flex-col items-center gap-4">
           {/* Logo with orbiting halo */}
           <div className="auth-logo-wrap">
             <div className="auth-logo-halo" aria-hidden />
             <div className="auth-logo-icon">
-              <Zap className="w-10 h-10 text-white relative z-10 drop-shadow" />
+              <Zap className="w-8 h-8 text-white relative z-10 drop-shadow" />
             </div>
           </div>
 
@@ -155,9 +155,9 @@ export default function Login() {
           </div>
 
           {/* Card with animated gradient border */}
-          <div className="auth-card glass rounded-3xl p-6 shadow-2xl w-full">
+          <div className="auth-card glass rounded-3xl p-5 shadow-2xl w-full">
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
                 <FormField
                   control={form.control}
                   name="username"
