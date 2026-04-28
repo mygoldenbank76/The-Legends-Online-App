@@ -176,7 +176,7 @@ export const i18n: Record<AppLang, Dict> = {
       notifEnableDesc: 'Reçois une alerte pour chaque nouveau message',
       administration: 'Administration',
       adminPanel: 'Panel Administrateur',
-      adminPanelDesc: 'Gérer les utilisateurs et surveiller',
+      adminPanelDesc: 'Gérer les utilisateurs et la modération',
       application: 'Application',
       appInstalled: 'Application installée',
       appInstalledDesc: 'Vous utilisez déjà la version native',
