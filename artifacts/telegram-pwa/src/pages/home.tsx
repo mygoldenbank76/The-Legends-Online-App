@@ -215,12 +215,16 @@ export default function Home() {
                 />
               </div>
 
-              <MobileBottomNav activeTab={activeTab} onSelect={(t) => {
-                const cur = TAB_ORDER.indexOf(activeTab);
-                const nxt = TAB_ORDER.indexOf(t);
-                setSwipeDir(nxt >= cur ? 1 : -1);
-                handleTabChange(t);
-              }} />
+              <MobileBottomNav
+                activeTab={activeTab}
+                onSelect={(t) => {
+                  const cur = TAB_ORDER.indexOf(activeTab);
+                  const nxt = TAB_ORDER.indexOf(t);
+                  setSwipeDir(nxt >= cur ? 1 : -1);
+                  handleTabChange(t);
+                }}
+                floating
+              />
             </div>
           )}
           {showChat && activeConvId && (
@@ -342,16 +346,28 @@ function MobileHeader({ user }: { user: { displayName: string } }) {
 }
 
 /* ── Mobile bottom nav — floating glass capsule with sliding active pill ── */
-function MobileBottomNav({ activeTab, onSelect }: { activeTab: Tab; onSelect: (t: Tab) => void }) {
+function MobileBottomNav({
+  activeTab,
+  onSelect,
+  floating = false,
+}: {
+  activeTab: Tab;
+  onSelect: (t: Tab) => void;
+  floating?: boolean;
+}) {
   const { t } = usePreferences();
   const tabs: Tab[] = ['groups', 'messages', 'shop', 'settings'];
   return (
     <nav
-      className="flex-shrink-0 px-3 pt-1.5 relative"
+      className={
+        floating
+          ? 'absolute left-0 right-0 bottom-0 z-30 px-3 pt-1.5 pointer-events-none'
+          : 'flex-shrink-0 px-3 pt-1.5 relative'
+      }
       style={{ paddingBottom: 'calc(0.375rem + env(safe-area-inset-bottom, 0px))' }}
     >
       {/* Floating capsule shell */}
-      <div className="glass gradient-hairline-top shadow-floating-capsule relative flex items-stretch rounded-[20px] px-1.5 py-1 overflow-hidden">
+      <div className={`glass gradient-hairline-top shadow-floating-capsule relative flex items-stretch rounded-[20px] px-1.5 py-1 overflow-hidden ${floating ? 'pointer-events-auto' : ''}`}>
         {tabs.map((id) => {
           const Icon = NAV_ICONS[id];
           const active = activeTab === id;

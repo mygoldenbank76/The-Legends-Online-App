@@ -235,7 +235,10 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
         <UserSearch onSelectUser={onSelectConv} />
       </div>
 
-      <div className="flex-1 overflow-y-auto py-1 px-2 scroll-container">
+      <div
+        className="flex-1 overflow-y-auto py-1 px-2 scroll-container"
+        style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}
+      >
         {isLoading && conversations.length === 0 && (
           <div className="flex flex-col gap-1 pt-1">
             {Array.from({ length: 6 }).map((_, i) => (
