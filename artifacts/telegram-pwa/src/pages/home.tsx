@@ -361,8 +361,8 @@ function MobileBottomNav({
     <nav
       className={
         floating
-          ? 'absolute left-0 right-0 bottom-0 z-30 px-3 pointer-events-none'
-          : 'flex-shrink-0 px-3 pt-1.5 relative'
+          ? 'absolute left-0 right-0 bottom-0 z-30 px-5 pointer-events-none'
+          : 'flex-shrink-0 px-5 pt-1.5 relative'
       }
       style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
     >
