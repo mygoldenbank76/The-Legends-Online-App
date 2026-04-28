@@ -670,7 +670,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // Direct trigger when reply/edit preview opens — does not depend on the
   // ResizeObserver firing later. Uses a double rAF to wait until the messages
   // list paddingBottom has been recomputed AND the browser has laid out before
-  // scrolling to the bottom.
+  // smoothly scrolling to the bottom (Telegram-style fluid follow).
   useEffect(() => {
     if (!replyTo && !editState) return;
     if (!wasAtBottomRef.current) return;
@@ -678,7 +678,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     const raf1 = requestAnimationFrame(() => {
       raf2 = requestAnimationFrame(() => {
         const el = scrollRef.current;
-        if (el) el.scrollTop = el.scrollHeight;
+        if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
       });
     });
     return () => {
