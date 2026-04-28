@@ -34,15 +34,15 @@ function ToolBtn({ onPress, icon, label, disabled }: {
       onMouseDown={e => { e.preventDefault(); if (!disabled) onPress(); }}
       onTouchEnd={e => { e.preventDefault(); if (!disabled) onPress(); }}
       title={label}
+      aria-label={label}
       disabled={disabled}
-      className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-all duration-150 min-w-[36px]
+      className={`flex items-center justify-center w-8 h-8 rounded-full transition-all duration-150 flex-shrink-0
         ${disabled
           ? 'text-foreground/25 cursor-default'
-          : 'text-foreground hover:bg-primary/20 hover:text-primary active:bg-primary/30 active:scale-95 cursor-pointer'
+          : 'text-foreground/80 hover:bg-primary/15 hover:text-primary active:bg-primary/25 active:scale-95 cursor-pointer'
         }`}
     >
       {icon}
-      <span className="text-[8px] leading-none font-medium whitespace-nowrap">{label}</span>
     </button>
   );
 }
@@ -63,14 +63,15 @@ export function FormattingToolbar({
   if (!visible) return null;
 
   return (
-    <AnimatePresence>
+    <AnimatePresence initial={false}>
       {(hasSelection || linkMode) && (
         <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-          exit={{ opacity: 0, height: 0 }}
-          transition={{ duration: 0.15 }}
-          className="overflow-hidden glass gradient-hairline-bottom"
+          key="format-bar"
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+          style={{ overflow: 'hidden' }}
         >
           <AnimatePresence mode="wait">
             {linkMode ? (
@@ -80,35 +81,38 @@ export function FormattingToolbar({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.1 }}
-                className="flex items-center gap-2 px-3 py-2.5"
+                className="flex items-center gap-2.5 pl-3 pr-2 pt-2 pb-1.5"
               >
-                <Link className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-                <input
-                  ref={inputRef}
-                  value={linkUrl}
-                  onChange={e => onLinkUrlChange(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') { e.preventDefault(); onLinkConfirm(); }
-                    if (e.key === 'Escape') { onLinkCancel(); }
-                  }}
-                  placeholder="https://..."
-                  type="url"
-                  inputMode="url"
-                  className="flex-1 bg-transparent text-sm outline-none text-foreground placeholder:text-muted-foreground/50 min-w-0"
-                />
-                <button
-                  onMouseDown={e => { e.preventDefault(); onLinkConfirm(); }}
-                  onTouchEnd={e => { e.preventDefault(); onLinkConfirm(); }}
-                  className="text-xs px-3 py-1 rounded-full gradient-primary glow-primary text-white font-semibold hover:opacity-95 active:scale-95 transition-all flex-shrink-0"
-                >
-                  OK
-                </button>
+                <Link className="w-4 h-4 text-primary flex-shrink-0" />
+                <div className="flex-1 min-w-0 border-l-2 border-primary pl-2 flex items-center gap-2">
+                  <input
+                    ref={inputRef}
+                    value={linkUrl}
+                    onChange={e => onLinkUrlChange(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') { e.preventDefault(); onLinkConfirm(); }
+                      if (e.key === 'Escape') { onLinkCancel(); }
+                    }}
+                    placeholder="https://..."
+                    type="url"
+                    inputMode="url"
+                    className="flex-1 bg-transparent text-[12px] text-primary font-semibold leading-tight outline-none placeholder:text-muted-foreground/50 min-w-0"
+                  />
+                  <button
+                    onMouseDown={e => { e.preventDefault(); onLinkConfirm(); }}
+                    onTouchEnd={e => { e.preventDefault(); onLinkConfirm(); }}
+                    className="text-[11px] px-2.5 py-0.5 rounded-full gradient-primary glow-primary text-white font-semibold hover:opacity-95 active:scale-95 transition-all flex-shrink-0"
+                  >
+                    OK
+                  </button>
+                </div>
                 <button
                   onMouseDown={e => { e.preventDefault(); onLinkCancel(); }}
                   onTouchEnd={e => { e.preventDefault(); onLinkCancel(); }}
-                  className="text-xs px-2.5 py-1 rounded-full bg-white/8 text-muted-foreground hover:bg-white/15 transition-colors flex-shrink-0"
+                  className="text-muted-foreground hover:text-foreground p-1 flex-shrink-0 rounded-full hover:bg-foreground/5 transition-colors"
+                  aria-label="Annuler le lien"
                 >
-                  ✕
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
               </motion.div>
             ) : (
@@ -118,7 +122,7 @@ export function FormattingToolbar({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.1 }}
-                className="flex items-center justify-between w-full px-1 py-0.5"
+                className="flex items-center gap-0.5 px-2 pt-1.5 pb-1 overflow-x-auto no-scrollbar"
               >
                 {/* Clipboard actions first */}
                 <ToolBtn
@@ -133,7 +137,7 @@ export function FormattingToolbar({
                   label="Coller"
                 />
                 {/* Divider */}
-                <div className="w-px h-6 bg-border/50 flex-shrink-0" />
+                <div className="w-px h-5 bg-foreground/10 flex-shrink-0 mx-1" />
                 {/* Format tools */}
                 {FORMAT_TOOLS.map(({ fmt, icon, label }) => (
                   <ToolBtn

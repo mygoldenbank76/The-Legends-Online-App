@@ -2252,20 +2252,6 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             </motion.div>
           )}
         </AnimatePresence>
-        {/* Formatting toolbar — shown BELOW messages, ABOVE the input row */}
-        <FormattingToolbar
-          visible={!voiceActive}
-          hasSelection={!!selectionRange}
-          linkMode={linkMode}
-          linkUrl={linkUrl}
-          onLinkUrlChange={setLinkUrl}
-          onLinkConfirm={handleLinkConfirm}
-          onLinkCancel={handleLinkCancel}
-          onFormat={handleFormat}
-          onLinkRequest={handleLinkRequest}
-          onCopy={handleCopy}
-          onPaste={handlePaste}
-        />
         <div className="flex items-end gap-2 px-3 pb-3">
           {/* Voice recorder — replaces entire row when active */}
           {voiceActive ? (
@@ -2440,6 +2426,21 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   </motion.div>
                 )}
                 </AnimatePresence>
+
+                {/* ── Formatting toolbar INSIDE the pill (matches reply/edit/link previews) ── */}
+                <FormattingToolbar
+                  visible={!voiceActive}
+                  hasSelection={!!selectionRange}
+                  linkMode={linkMode}
+                  linkUrl={linkUrl}
+                  onLinkUrlChange={setLinkUrl}
+                  onLinkConfirm={handleLinkConfirm}
+                  onLinkCancel={handleLinkCancel}
+                  onFormat={handleFormat}
+                  onLinkRequest={handleLinkRequest}
+                  onCopy={handleCopy}
+                  onPaste={handlePaste}
+                />
 
                 {/* Input row (GIF/Emoji + Textarea + attachment + Mic/Send) */}
                 <div className="flex items-end">
