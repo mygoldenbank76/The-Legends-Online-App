@@ -386,9 +386,8 @@ function MobileBottomNav({
           }}
         />
       )}
-      {/* Floating capsule shell */}
-      <div className={`glass gradient-hairline-top shadow-floating-capsule relative flex items-stretch rounded-[14px] px-1.5 py-1 overflow-visible ${floating ? 'pointer-events-auto' : ''}`}>
-        <div className="absolute inset-0 rounded-[14px] overflow-hidden pointer-events-none -z-[1]" />
+      {/* Floating capsule shell — frame removed for a cleaner look */}
+      <div className={`relative flex items-stretch px-1.5 py-1 overflow-visible ${floating ? 'pointer-events-auto' : ''}`}>
         {TAB_ORDER.map((id) => {
           const Icon = NAV_ICONS[id];
           const active = activeTab === id;
@@ -397,6 +396,7 @@ function MobileBottomNav({
             <button
               key={id}
               onClick={() => onSelect(id)}
+              aria-label={t.tabs[id]}
               className={`flex-1 relative flex flex-col items-center justify-center py-2 gap-0.5 transition-colors ${
                 active ? 'text-white' : isProfile ? 'text-primary' : 'text-muted-foreground'
               }`}
@@ -409,7 +409,7 @@ function MobileBottomNav({
                   transition={{ type: 'spring', damping: 26, stiffness: 320 }}
                 />
               )}
-              <span className="relative z-10 inline-flex items-center justify-center w-7 h-7">
+              <span className={`relative z-10 inline-flex items-center justify-center ${isProfile ? 'w-9 h-9' : 'w-7 h-7'}`}>
                 {isProfile && (
                   <>
                     <span aria-hidden className="absolute inset-0 rounded-full profile-tab-aura pointer-events-none" />
@@ -422,12 +422,14 @@ function MobileBottomNav({
                   className="relative inline-flex"
                   style={active || isProfile ? { filter: 'drop-shadow(0 0 8px hsl(263 92% 65% / 0.85))' } : undefined}
                 >
-                  <Icon className="w-5 h-5" />
+                  <Icon className={isProfile ? 'w-6 h-6' : 'w-5 h-5'} />
                 </motion.span>
               </span>
-              <span className={`text-[10px] font-medium relative z-10 transition-opacity ${active ? 'opacity-100' : isProfile ? 'opacity-95' : 'opacity-80'}`}>
-                {t.tabs[id]}
-              </span>
+              {!isProfile && (
+                <span className={`text-[10px] font-medium relative z-10 transition-opacity ${active ? 'opacity-100' : 'opacity-80'}`}>
+                  {t.tabs[id]}
+                </span>
+              )}
             </button>
           );
         })}
