@@ -211,13 +211,40 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
             transition={isDragging ? { duration: 0 } : { type: 'spring', stiffness: 320, damping: 35 }}
           >
             {isVid ? (
-              <video
-                ref={videoRef}
-                src={url}
-                controls playsInline autoPlay
-                onClick={e => e.stopPropagation()}
-                style={{ width: '100vw', height: '100vh', objectFit: 'contain', display: 'block' }}
-              />
+              <>
+                {/* Blurred background fill — eliminates black bars, no distortion */}
+                <video
+                  src={url}
+                  muted playsInline
+                  aria-hidden
+                  preload="metadata"
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    filter: 'blur(24px) brightness(0.45) saturate(1.4)',
+                    transform: 'scale(1.08)',
+                    pointerEvents: 'none',
+                  }}
+                />
+                {/* Main video — centered, respects aspect ratio */}
+                <video
+                  ref={videoRef}
+                  src={url}
+                  controls playsInline autoPlay
+                  onClick={e => e.stopPropagation()}
+                  style={{
+                    position: 'relative',
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    display: 'block',
+                    background: 'transparent',
+                  }}
+                />
+              </>
             ) : (
               <>
                 {/* Blurred background fill — eliminates black bars, no distortion */}
