@@ -2532,7 +2532,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     >
                       {sending
                         ? <Loader2 className="w-4 h-4 animate-spin" />
-                        : editState ? <Check className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+                        : editState ? <Check className="w-4 h-4" /> : <Send className="w-4 h-4 translate-x-[1px] -translate-y-[0.5px]" />}
                     </motion.button>
                   ) : (
                     <motion.button
