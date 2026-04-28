@@ -598,6 +598,21 @@ html, body {
   right: 0;
 }
 
+/* App shell — wraps the page router. Reserves vertical space at the top for
+   the minimized call banner so list/profile/settings rows are no longer
+   hidden underneath it. The CSS variable `--call-banner-h` is toggled by
+   the <CallBanner /> component (48px when visible, unset when hidden). */
+.app-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--call-banner-h, 0px);
+  box-sizing: border-box;
+  transition: padding-top 0.2s ease;
+}
+
 @layer base {
   * {
     @apply border-border;

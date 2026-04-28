@@ -39,6 +39,16 @@ export function CallBanner() {
 
   const visible = isMinimized && status !== 'idle';
 
+  // Reserve vertical space for the banner so page content (lists, profile,
+  // settings, etc.) is pushed below it instead of being overlapped.
+  // The CSS variable is consumed by the `.app-shell` wrapper in App.tsx.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (visible) root.style.setProperty('--call-banner-h', '48px');
+    else root.style.removeProperty('--call-banner-h');
+    return () => { root.style.removeProperty('--call-banner-h'); };
+  }, [visible]);
+
   return (
     <AnimatePresence>
       {visible && (
@@ -50,7 +60,7 @@ export function CallBanner() {
           transition={{ type: 'spring', stiffness: 400, damping: 30 }}
           className="fixed left-0 right-0 z-[100] flex items-center gap-3 px-3"
           style={{
-            top: '56px', // below the h-14 app header
+            top: 0,
             height: '48px',
             background: 'linear-gradient(90deg, hsl(263 60% 12%), hsl(263 40% 9%))',
             borderBottom: '1px solid hsl(263 60% 30% / 0.4)',

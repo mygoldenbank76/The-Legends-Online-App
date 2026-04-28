@@ -155,7 +155,12 @@ function App() {
                   <CallProvider>
                     {/* Invisible background data loader — preloads all convs + media silently */}
                     <BackgroundLoader />
-                    <AppRouter />
+                    {/* Wrapper that reserves space for the minimized call banner
+                        (CSS variable `--call-banner-h` is set by <CallBanner />) so
+                        page content sits BELOW the banner instead of being overlapped. */}
+                    <div className="app-shell">
+                      <AppRouter />
+                    </div>
                     {/* Full-screen call overlay */}
                     <CallModal />
                     {/* Mini-banner shown when call is minimized — persists across pages */}
