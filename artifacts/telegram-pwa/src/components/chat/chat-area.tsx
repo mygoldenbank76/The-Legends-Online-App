@@ -2128,7 +2128,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           onCopy={handleCopy}
           onPaste={handlePaste}
         />
-        <div className="flex items-end gap-2 px-3 py-3">
+        <div className="flex items-end gap-2 px-3 pb-3">
           {/* Voice recorder — replaces entire row when active */}
           {voiceActive ? (
             <VoiceRecorder
