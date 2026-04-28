@@ -587,7 +587,7 @@ function SettingsPage({
   return (
     <div
       className="h-full overflow-y-auto overscroll-contain"
-      style={{ paddingBottom: 'calc(7rem + env(safe-area-inset-bottom, 0px))' }}
+      style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}
     >
     <div className="flex flex-col p-4 gap-4">
       {/* Preferences section */}
