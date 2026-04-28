@@ -136,114 +136,128 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4 relative overflow-hidden" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+    <div
+      className="h-full w-full overflow-y-auto overflow-x-hidden bg-background relative"
+      dir={lang === 'ar' ? 'rtl' : 'ltr'}
+    >
       <AnimatedBackground />
 
-      <div className="relative z-10 w-full max-w-sm flex flex-col gap-6">
-        {/* Logo + titre */}
-        <div className="flex flex-col items-center gap-3 text-center">
-          <div className="w-20 h-20 rounded-3xl gradient-primary flex items-center justify-center glow-primary-strong">
-            <Zap className="w-10 h-10 text-white" />
+      {/* min-h-full + flex centering: content is vertically centered when it fits,
+          and scrolls naturally on smaller screens (e.g. landscape mobile). */}
+      <div className="relative z-10 min-h-full w-full flex flex-col items-center justify-center px-4 py-8">
+        <div className="w-full max-w-sm flex flex-col items-center gap-6">
+          {/* Logo with orbiting halo */}
+          <div className="auth-logo-wrap">
+            <div className="auth-logo-halo" aria-hidden />
+            <div className="auth-logo-icon">
+              <Zap className="w-10 h-10 text-white relative z-10 drop-shadow" />
+            </div>
           </div>
-          <div>
+
+          {/* Title + subtitle */}
+          <div className="text-center">
             <h1 className="text-2xl font-bold tracking-tight text-gradient-primary">{t.title}</h1>
             <p className="text-sm text-muted-foreground mt-1">{t.subtitle}</p>
           </div>
-        </div>
 
-        {/* Card */}
-        <div className="glass rounded-3xl p-6 shadow-2xl">
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="username"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-foreground/80 text-sm">{t.username}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t.placeholderUser}
-                        className="bg-white/5 border-white/10 focus:border-primary/50 rounded-xl h-11"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="displayName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-foreground/80 text-sm">{t.displayName}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t.placeholderName}
-                        className="bg-white/5 border-white/10 focus:border-primary/50 rounded-xl h-11"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-foreground/80 text-sm">{t.password}</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="password"
-                        placeholder="••••••••"
-                        className="bg-white/5 border-white/10 focus:border-primary/50 rounded-xl h-11"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button
-                type="submit"
-                className="w-full h-11 rounded-xl font-semibold gradient-primary glow-primary text-white mt-2 border-0 hover:opacity-95 active:scale-[0.98] transition-all"
-                disabled={isLoading}
+          {/* Card with animated gradient border */}
+          <div className="auth-card glass rounded-3xl p-6 shadow-2xl w-full">
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="username"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-foreground/80 text-sm">{t.username}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t.placeholderUser}
+                          className="auth-input"
+                          autoComplete="username"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="displayName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-foreground/80 text-sm">{t.displayName}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t.placeholderName}
+                          className="auth-input"
+                          autoComplete="name"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-foreground/80 text-sm">{t.password}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="password"
+                          placeholder="••••••••"
+                          className="auth-input"
+                          autoComplete="new-password"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button
+                  type="submit"
+                  className="auth-submit w-full h-11 rounded-xl font-semibold gradient-primary glow-primary text-white mt-2 border-0 hover:brightness-110 active:scale-[0.98] transition-all"
+                  disabled={isLoading}
+                >
+                  {isLoading ? t.loading : t.submit}
+                </Button>
+              </form>
+            </Form>
+
+            <div className="mt-4 text-center text-sm">
+              <span className="text-muted-foreground">{t.hasAccount} </span>
+              <button
+                onClick={() => setLocation('/login')}
+                className="text-primary font-semibold hover:underline"
               >
-                {isLoading ? t.loading : t.submit}
-              </Button>
-            </form>
-          </Form>
-
-          <div className="mt-4 text-center text-sm">
-            <span className="text-muted-foreground">{t.hasAccount} </span>
-            <button
-              onClick={() => setLocation('/login')}
-              className="text-primary font-semibold hover:underline"
-            >
-              {t.signin}
-            </button>
+                {t.signin}
+              </button>
+            </div>
           </div>
-        </div>
 
-        {/* Sélecteur de langue */}
-        <div className="flex items-center justify-center gap-1.5 flex-wrap">
-          {LANGS.map(l => (
-            <button
-              key={l.code}
-              onClick={() => { setLang(l.code); localStorage.setItem('telechat_app_lang', l.code); }}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                lang === l.code
-                  ? 'bg-primary/20 text-primary border border-primary/30'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-white/5 border border-transparent'
-              }`}
-            >
-              <span>{l.flag}</span>
-              <span>{l.label}</span>
-            </button>
-          ))}
+          {/* Language selector */}
+          <div className="flex items-center justify-center gap-1.5 flex-wrap">
+            {LANGS.map(l => (
+              <button
+                key={l.code}
+                onClick={() => { setLang(l.code); localStorage.setItem('telechat_app_lang', l.code); }}
+                data-active={lang === l.code}
+                className={`auth-lang-pill flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium ${
+                  lang === l.code
+                    ? 'bg-primary/15 text-primary border border-primary/30'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-white/5 border border-transparent'
+                }`}
+              >
+                <span>{l.flag}</span>
+                <span>{l.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>

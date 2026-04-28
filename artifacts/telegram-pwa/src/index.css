@@ -316,6 +316,169 @@ html:not(.dark) .ambient-blobs::after {
   .ambient-blobs::after { animation: none; }
 }
 
+/* ── Auth (login / register) — futuristic effects ───────────────────────────── */
+
+/* Floating logo, gentle vertical bob */
+@keyframes auth-logo-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+
+/* Conic-gradient halo that orbits the logo */
+@keyframes auth-halo-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes auth-halo-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 0.95; }
+}
+
+/* Shimmer band that sweeps across the submit button */
+@keyframes auth-submit-shimmer {
+  0%        { transform: translateX(-120%); }
+  60%, 100% { transform: translateX(120%); }
+}
+
+/* Slow drift of the card's accent glow */
+@keyframes auth-card-glow-drift {
+  0%, 100% { opacity: 0.55; transform: translate3d(0, 0, 0); }
+  50%      { opacity: 0.85; transform: translate3d(0, -4px, 0); }
+}
+
+.auth-logo-wrap {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: auth-logo-float 4.2s ease-in-out infinite;
+}
+.auth-logo-halo {
+  position: absolute;
+  inset: -16px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg,
+    hsl(263 88% 65% / 0),
+    hsl(263 88% 65% / 0.55),
+    hsl(295 85% 62% / 0.55),
+    hsl(330 90% 60% / 0.55),
+    hsl(263 88% 65% / 0));
+  filter: blur(14px);
+  animation:
+    auth-halo-spin 7s linear infinite,
+    auth-halo-pulse 3s ease-in-out infinite;
+  pointer-events: none;
+}
+.auth-logo-icon {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  border-radius: 24px;
+  background: linear-gradient(135deg,
+    hsl(263 88% 65%),
+    hsl(295 80% 60%),
+    hsl(330 90% 60%));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 14px 38px -8px hsl(263 88% 65% / 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+.auth-logo-icon::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: 23px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.20), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+
+/* Soft outer glow + crisp inner highlight for the auth card */
+.auth-card {
+  position: relative;
+  isolation: isolate;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 24px 64px -24px hsl(263 88% 65% / 0.45);
+}
+.auth-card::before {
+  /* Diffuse, slowly-breathing aura behind the card. Sits behind the glass,
+     scaled down so it can never escape the rounded shape. */
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border-radius: inherit;
+  background: linear-gradient(135deg,
+    hsl(263 88% 65% / 0.35),
+    hsl(330 90% 60% / 0.25));
+  filter: blur(28px);
+  animation: auth-card-glow-drift 6s ease-in-out infinite;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Inputs — soft glow on focus */
+.auth-input {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  border-radius: 0.875rem !important;
+  height: 2.875rem !important;
+  transition: border-color 0.2s ease, box-shadow 0.25s ease, background 0.2s ease !important;
+}
+.auth-input:focus,
+.auth-input:focus-visible {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: hsl(263 88% 65% / 0.65) !important;
+  box-shadow:
+    0 0 0 4px hsl(263 88% 65% / 0.15),
+    0 0 22px hsl(263 88% 65% / 0.28) !important;
+  outline: none !important;
+}
+
+/* Submit button — periodic shimmer sweep + soft glow */
+.auth-submit {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.auth-submit::before {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  left: 0;
+  width: 60%;
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(255, 255, 255, 0.32),
+    transparent);
+  transform: translateX(-120%);
+  animation: auth-submit-shimmer 3.6s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+.auth-submit > * { position: relative; z-index: 2; }
+
+/* Language pill — active state with soft inner glow */
+.auth-lang-pill {
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.25s ease;
+}
+.auth-lang-pill[data-active='true'] {
+  box-shadow:
+    inset 0 0 0 1px hsl(263 88% 65% / 0.45),
+    0 0 18px hsl(263 88% 65% / 0.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-logo-wrap,
+  .auth-logo-halo,
+  .auth-submit::before,
+  .auth-card::before { animation: none !important; }
+}
+
 /* ── Pulse-glow used on unread badges, online dots ── */
 @keyframes pulse-glow {
   0%, 100% { box-shadow: 0 0 0 0 hsl(263 90% 65% / 0.55); }
