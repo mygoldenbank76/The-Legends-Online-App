@@ -140,7 +140,7 @@ export function ProfilePage({ user, onSaved }: Props) {
   return (
     <div
       className="h-full overflow-y-auto overscroll-contain"
-      style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}
+      style={{ paddingBottom: 'calc(7rem + env(safe-area-inset-bottom, 0px))' }}
     >
       <div className="flex flex-col gap-5 px-4 pt-8">
         {/* Avatar — large hero with futuristic ring */}
@@ -261,11 +261,11 @@ export function ProfilePage({ user, onSaved }: Props) {
           </div>
         </div>
 
-        {/* Save button */}
+        {/* Save button — pulled closer to the form so the visual gap above is smaller than the breathing room below */}
         <button
           onClick={save}
           disabled={!hasChanges || loading}
-          className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-semibold text-sm transition-all ${
+          className={`-mt-2 w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-semibold text-sm transition-all ${
             saved
               ? 'bg-green-500 text-white'
               : hasChanges

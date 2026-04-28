@@ -585,8 +585,11 @@ function SettingsPage({
   const currentTranslateLang = SUPPORTED_TRANSLATE_LANGUAGES.find(l => l.code === translateLanguage);
 
   return (
-    <div className="h-full overflow-y-auto overscroll-contain">
-    <div className="flex flex-col p-4 gap-4 pb-8">
+    <div
+      className="h-full overflow-y-auto overscroll-contain"
+      style={{ paddingBottom: 'calc(7rem + env(safe-area-inset-bottom, 0px))' }}
+    >
+    <div className="flex flex-col p-4 gap-4">
       {/* Preferences section */}
       <div>
         <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider px-1 mb-2">{t.settings.preferences}</p>
