@@ -36,13 +36,14 @@ function ToolBtn({ onPress, icon, label, disabled }: {
       title={label}
       aria-label={label}
       disabled={disabled}
-      className={`flex items-center justify-center w-8 h-8 rounded-full transition-all duration-150 flex-shrink-0
+      className={`flex flex-col items-center justify-center gap-0.5 flex-1 min-w-0 px-1 py-1 rounded-lg transition-all duration-150
         ${disabled
           ? 'text-foreground/25 cursor-default'
           : 'text-foreground/80 hover:bg-primary/15 hover:text-primary active:bg-primary/25 active:scale-95 cursor-pointer'
         }`}
     >
       {icon}
+      <span className="text-[9px] leading-none font-medium whitespace-nowrap">{label}</span>
     </button>
   );
 }
@@ -122,7 +123,7 @@ export function FormattingToolbar({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.1 }}
-                className="flex items-center gap-0.5 px-2 pt-1.5 pb-1 overflow-x-auto no-scrollbar"
+                className="flex items-stretch gap-0.5 px-2 pt-1.5 pb-1"
               >
                 {/* Clipboard actions first */}
                 <ToolBtn
