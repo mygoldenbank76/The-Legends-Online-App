@@ -181,23 +181,15 @@ export function ProfilePage({ user, onSaved }: Props) {
             <p className="text-sm text-muted-foreground">@{user.username}</p>
           </div>
 
-          <div className="flex gap-2">
+          {avatar && (
             <button
-              onClick={() => fileRef.current?.click()}
-              className="text-xs px-3 py-1.5 rounded-lg gradient-primary-soft border border-primary/30 text-primary hover:opacity-90 active:scale-95 transition-all"
+              onClick={removeAvatar}
+              className="text-xs px-3 py-1.5 rounded-lg bg-white/10 text-muted-foreground hover:bg-red-500/15 hover:text-red-400 transition-colors flex items-center gap-1"
             >
-              {avatar ? p.changePhoto : p.addPhoto}
+              <Trash2 className="w-3 h-3" />
+              {p.removePhoto}
             </button>
-            {avatar && (
-              <button
-                onClick={removeAvatar}
-                className="text-xs px-3 py-1.5 rounded-lg bg-white/10 text-muted-foreground hover:bg-red-500/15 hover:text-red-400 transition-colors flex items-center gap-1"
-              >
-                <Trash2 className="w-3 h-3" />
-                {p.removePhoto}
-              </button>
-            )}
-          </div>
+          )}
 
           <input
             ref={fileRef}
