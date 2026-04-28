@@ -364,7 +364,7 @@ function MobileBottomNav({
           ? 'absolute left-0 right-0 bottom-0 z-30 px-3 pt-1.5 pointer-events-none'
           : 'flex-shrink-0 px-3 pt-1.5 relative'
       }
-      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
     >
       {/* Soft blur veil — only behind the floating capsule, matches chat composer */}
       {floating && (
@@ -372,7 +372,7 @@ function MobileBottomNav({
           aria-hidden
           className="absolute inset-x-0 bottom-0 -z-10 pointer-events-none"
           style={{
-            height: 'calc(3.75rem + env(safe-area-inset-bottom, 0px))',
+            height: 'calc(3.30rem + env(safe-area-inset-bottom, 0px))',
             backdropFilter: 'blur(14px) saturate(140%)',
             WebkitBackdropFilter: 'blur(14px) saturate(140%)',
             background: 'linear-gradient(to top, hsl(var(--background) / 0.4), hsl(var(--background) / 0.25))',
