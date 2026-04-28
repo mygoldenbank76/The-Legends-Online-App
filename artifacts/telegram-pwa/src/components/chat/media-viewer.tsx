@@ -229,14 +229,15 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
                     pointerEvents: 'none',
                   }}
                 />
-                {/* Main video — centered, respects aspect ratio */}
+                {/* Main video — fills the viewport, centered, respects aspect ratio */}
                 <video
                   ref={videoRef}
                   src={url}
                   controls playsInline autoPlay
                   onClick={e => e.stopPropagation()}
                   style={{
-                    position: 'relative',
+                    position: 'absolute',
+                    inset: 0,
                     width: '100%',
                     height: '100%',
                     objectFit: 'contain',
