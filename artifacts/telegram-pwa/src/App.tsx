@@ -158,10 +158,9 @@ function App() {
                     <AppRouter />
                     {/* Full-screen call overlay */}
                     <CallModal />
-                    {/* Mini-banner shown when call is minimized — persists across pages.
-                        Sets --call-banner-h on <html>, which #root consumes via
-                        padding-top so app content shifts BELOW the banner. */}
-                    <CallBanner />
+                    {/* The minimized call banner is rendered INLINE inside each page
+                        (right below the header), not here. See <CallBanner /> usage
+                        in home.tsx and chat-area.tsx. */}
                   </CallProvider>
                 </SocketProvider>
               </AuthProvider>

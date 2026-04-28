@@ -11,6 +11,7 @@ import { AnimatedBackground } from '@/components/animated-background';
 import { Users, MessageSquare, ShoppingBag, Settings, Zap, LogOut, Globe, Languages, ChevronDown, Shield, X, ChevronRight, Download, Smartphone, CheckCircle2, Share, Bell, BellOff, User } from 'lucide-react';
 import { AdminPanel } from '@/components/admin/admin-panel';
 import { ProfilePage } from '@/components/profile/profile-page';
+import { CallBanner } from '@/components/chat/call-modal';
 import { usePreferences } from '@/lib/preferences-context';
 import { SUPPORTED_APP_LANGUAGES, SUPPORTED_TRANSLATE_LANGUAGES } from '@/lib/i18n';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
@@ -149,6 +150,7 @@ export default function Home() {
       {!isMobile && (
         <aside className="relative z-10 w-[340px] min-w-[340px] h-full flex flex-col border-r border-border/50">
           <DesktopHeader user={user} onLogout={logout} />
+          <CallBanner />
           <DesktopTabs activeTab={activeTab} onSelect={setActiveTab} />
           <div className="flex-1 min-h-0 overflow-hidden">
             <TabContent
@@ -170,6 +172,7 @@ export default function Home() {
           {showList && !activeConvId && (
             <div className="flex flex-col h-full">
               <MobileHeader user={user} />
+              <CallBanner />
 
               {/* Content area with swipe + animated tab transitions */}
               <div

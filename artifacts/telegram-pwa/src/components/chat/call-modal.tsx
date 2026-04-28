@@ -39,33 +39,27 @@ export function CallBanner() {
 
   const visible = isMinimized && status !== 'idle';
 
-  // Reserve vertical space for the banner so page content (lists, profile,
-  // settings, etc.) is pushed below it instead of being overlapped.
-  // The CSS variable is consumed by the `.app-shell` wrapper in App.tsx.
-  useEffect(() => {
-    const root = document.documentElement;
-    if (visible) root.style.setProperty('--call-banner-h', '48px');
-    else root.style.removeProperty('--call-banner-h');
-    return () => { root.style.removeProperty('--call-banner-h'); };
-  }, [visible]);
-
+  // Banner is rendered INLINE in the page layout (between the header and the
+  // page content), so it naturally pushes content down via flexbox instead of
+  // being a fixed overlay that hides rows underneath it. We animate the
+  // height from 0 → 48 → 0 so the appearance/disappearance feels smooth.
   return (
-    <AnimatePresence>
+    <AnimatePresence initial={false}>
       {visible && (
         <motion.div
           key="call-banner"
-          initial={{ y: -56, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: -56, opacity: 0 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-          className="fixed left-0 right-0 z-[100] flex items-center gap-3 px-3"
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 48, opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ type: 'tween', duration: 0.2, ease: 'easeOut' }}
+          className="flex-shrink-0 relative z-30 overflow-hidden w-full"
           style={{
-            top: 0,
-            height: '48px',
             background: 'linear-gradient(90deg, hsl(263 60% 12%), hsl(263 40% 9%))',
             borderBottom: '1px solid hsl(263 60% 30% / 0.4)',
-            backdropFilter: 'blur(12px)',
           }}
+        >
+        <div
+          className="flex items-center gap-3 px-3 w-full h-12"
         >
           {/* Pulsing green dot */}
           <div className="relative flex-shrink-0">
@@ -120,6 +114,7 @@ export function CallBanner() {
           >
             <PhoneOff className="w-4 h-4 text-white drop-shadow" />
           </button>
+        </div>
         </motion.div>
       )}
     </AnimatePresence>

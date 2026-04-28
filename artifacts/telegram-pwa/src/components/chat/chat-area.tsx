@@ -44,6 +44,7 @@ import { preloadMedia } from '@/lib/media-cache';
 import { prewarmIframe } from '@/lib/iframe-pool';
 import { VideoPlayer } from './video-player';
 import { useCall } from '@/lib/call-context';
+import { CallBanner } from './call-modal';
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡', '🔥'];
 const PICKER_EMOJIS = ['😀','😂','🤣','😊','😍','🥰','😘','😋','😎','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😣','😥','😮','🤐','😯','😪','😫','🥱','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','☹️','🙁','😖','😞','😟','😤','😢','😭','😦','😧','😨','😩','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','😡','😠','🤬','😷','🤒','🤕','🤢','🤮','🤧','😇','🥳','🥺','🤠','🤡','🤥','🤫','🤭','🧐','🤓','😈','👿','👹','👺','💀','👻','👽','👾','🤖'];
@@ -1602,6 +1603,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           </>
         )}
       </div>
+
+      {/* ── Mini call banner (visible only when a call is minimized) ── */}
+      <CallBanner />
 
       {/* ── Pinned messages ── */}
       {pinnedMessageIds.length > 0 && pinnedMsg && !pinnedMsg.isDeleted && (
