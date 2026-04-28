@@ -348,7 +348,7 @@ function MobileBottomNav({ activeTab, onSelect }: { activeTab: Tab; onSelect: (t
   return (
     <nav
       className="flex-shrink-0 px-3 pt-1.5 relative"
-      style={{ paddingBottom: 'calc(2.5rem + env(safe-area-inset-bottom, 0px))' }}
+      style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
     >
       {/* Floating capsule shell */}
       <div className="glass gradient-hairline-top shadow-floating-capsule relative flex items-stretch rounded-[20px] px-1.5 py-1 overflow-hidden">
