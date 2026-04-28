@@ -1530,7 +1530,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         className="h-full overflow-y-auto scroll-container px-3 pt-4"
         style={{
           visibility: searchOpen || scrollReady || isLoading || messages.length === 0 ? 'visible' : 'hidden',
-          paddingBottom: `calc(${composerHeight + 16}px + env(safe-area-inset-bottom, 0px))`,
+          paddingBottom: `calc(${composerHeight + 6}px + env(safe-area-inset-bottom, 0px))`,
         }}
       >
         {/* Sentinel — triggers loading older messages on scroll to top */}
