@@ -329,6 +329,78 @@ html:not(.dark) .ambient-blobs::after {
   }
 }
 
+/* ── Futuristic continuous halo around the Profil tab icon ── */
+@keyframes profile-tab-aura-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px hsl(263 92% 65% / 0.55),
+      0 0 12px hsl(263 92% 65% / 0.45),
+      inset 0 0 6px hsl(263 92% 65% / 0.25);
+    opacity: 0.85;
+  }
+  50% {
+    box-shadow:
+      0 0 0 1.5px hsl(263 92% 70% / 0.85),
+      0 0 18px hsl(263 92% 65% / 0.7),
+      inset 0 0 8px hsl(263 92% 65% / 0.4);
+    opacity: 1;
+  }
+}
+.profile-tab-aura {
+  animation: profile-tab-aura-pulse 2.4s ease-in-out infinite;
+}
+
+/* Rotating conic ring orbiting the icon */
+@keyframes profile-tab-orbit-spin {
+  to { transform: rotate(360deg); }
+}
+.profile-tab-orbit {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    hsl(263 92% 70% / 0) 40deg,
+    hsl(263 92% 70% / 0.95) 90deg,
+    hsl(190 100% 65% / 0.9) 140deg,
+    hsl(263 92% 70% / 0) 200deg,
+    transparent 360deg
+  );
+  -webkit-mask: radial-gradient(circle, transparent 58%, #000 62%, #000 100%);
+          mask: radial-gradient(circle, transparent 58%, #000 62%, #000 100%);
+  animation: profile-tab-orbit-spin 4.2s linear infinite;
+  filter: drop-shadow(0 0 4px hsl(263 92% 65% / 0.7));
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-tab-aura,
+  .profile-tab-orbit { animation: none; }
+}
+
+/* Larger orbit for the profile page hero avatar (rounded square frame) */
+@keyframes profile-hero-orbit-spin {
+  to { transform: rotate(360deg); }
+}
+.profile-hero-ring {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    hsl(263 92% 70% / 0) 30deg,
+    hsl(263 92% 70% / 0.85) 80deg,
+    hsl(190 100% 65% / 0.85) 150deg,
+    hsl(263 92% 70% / 0) 220deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  padding: 2px;
+  animation: profile-hero-orbit-spin 6s linear infinite;
+  filter: drop-shadow(0 0 8px hsl(263 92% 65% / 0.55));
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-hero-ring { animation: none; }
+}
+
 /* ── Surface helpers (consistent radius/elevation) ── */
 .surface-elevated {
   background:

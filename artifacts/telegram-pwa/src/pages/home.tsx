@@ -8,9 +8,9 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useQueryClient } from '@tanstack/react-query';
 import { getListConversationsQueryKey } from '@workspace/api-client-react';
 import { AnimatedBackground } from '@/components/animated-background';
-import { Users, MessageSquare, ShoppingBag, Settings, Zap, LogOut, Globe, Languages, ChevronDown, Shield, X, ChevronRight, Pencil, Download, Smartphone, CheckCircle2, Share, Bell, BellOff } from 'lucide-react';
+import { Users, MessageSquare, ShoppingBag, Settings, Zap, LogOut, Globe, Languages, ChevronDown, Shield, X, ChevronRight, Download, Smartphone, CheckCircle2, Share, Bell, BellOff, User } from 'lucide-react';
 import { AdminPanel } from '@/components/admin/admin-panel';
-import { ProfileEditorSheet } from '@/components/profile/profile-editor-sheet';
+import { ProfilePage } from '@/components/profile/profile-page';
 import { usePreferences } from '@/lib/preferences-context';
 import { SUPPORTED_APP_LANGUAGES, SUPPORTED_TRANSLATE_LANGUAGES } from '@/lib/i18n';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
@@ -26,16 +26,17 @@ window.addEventListener('beforeinstallprompt', (e: any) => {
   _pwaPromptListeners = [];
 });
 
-type Tab = 'groups' | 'messages' | 'shop' | 'settings';
+type Tab = 'groups' | 'messages' | 'profile' | 'shop' | 'settings';
 
 const NAV_ICONS: Record<Tab, typeof Users> = {
   groups: Users,
   messages: MessageSquare,
+  profile: User,
   shop: ShoppingBag,
   settings: Settings,
 };
 
-const TAB_ORDER: Tab[] = ['groups', 'messages', 'shop', 'settings'];
+const TAB_ORDER: Tab[] = ['groups', 'messages', 'profile', 'shop', 'settings'];
 
 export default function Home() {
   const { user, logout, refetchUser } = useAuth();
@@ -278,14 +279,14 @@ function DesktopHeader({ user, onLogout }: { user: { displayName: string }; onLo
 /* ── Desktop tab pills (shared visual language with mobile capsule) ── */
 function DesktopTabs({ activeTab, onSelect }: { activeTab: Tab; onSelect: (t: Tab) => void }) {
   const { t } = usePreferences();
-  const tabs: Tab[] = ['groups', 'messages', 'shop', 'settings'];
   return (
     <div className="flex-shrink-0 px-2 py-2 gradient-hairline-bottom">
-      <div className="glass relative grid grid-cols-4 gap-0.5 rounded-2xl p-1 overflow-hidden">
-        {tabs.map((id) => {
+      <div className="glass relative grid grid-cols-5 gap-0.5 rounded-2xl p-1 overflow-hidden">
+        {TAB_ORDER.map((id) => {
           const Icon = NAV_ICONS[id];
           const label = t.tabs[id];
           const active = activeTab === id;
+          const isProfile = id === 'profile';
           return (
             <button
               key={id}
@@ -302,14 +303,22 @@ function DesktopTabs({ activeTab, onSelect }: { activeTab: Tab; onSelect: (t: Ta
                   transition={{ type: 'spring', damping: 26, stiffness: 320 }}
                 />
               )}
-              <motion.span
-                animate={{ scale: active ? 1.1 : 1 }}
-                transition={{ type: 'spring', damping: 22, stiffness: 320 }}
-                className="relative z-10 inline-flex"
-                style={active ? { filter: 'drop-shadow(0 0 6px hsl(263 92% 65% / 0.8))' } : undefined}
-              >
-                <Icon className="w-3.5 h-3.5 flex-shrink-0" />
-              </motion.span>
+              <span className="relative z-10 inline-flex items-center justify-center w-6 h-6">
+                {isProfile && (
+                  <>
+                    <span aria-hidden className="absolute inset-0 rounded-full profile-tab-aura pointer-events-none" />
+                    <span aria-hidden className="absolute inset-[-2px] rounded-full profile-tab-orbit pointer-events-none" />
+                  </>
+                )}
+                <motion.span
+                  animate={{ scale: active ? 1.1 : 1 }}
+                  transition={{ type: 'spring', damping: 22, stiffness: 320 }}
+                  className="relative inline-flex"
+                  style={active || isProfile ? { filter: 'drop-shadow(0 0 6px hsl(263 92% 65% / 0.85))' } : undefined}
+                >
+                  <Icon className="w-3.5 h-3.5 flex-shrink-0" />
+                </motion.span>
+              </span>
               <span className="truncate w-full text-center leading-none relative z-10">{label}</span>
             </button>
           );
@@ -356,7 +365,6 @@ function MobileBottomNav({
   floating?: boolean;
 }) {
   const { t } = usePreferences();
-  const tabs: Tab[] = ['groups', 'messages', 'shop', 'settings'];
   return (
     <nav
       className={
@@ -379,16 +387,18 @@ function MobileBottomNav({
         />
       )}
       {/* Floating capsule shell */}
-      <div className={`glass gradient-hairline-top shadow-floating-capsule relative flex items-stretch rounded-[14px] px-1.5 py-1 overflow-hidden ${floating ? 'pointer-events-auto' : ''}`}>
-        {tabs.map((id) => {
+      <div className={`glass gradient-hairline-top shadow-floating-capsule relative flex items-stretch rounded-[14px] px-1.5 py-1 overflow-visible ${floating ? 'pointer-events-auto' : ''}`}>
+        <div className="absolute inset-0 rounded-[14px] overflow-hidden pointer-events-none -z-[1]" />
+        {TAB_ORDER.map((id) => {
           const Icon = NAV_ICONS[id];
           const active = activeTab === id;
+          const isProfile = id === 'profile';
           return (
             <button
               key={id}
               onClick={() => onSelect(id)}
               className={`flex-1 relative flex flex-col items-center justify-center py-2 gap-0.5 transition-colors ${
-                active ? 'text-white' : 'text-muted-foreground'
+                active ? 'text-white' : isProfile ? 'text-primary' : 'text-muted-foreground'
               }`}
             >
               {active && (
@@ -399,15 +409,23 @@ function MobileBottomNav({
                   transition={{ type: 'spring', damping: 26, stiffness: 320 }}
                 />
               )}
-              <motion.span
-                animate={{ scale: active ? 1.12 : 1 }}
-                transition={{ type: 'spring', damping: 22, stiffness: 320 }}
-                className="relative z-10 inline-flex"
-                style={active ? { filter: 'drop-shadow(0 0 8px hsl(263 92% 65% / 0.85))' } : undefined}
-              >
-                <Icon className="w-5 h-5" />
-              </motion.span>
-              <span className={`text-[10px] font-medium relative z-10 transition-opacity ${active ? 'opacity-100' : 'opacity-80'}`}>
+              <span className="relative z-10 inline-flex items-center justify-center w-7 h-7">
+                {isProfile && (
+                  <>
+                    <span aria-hidden className="absolute inset-0 rounded-full profile-tab-aura pointer-events-none" />
+                    <span aria-hidden className="absolute inset-[-3px] rounded-full profile-tab-orbit pointer-events-none" />
+                  </>
+                )}
+                <motion.span
+                  animate={{ scale: active ? 1.12 : isProfile ? 1.05 : 1 }}
+                  transition={{ type: 'spring', damping: 22, stiffness: 320 }}
+                  className="relative inline-flex"
+                  style={active || isProfile ? { filter: 'drop-shadow(0 0 8px hsl(263 92% 65% / 0.85))' } : undefined}
+                >
+                  <Icon className="w-5 h-5" />
+                </motion.span>
+              </span>
+              <span className={`text-[10px] font-medium relative z-10 transition-opacity ${active ? 'opacity-100' : isProfile ? 'opacity-95' : 'opacity-80'}`}>
                 {t.tabs[id]}
               </span>
             </button>
@@ -449,6 +467,9 @@ function TabContent({
         user={user}
       />
     );
+  }
+  if (tab === 'profile') {
+    return <ProfilePage user={user} onSaved={onRefetchUser} />;
   }
   if (tab === 'shop') {
     return <ShopPlaceholder />;
@@ -539,7 +560,6 @@ function SettingsPage({
   const { t, appLanguage, setAppLanguage, translateLanguage, setTranslateLanguage } = usePreferences();
   const [openLangMenu, setOpenLangMenu] = useState<'app' | 'translate' | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
-  const [showProfileEditor, setShowProfileEditor] = useState(false);
   const { isSupported: pushSupported, permission: pushPermission, isSubscribed: pushSubscribed, isLoading: pushLoading, enable: enablePush, disable: disablePush } = usePushNotifications();
   const [showIosInstructions, setShowIosInstructions] = useState(false);
   const [showAndroidInstructions, setShowAndroidInstructions] = useState(false);
@@ -572,42 +592,6 @@ function SettingsPage({
   return (
     <div className="h-full overflow-y-auto overscroll-contain">
     <div className="flex flex-col p-4 gap-4 pb-8">
-      {/* Profile card — clickable to edit */}
-      <button
-        onClick={() => setShowProfileEditor(true)}
-        className="glass rounded-2xl p-4 flex items-center gap-4 w-full text-left hover:bg-foreground/5 transition-colors group"
-      >
-        <div className="relative flex-shrink-0">
-          <div className="w-16 h-16 rounded-2xl bg-primary/20 overflow-hidden flex items-center justify-center">
-            {user.avatar ? (
-              <img src={user.avatar} alt="avatar" className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-2xl font-bold text-primary">{user.displayName.substring(0, 2).toUpperCase()}</span>
-            )}
-          </div>
-          <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-            <Pencil className="w-2.5 h-2.5 text-white" />
-          </div>
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-base leading-tight">{user.displayName}</p>
-          <p className="text-sm text-muted-foreground">@{user.username}</p>
-          {user.bio && (
-            <p className="text-xs text-muted-foreground/70 mt-1 truncate">{user.bio}</p>
-          )}
-        </div>
-        <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-      </button>
-
-      {/* Profile editor sheet */}
-      {showProfileEditor && (
-        <ProfileEditorSheet
-          user={user}
-          onClose={() => setShowProfileEditor(false)}
-          onSaved={() => { onRefetchUser(); setShowProfileEditor(false); }}
-        />
-      )}
-
       {/* Preferences section */}
       <div>
         <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider px-1 mb-2">{t.settings.preferences}</p>

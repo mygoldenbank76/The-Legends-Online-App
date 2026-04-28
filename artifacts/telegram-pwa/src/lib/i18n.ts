@@ -26,7 +26,7 @@ export const SUPPORTED_TRANSLATE_LANGUAGES: { code: TranslateLang; label: string
 ];
 
 type Dict = {
-  tabs: { groups: string; messages: string; shop: string; settings: string };
+  tabs: { groups: string; messages: string; profile: string; shop: string; settings: string };
   settings: {
     title: string;
     account: string;
@@ -156,7 +156,7 @@ type Dict = {
 
 export const i18n: Record<AppLang, Dict> = {
   fr: {
-    tabs: { groups: 'Groupes', messages: 'Messages', shop: 'Shop', settings: 'Paramètres' },
+    tabs: { groups: 'Groupes', messages: 'Messages', profile: 'Profil', shop: 'Shop', settings: 'Paramètres' },
     settings: {
       title: 'Paramètres',
       account: 'Compte',
@@ -285,7 +285,7 @@ export const i18n: Record<AppLang, Dict> = {
   },
 
   en: {
-    tabs: { groups: 'Groups', messages: 'Messages', shop: 'Shop', settings: 'Settings' },
+    tabs: { groups: 'Groups', messages: 'Messages', profile: 'Profile', shop: 'Shop', settings: 'Settings' },
     settings: {
       title: 'Settings',
       account: 'Account',
@@ -417,7 +417,7 @@ export const i18n: Record<AppLang, Dict> = {
   },
 
   es: {
-    tabs: { groups: 'Grupos', messages: 'Mensajes', shop: 'Tienda', settings: 'Ajustes' },
+    tabs: { groups: 'Grupos', messages: 'Mensajes', profile: 'Perfil', shop: 'Tienda', settings: 'Ajustes' },
     settings: {
       title: 'Ajustes',
       account: 'Cuenta',
@@ -549,7 +549,7 @@ export const i18n: Record<AppLang, Dict> = {
   },
 
   ar: {
-    tabs: { groups: 'المجموعات', messages: 'الرسائل', shop: 'المتجر', settings: 'الإعدادات' },
+    tabs: { groups: 'المجموعات', messages: 'الرسائل', profile: 'الملف الشخصي', shop: 'المتجر', settings: 'الإعدادات' },
     settings: {
       title: 'الإعدادات',
       account: 'الحساب',
@@ -681,7 +681,7 @@ export const i18n: Record<AppLang, Dict> = {
   },
 
   pt: {
-    tabs: { groups: 'Grupos', messages: 'Mensagens', shop: 'Loja', settings: 'Configurações' },
+    tabs: { groups: 'Grupos', messages: 'Mensagens', profile: 'Perfil', shop: 'Loja', settings: 'Configurações' },
     settings: {
       title: 'Configurações',
       account: 'Conta',
@@ -813,7 +813,7 @@ export const i18n: Record<AppLang, Dict> = {
   },
 
   de: {
-    tabs: { groups: 'Gruppen', messages: 'Nachrichten', shop: 'Shop', settings: 'Einstellungen' },
+    tabs: { groups: 'Gruppen', messages: 'Nachrichten', profile: 'Profil', shop: 'Shop', settings: 'Einstellungen' },
     settings: {
       title: 'Einstellungen',
       account: 'Konto',
