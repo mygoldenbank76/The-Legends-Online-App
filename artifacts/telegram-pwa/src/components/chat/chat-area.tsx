@@ -2022,7 +2022,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         aria-hidden
         className="absolute inset-x-0 bottom-0 z-20 pointer-events-none"
         style={{
-          height: 'calc(3.27rem + env(safe-area-inset-bottom, 0px))',
+          height: 'calc(3.29rem + env(safe-area-inset-bottom, 0px))',
           backdropFilter: 'blur(14px) saturate(140%)',
           WebkitBackdropFilter: 'blur(14px) saturate(140%)',
           background: 'linear-gradient(to top, hsl(var(--background) / 0.4), hsl(var(--background) / 0.25))',
