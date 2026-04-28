@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   ArrowLeft, Loader2, Send, Plus, Smile,
-  Reply, Pin, Pencil, Trash2, Languages, X, Check, PinOff, MoreVertical,
+  Reply, Pin, Pencil, Trash2, Languages, X, Check, PinOff, MoreVertical, Link2,
   Mic, Copy, Heart, CheckCheck, ChevronDown,
   Search, Bell, BellOff, ChevronUp,
   Phone, Video as VideoIcon,
@@ -447,6 +447,21 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const [ctxMenu, setCtxMenu] = useState<CtxMenu>(null);
   const [replyTo, setReplyTo] = useState<Msg | null>(null);
   const [editState, setEditState] = useState<{ id: number; orig: string; mediaLabel?: string } | null>(null);
+  // ── Composer link preview (auto-fetched as user types) ──────────────────
+  const [linkPreview, setLinkPreview] = useState<{
+    url: string;
+    title?: string | null;
+    description?: string | null;
+    image?: string | null;
+    siteName?: string | null;
+    platform?: string | null;
+  } | null>(null);
+  const [linkPreviewLoading, setLinkPreviewLoading] = useState(false);
+  const dismissedUrlsRef = useRef<Set<string>>(new Set());
+  // The URL currently detected in the composer (set by the debounce effect).
+  // Used so that clicking "X" while still loading correctly remembers the URL
+  // as dismissed even before the OG metadata arrives.
+  const currentPreviewUrlRef = useRef<string | null>(null);
   const [translations, setTranslations] = useState<TranslateEntry[]>([]);
   const [translatingId, setTranslatingId] = useState<number | null>(null);
   const [swipeOffsets, setSwipeOffsets] = useState<Record<number, number>>({});
@@ -819,15 +834,30 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     const trimmed = content.trim();
     if (!trimmed || sending) return;
     const replyId = replyTo?.id;
+    // Detect URL in the outgoing message and decide whether the backend
+    // should attach a preview. If the user dismissed the preview for this
+    // URL, tell the server to skip it.
+    const mdMatch = trimmed.match(/\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/);
+    const plainMatch = trimmed.match(/https?:\/\/[^\s]+/);
+    let outUrl: string | null = null;
+    if (mdMatch) outUrl = mdMatch[1];
+    else if (plainMatch) outUrl = plainMatch[0];
+    if (outUrl) outUrl = outUrl.replace(/[)\].,!?;:'"]+$/, '');
+    const disableLinkPreview = !!(outUrl && dismissedUrlsRef.current.has(outUrl));
     setContent('');
     setReplyTo(null);
+    setLinkPreview(null);
+    setLinkPreviewLoading(false);
     setSending(true);
     // Stop typing indicator immediately on send
     if (typingStopTimeout.current) clearTimeout(typingStopTimeout.current);
     emitTyping(conversationId, false);
     try {
       forceScrollRef.current = true;
-      await sendMsg.mutateAsync({ conversationId, data: { content: trimmed, replyToId: replyId } });
+      await sendMsg.mutateAsync({
+        conversationId,
+        data: { content: trimmed, replyToId: replyId, ...(disableLinkPreview ? { disableLinkPreview: true } : {}) } as any,
+      });
       invalidate();
     } catch { setContent(trimmed); forceScrollRef.current = false; }
     finally { setSending(false); }
@@ -897,6 +927,64 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       }
     }, 0);
   };
+
+  // ── Composer link preview: detect URL in `content`, debounce-fetch OG ──
+  useEffect(() => {
+    // Mirror backend extractFirstUrl logic
+    const mdMatch = content.match(/\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/);
+    const plainMatch = content.match(/https?:\/\/[^\s]+/);
+    let url: string | null = null;
+    if (mdMatch) url = mdMatch[1];
+    else if (plainMatch) url = plainMatch[0];
+    if (url) url = url.replace(/[)\].,!?;:'"]+$/, '');
+
+    // No URL → clear
+    if (!url) {
+      currentPreviewUrlRef.current = null;
+      setLinkPreview(null);
+      setLinkPreviewLoading(false);
+      return;
+    }
+    // Track latest detected URL even before fetch starts (for dismiss-during-loading)
+    currentPreviewUrlRef.current = url;
+    // Dismissed by user → don't show
+    if (dismissedUrlsRef.current.has(url)) {
+      setLinkPreview(null);
+      setLinkPreviewLoading(false);
+      return;
+    }
+    // Already loaded for this URL → keep
+    if (linkPreview?.url === url) return;
+
+    setLinkPreviewLoading(true);
+    let cancelled = false;
+    const handle = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/link-preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() } as Record<string, string>,
+          body: JSON.stringify({ url }),
+        });
+        const json = await res.json();
+        if (cancelled) return;
+        // Stale-write guard: only apply if this URL is still the one detected.
+        if (currentPreviewUrlRef.current !== url) return;
+        if (dismissedUrlsRef.current.has(url)) {
+          setLinkPreview(null);
+        } else if (json?.preview) {
+          setLinkPreview(json.preview);
+        } else {
+          setLinkPreview(null);
+        }
+      } catch {
+        if (!cancelled && currentPreviewUrlRef.current === url) setLinkPreview(null);
+      } finally {
+        if (!cancelled && currentPreviewUrlRef.current === url) setLinkPreviewLoading(false);
+      }
+    }, 500);
+    return () => { cancelled = true; clearTimeout(handle); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [content]);
 
   // Render message text with @mentions highlighted
   const handleTextSelect = () => {
@@ -2275,6 +2363,61 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       <X className="w-4 h-4" />
                     </button>
                   </div>
+                  </motion.div>
+                )}
+                </AnimatePresence>
+
+                {/* ── Link preview INSIDE the pill (animated) ── */}
+                <AnimatePresence initial={false}>
+                {(linkPreview || linkPreviewLoading) && !editState && (
+                  <motion.div
+                    key="link-preview"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+                    style={{ overflow: 'hidden' }}
+                  >
+                    <div className="flex items-center gap-2.5 pl-3 pr-2 pt-2 pb-1.5">
+                      {linkPreview?.image ? (
+                        <img
+                          src={linkPreview.image}
+                          alt=""
+                          className="w-9 h-9 rounded-md object-cover flex-shrink-0 border border-foreground/10"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-md flex-shrink-0 flex items-center justify-center gradient-primary-soft border border-primary/30">
+                          {linkPreviewLoading
+                            ? <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                            : <Link2 className="w-4 h-4 text-primary" />}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0 border-l-2 border-primary pl-2">
+                        <p className="text-[12px] text-primary font-semibold truncate leading-tight">
+                          {linkPreviewLoading && !linkPreview
+                            ? 'Chargement de l\u2019aper\u00e7u\u2026'
+                            : (linkPreview?.title || linkPreview?.siteName || 'Aper\u00e7u du lien')}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground truncate leading-tight mt-0.5">
+                          {linkPreview?.description || linkPreview?.url || ''}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          // Always remember the currently-detected URL as dismissed,
+                          // even if metadata hasn't arrived yet (loading state).
+                          const u = linkPreview?.url ?? currentPreviewUrlRef.current;
+                          if (u) dismissedUrlsRef.current.add(u);
+                          setLinkPreview(null);
+                          setLinkPreviewLoading(false);
+                        }}
+                        className="text-muted-foreground hover:text-foreground p-1 flex-shrink-0 rounded-full hover:bg-foreground/5 transition-colors"
+                        aria-label="Masquer l'aper\u00e7u"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   </motion.div>
                 )}
                 </AnimatePresence>

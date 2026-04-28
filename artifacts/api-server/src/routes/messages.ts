@@ -101,6 +101,24 @@ type FormattedMessage = {
   createdAt: string;
 };
 
+// POST /api/link-preview — fetch Open Graph metadata for a URL extracted
+// from the given text. Used by the composer to show an inline preview as
+// the user types, before the message is sent.
+router.post("/link-preview", requireAuth, async (req, res): Promise<void> => {
+  const { text, url: rawUrl } = (req.body || {}) as { text?: string; url?: string };
+  const url = rawUrl ?? (text ? extractFirstUrl(text) : null);
+  if (!url) {
+    res.status(200).json({ preview: null });
+    return;
+  }
+  try {
+    const preview = await fetchLinkPreview(url);
+    res.status(200).json({ preview: preview ?? null });
+  } catch {
+    res.status(200).json({ preview: null });
+  }
+});
+
 // GET messages in conversation
 router.get("/conversations/:conversationId/messages", requireAuth, async (req, res): Promise<void> => {
   const userId = (req as typeof req & { userId: number }).userId;
@@ -241,13 +259,14 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
   const conversationId = parseInt(rawId, 10);
   if (isNaN(conversationId)) { res.status(400).json({ error: "Invalid conversation ID" }); return; }
 
-  const { content, imageUrl, mediaAlbum, audioUrl, audioDuration, replyToId, poll } = req.body as {
+  const { content, imageUrl, mediaAlbum, audioUrl, audioDuration, replyToId, poll, disableLinkPreview } = req.body as {
     content?: string;
     imageUrl?: string;
     mediaAlbum?: string[];
     audioUrl?: string;
     audioDuration?: number;
     replyToId?: number;
+    disableLinkPreview?: boolean;
     poll?: {
       question: string;
       options: string[];
@@ -263,7 +282,7 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
   }
 
   let linkPreview = null;
-  if (content) {
+  if (content && !disableLinkPreview) {
     const url = extractFirstUrl(content);
     if (url) linkPreview = await fetchLinkPreview(url);
   }
