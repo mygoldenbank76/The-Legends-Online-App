@@ -1473,7 +1473,14 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           </motion.button>
         )}
       </AnimatePresence>
-      <div ref={scrollRef} className="h-full overflow-y-auto scroll-container px-3 pt-4 pb-2" style={{ visibility: searchOpen || scrollReady || isLoading || messages.length === 0 ? 'visible' : 'hidden' }}>
+      <div
+        ref={scrollRef}
+        className="h-full overflow-y-auto scroll-container px-3 pt-4"
+        style={{
+          visibility: searchOpen || scrollReady || isLoading || messages.length === 0 ? 'visible' : 'hidden',
+          paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))',
+        }}
+      >
         {/* Sentinel — triggers loading older messages on scroll to top */}
         <div ref={sentinelRef} className="h-1" />
         {/* Spinner while loading older messages */}
@@ -2007,8 +2014,11 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         )}
       </AnimatePresence>
 
-      {/* ── Input bar — truly floating: only the inner pill is frosted, the wrapper is fully transparent ── */}
-      <div className="flex-shrink-0 relative">
+      {/* ── Input bar — truly floating: absolute over messages, transparent wrapper ── */}
+      <div
+        className="absolute left-0 right-0 bottom-0 z-30"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
 
         {/* @mention suggestions — floats above the input bar, same pattern as emoji/GIF */}
         <AnimatePresence>
