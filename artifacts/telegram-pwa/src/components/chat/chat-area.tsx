@@ -2083,74 +2083,6 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             </motion.div>
           )}
         </AnimatePresence>
-        {/* ── Reply bar ── (Telegram-style: reply icon + thumbnail + name/preview + close) */}
-        {replyTo && (() => {
-          const isVideo = !!replyTo.imageUrl && /\.(mp4|webm|mov|avi|mkv)$/i.test(replyTo.imageUrl);
-          const isImage = !!replyTo.imageUrl && !isVideo;
-          const previewLabel = replyTo.audioUrl
-            ? 'Message vocal'
-            : isVideo
-            ? 'Vidéo'
-            : isImage
-            ? 'Photo'
-            : (replyTo.content || '');
-          const replyName = replyTo.senderId === user?.id ? 'Vous' : (replyTo.sender?.displayName || '');
-          return (
-            <div className="flex items-center gap-3 px-3 py-2 border-t border-primary/20">
-              <Reply className="w-5 h-5 text-primary flex-shrink-0" />
-              {isImage && (
-                <CachedImg
-                  src={replyTo.imageUrl!}
-                  alt="reply"
-                  className="w-9 h-9 rounded-[6px] object-cover flex-shrink-0"
-                />
-              )}
-              {isVideo && (
-                <div className="w-9 h-9 rounded-[6px] bg-black/40 flex items-center justify-center flex-shrink-0">
-                  <VideoIcon className="w-4 h-4 text-white/80" />
-                </div>
-              )}
-              {replyTo.audioUrl && !replyTo.imageUrl && (
-                <div className="w-9 h-9 rounded-[6px] bg-primary/15 flex items-center justify-center flex-shrink-0">
-                  <Mic className="w-4 h-4 text-primary" />
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-[13px] text-primary font-semibold truncate leading-tight">
-                  Répondre à {replyName}
-                </p>
-                <p className="text-xs text-muted-foreground truncate leading-tight mt-0.5">
-                  {previewLabel}
-                </p>
-              </div>
-              <button
-                onClick={() => setReplyTo(null)}
-                className="text-muted-foreground hover:text-foreground p-1.5 flex-shrink-0 rounded-full hover:bg-foreground/5 transition-colors"
-                aria-label="Annuler la réponse"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          );
-        })()}
-
-        {/* ── Edit bar ── */}
-        {editState && (
-          <div className="flex items-center gap-2 px-4 py-2 border-t border-primary/30">
-            <Pencil className="w-4 h-4 text-primary flex-shrink-0" />
-            <p className="flex-1 text-xs text-primary font-medium truncate">
-              {uiT.chat.edit} · {editState.mediaLabel
-                ? editState.orig
-                  ? `${editState.mediaLabel} — ${editState.orig}`
-                  : editState.mediaLabel
-                : editState.orig}
-            </p>
-            <button onClick={() => { setEditState(null); setContent(''); }} className="text-muted-foreground hover:text-foreground p-1 flex-shrink-0">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
         {/* Formatting toolbar — shown BELOW messages, ABOVE the input row */}
         <FormattingToolbar
           visible={!voiceActive}
@@ -2175,7 +2107,87 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           ) : (
             <>
               {/* ── Text input field — floating glass capsule ─────────── */}
-              <div className="flex-1 composer-pill flex items-end overflow-hidden">
+              <div className="flex-1 composer-pill flex flex-col overflow-hidden">
+
+                {/* ── Reply preview INSIDE the pill (Telegram-style) ── */}
+                {replyTo && !editState && (() => {
+                  const isVideo = !!replyTo.imageUrl && /\.(mp4|webm|mov|avi|mkv)$/i.test(replyTo.imageUrl);
+                  const isImage = !!replyTo.imageUrl && !isVideo;
+                  const previewLabel = replyTo.audioUrl
+                    ? 'Message vocal'
+                    : isVideo
+                    ? 'Vidéo'
+                    : isImage
+                    ? 'Photo'
+                    : (replyTo.content || '');
+                  const replyName = replyTo.senderId === user?.id ? 'Vous' : (replyTo.sender?.displayName || '');
+                  return (
+                    <div className="flex items-center gap-2.5 pl-3 pr-2 pt-2 pb-1.5">
+                      <Reply className="w-4 h-4 text-primary flex-shrink-0" />
+                      {isImage && (
+                        <CachedImg
+                          src={replyTo.imageUrl!}
+                          alt="reply"
+                          className="w-8 h-8 rounded-[5px] object-cover flex-shrink-0"
+                        />
+                      )}
+                      {isVideo && (
+                        <div className="w-8 h-8 rounded-[5px] bg-black/40 flex items-center justify-center flex-shrink-0">
+                          <VideoIcon className="w-3.5 h-3.5 text-white/80" />
+                        </div>
+                      )}
+                      {replyTo.audioUrl && !replyTo.imageUrl && (
+                        <div className="w-8 h-8 rounded-[5px] bg-primary/15 flex items-center justify-center flex-shrink-0">
+                          <Mic className="w-3.5 h-3.5 text-primary" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0 border-l-2 border-primary pl-2">
+                        <p className="text-[12px] text-primary font-semibold truncate leading-tight">
+                          Répondre à {replyName}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground truncate leading-tight mt-0.5">
+                          {previewLabel}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setReplyTo(null)}
+                        className="text-muted-foreground hover:text-foreground p-1 flex-shrink-0 rounded-full hover:bg-foreground/5 transition-colors"
+                        aria-label="Annuler la réponse"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })()}
+
+                {/* ── Edit preview INSIDE the pill ── */}
+                {editState && (
+                  <div className="flex items-center gap-2.5 pl-3 pr-2 pt-2 pb-1.5">
+                    <Pencil className="w-4 h-4 text-primary flex-shrink-0" />
+                    <div className="flex-1 min-w-0 border-l-2 border-primary pl-2">
+                      <p className="text-[12px] text-primary font-semibold truncate leading-tight">
+                        {uiT.chat.edit}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground truncate leading-tight mt-0.5">
+                        {editState.mediaLabel
+                          ? editState.orig
+                            ? `${editState.mediaLabel} — ${editState.orig}`
+                            : editState.mediaLabel
+                          : editState.orig}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => { setEditState(null); setContent(''); }}
+                      className="text-muted-foreground hover:text-foreground p-1 flex-shrink-0 rounded-full hover:bg-foreground/5 transition-colors"
+                      aria-label="Annuler l'édition"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Input row (GIF/Emoji + Textarea + attachment + Mic/Send) */}
+                <div className="flex items-end">
 
                 {/* Left icon: GIF (idle) ↔ Emoji (typing) */}
                 <AnimatePresence mode="wait" initial={false}>
@@ -2278,6 +2290,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     </motion.button>
                   )}
                 </AnimatePresence>
+                </div>{/* end input row */}
               </div>
             </>
           )}
