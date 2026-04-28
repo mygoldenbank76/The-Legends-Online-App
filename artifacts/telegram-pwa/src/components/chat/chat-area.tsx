@@ -638,6 +638,35 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
 
+  // ── Composer height tracking — used so messages list & scroll-to-bottom
+  // button always sit above the floating composer, even when reply/edit
+  // preview is added inside the pill (composer grows taller).
+  const composerRef = useRef<HTMLDivElement>(null);
+  const [composerHeight, setComposerHeight] = useState(64);
+  const prevComposerHeightRef = useRef(64);
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const h = Math.round(entry.contentRect.height);
+        if (h > 0) setComposerHeight(h);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  // When the composer grows (e.g. reply/edit preview shown) AND we were at
+  // the bottom, immediately scroll to keep the last message visible.
+  useEffect(() => {
+    const prev = prevComposerHeightRef.current;
+    if (composerHeight > prev && wasAtBottomRef.current && scrollRef.current) {
+      const el = scrollRef.current;
+      el.scrollTop = el.scrollHeight;
+    }
+    prevComposerHeightRef.current = composerHeight;
+  }, [composerHeight]);
+
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || !scrollReady) return;
@@ -1464,7 +1493,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             className="absolute right-3 z-40 w-10 h-10 rounded-full bg-card border border-border/60 shadow-lg flex items-center justify-center text-foreground hover:bg-primary/10 transition-colors"
             style={{
               backdropFilter: 'blur(12px)',
-              bottom: 'calc(4.25rem + env(safe-area-inset-bottom, 0px))',
+              bottom: `calc(${composerHeight + 12}px + env(safe-area-inset-bottom, 0px))`,
             }}
           >
             <ChevronDown className="w-5 h-5" />
@@ -1481,7 +1510,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         className="h-full overflow-y-auto scroll-container px-3 pt-4"
         style={{
           visibility: searchOpen || scrollReady || isLoading || messages.length === 0 ? 'visible' : 'hidden',
-          paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))',
+          paddingBottom: `calc(${composerHeight + 16}px + env(safe-area-inset-bottom, 0px))`,
         }}
       >
         {/* Sentinel — triggers loading older messages on scroll to top */}
@@ -1710,9 +1739,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                           <p className={`text-[12px] leading-snug line-clamp-2
                             ${isMine ? 'text-white/75' : 'text-foreground/70'}`}>
                             {msg.replyTo.audioUrl
-                              ? '🎤 Message vocal'
+                              ? 'Message vocal'
                               : msg.replyTo.imageUrl
-                              ? (msg.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? '🎬 Vidéo' : '📷 Image')
+                              ? (msg.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? 'Vidéo' : 'Photo')
                               : msg.replyTo.content || ''}
                           </p>
                         </div>
@@ -1725,8 +1754,17 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                           />
                         )}
                         {msg.replyTo.imageUrl && msg.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) && (
-                          <div className="w-14 h-14 flex-shrink-0 bg-black/30 flex items-center justify-center">
-                            <span className="text-xl">🎬</span>
+                          <div className="relative w-14 h-14 flex-shrink-0 overflow-hidden bg-black/30">
+                            <video
+                              src={msg.replyTo.imageUrl}
+                              preload="metadata"
+                              muted
+                              playsInline
+                              className="absolute inset-0 w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
+                              <VideoIcon className="w-4 h-4 text-white" />
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1988,6 +2026,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
       {/* ── Input bar — truly floating: absolute over messages, transparent wrapper ── */}
       <div
+        ref={composerRef}
         className="absolute left-0 right-0 bottom-0 z-30"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
@@ -2132,8 +2171,17 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                         />
                       )}
                       {isVideo && (
-                        <div className="w-8 h-8 rounded-[5px] bg-black/40 flex items-center justify-center flex-shrink-0">
-                          <VideoIcon className="w-3.5 h-3.5 text-white/80" />
+                        <div className="relative w-8 h-8 rounded-[5px] overflow-hidden bg-black/40 flex-shrink-0">
+                          <video
+                            src={replyTo.imageUrl!}
+                            preload="metadata"
+                            muted
+                            playsInline
+                            className="absolute inset-0 w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
+                            <VideoIcon className="w-3 h-3 text-white" />
+                          </div>
                         </div>
                       )}
                       {replyTo.audioUrl && !replyTo.imageUrl && (
