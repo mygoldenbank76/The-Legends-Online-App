@@ -1329,8 +1329,32 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
   const handleReaction = async (msgId: number, emoji: string) => {
     closeCtx();
+    const uid = user?.id;
+    // Optimistic toggle: mirror the server logic immediately so the UI
+    // updates without waiting for the network roundtrip.
+    if (uid != null) {
+      const key = getListMessagesQueryKey(conversationId);
+      queryClient.setQueryData(key, (old: any) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((m: any) => {
+          if (m.id !== msgId) return m;
+          const reactions: any[] = Array.isArray(m.reactions) ? m.reactions : [];
+          const existing = reactions.find(r => r.userId === uid && r.emoji === emoji);
+          if (existing) {
+            return { ...m, reactions: reactions.filter(r => r !== existing) };
+          }
+          return {
+            ...m,
+            reactions: [
+              ...reactions,
+              { id: -Date.now(), messageId: msgId, userId: uid, emoji },
+            ],
+          };
+        });
+      });
+    }
     try { await addReaction.mutateAsync({ messageId: msgId, data: { emoji } }); invalidate(); }
-    catch (e) { console.error(e); }
+    catch (e) { console.error(e); invalidate(); }
   };
 
   // ── Swipe to reply ────────────────────────────────────────
@@ -2059,35 +2083,27 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       {/* Reactions inside bubble — animated with Framer Motion */}
                       {hasReactions ? (
                         <div className="flex flex-wrap gap-1">
-                          <AnimatePresence mode="popLayout">
-                            {Object.entries(reactionCounts).map(([emoji, count]) => (
-                              <motion.button
-                                key={emoji}
-                                layout
-                                initial={{ scale: 0, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                exit={{ scale: 0, opacity: 0 }}
-                                transition={{ type: 'spring', stiffness: 500, damping: 24 }}
-                                onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, emoji); }}
-                                className={`rounded-full px-1.5 py-0.5 text-xs flex items-center gap-0.5 border transition-colors
-                                  ${hasReacted(emoji)
-                                    ? 'bg-white/25 border-white/40 text-white'
-                                    : 'bg-white/10 border-white/20 text-white/80 hover:bg-white/15'}`}
-                                whileTap={{ scale: 1.3 }}
+                          {Object.entries(reactionCounts).map(([emoji, count]) => (
+                            <button
+                              key={emoji}
+                              onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, emoji); }}
+                              className={`rounded-full px-1.5 py-0.5 text-xs flex items-center gap-0.5 border transition-colors
+                                ${hasReacted(emoji)
+                                  ? 'bg-white/25 border-white/40 text-white'
+                                  : 'bg-white/10 border-white/20 text-white/80 hover:bg-white/15'}`}
+                            >
+                              <span>{emoji}</span>
+                              <motion.span
+                                key={`${emoji}-${count}`}
+                                initial={{ y: -6, opacity: 0 }}
+                                animate={{ y: 0, opacity: 1 }}
+                                transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                                className="font-bold text-[10px]"
                               >
-                                <span>{emoji}</span>
-                                <motion.span
-                                  key={`${emoji}-${count}`}
-                                  initial={{ y: -6, opacity: 0 }}
-                                  animate={{ y: 0, opacity: 1 }}
-                                  transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-                                  className="font-bold text-[10px]"
-                                >
-                                  {count as number}
-                                </motion.span>
-                              </motion.button>
-                            ))}
-                          </AnimatePresence>
+                                {count as number}
+                              </motion.span>
+                            </button>
+                          ))}
                         </div>
                       ) : <div />}
 
