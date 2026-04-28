@@ -138,7 +138,7 @@ export function VideoPlayer({ src, className = '', poster }: Props) {
         preload="metadata"
         playsInline
         className="w-full h-full object-contain block"
-        style={{ maxHeight: '320px' }}
+        style={{ maxHeight: isFullscreen ? 'none' : '320px' }}
       />
 
       {/* Play/Pause center button */}
