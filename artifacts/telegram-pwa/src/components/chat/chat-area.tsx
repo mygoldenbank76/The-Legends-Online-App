@@ -2017,23 +2017,21 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         )}
       </AnimatePresence>
 
-      {/* ── Soft blur veil — strictly behind the floating composer, starts exactly at the top of the bar ── */}
-      <div
-        aria-hidden
-        className="absolute inset-x-0 bottom-0 z-20 pointer-events-none"
-        style={{
-          height: 'calc(3.29rem + env(safe-area-inset-bottom, 0px))',
-          backdropFilter: 'blur(14px) saturate(140%)',
-          WebkitBackdropFilter: 'blur(14px) saturate(140%)',
-          background: 'linear-gradient(to top, hsl(var(--background) / 0.4), hsl(var(--background) / 0.25))',
-        }}
-      />
-
       {/* ── Input bar — truly floating: absolute over messages, transparent wrapper ── */}
       <div
         className="absolute left-0 right-0 bottom-0 z-30"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
+        {/* Soft blur veil — auto-fits the composer's exact height so it starts pile au bord du haut de la barre */}
+        <div
+          aria-hidden
+          className="absolute inset-0 -z-10 pointer-events-none"
+          style={{
+            backdropFilter: 'blur(14px) saturate(140%)',
+            WebkitBackdropFilter: 'blur(14px) saturate(140%)',
+            background: 'linear-gradient(to top, hsl(var(--background) / 0.4), hsl(var(--background) / 0.25))',
+          }}
+        />
 
         {/* @mention suggestions — floats above the input bar, same pattern as emoji/GIF */}
         <AnimatePresence>
