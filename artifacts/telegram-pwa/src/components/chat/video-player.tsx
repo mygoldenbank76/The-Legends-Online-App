@@ -126,7 +126,7 @@ export function VideoPlayer({ src, className = '', poster }: Props) {
   return (
     <div
       ref={containerRef}
-      className={`relative rounded-xl overflow-hidden bg-black cursor-pointer select-none ${className}`}
+      className={`relative overflow-hidden bg-black cursor-pointer select-none ${className}`}
       onClick={togglePlay}
       onMouseMove={showAndScheduleHide}
       onTouchStart={showAndScheduleHide}
