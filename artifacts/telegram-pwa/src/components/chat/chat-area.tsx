@@ -667,24 +667,27 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     prevComposerHeightRef.current = composerHeight;
   }, [composerHeight]);
 
-  // Direct trigger when reply/edit preview opens — does not depend on the
-  // ResizeObserver firing later. Uses a double rAF to wait until the messages
-  // list paddingBottom has been recomputed AND the browser has laid out before
-  // smoothly scrolling to the bottom (Telegram-style fluid follow).
+  // Direct trigger when reply/edit preview opens — pin scrollTop to scrollHeight
+  // throughout the composer's height animation (Framer Motion ~280ms) so the
+  // last message glides up smoothly in lockstep with the growing preview,
+  // instead of jumping to bottom in one snap once the animation finishes.
   useEffect(() => {
     if (!replyTo && !editState) return;
     if (!wasAtBottomRef.current) return;
-    let raf2 = 0;
-    const raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        const el = scrollRef.current;
-        if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-      });
-    });
-    return () => {
-      cancelAnimationFrame(raf1);
-      if (raf2) cancelAnimationFrame(raf2);
+    const el = scrollRef.current;
+    if (!el) return;
+    let cancelled = false;
+    const start = performance.now();
+    const DURATION = 320;
+    const tick = () => {
+      if (cancelled) return;
+      el.scrollTop = el.scrollHeight;
+      if (performance.now() - start < DURATION) {
+        requestAnimationFrame(tick);
+      }
     };
+    requestAnimationFrame(tick);
+    return () => { cancelled = true; };
   }, [replyTo, editState]);
 
   useEffect(() => {
@@ -2168,7 +2171,8 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
               {/* ── Text input field — floating glass capsule ─────────── */}
               <div className="flex-1 composer-pill flex flex-col overflow-hidden">
 
-                {/* ── Reply preview INSIDE the pill (Telegram-style) ── */}
+                {/* ── Reply preview INSIDE the pill (Telegram-style, animated) ── */}
+                <AnimatePresence initial={false}>
                 {replyTo && !editState && (() => {
                   const isVideo = !!replyTo.imageUrl && /\.(mp4|webm|mov|avi|mkv)$/i.test(replyTo.imageUrl);
                   const isImage = !!replyTo.imageUrl && !isVideo;
@@ -2181,6 +2185,14 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     : (replyTo.content || '');
                   const replyName = replyTo.senderId === user?.id ? 'Vous' : (replyTo.sender?.displayName || '');
                   return (
+                    <motion.div
+                      key="reply-preview"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+                      style={{ overflow: 'hidden' }}
+                    >
                     <div className="flex items-center gap-2.5 pl-3 pr-2 pt-2 pb-1.5">
                       <Reply className="w-4 h-4 text-primary flex-shrink-0" />
                       {isImage && (
@@ -2225,11 +2237,22 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                         <X className="w-4 h-4" />
                       </button>
                     </div>
+                    </motion.div>
                   );
                 })()}
+                </AnimatePresence>
 
-                {/* ── Edit preview INSIDE the pill ── */}
+                {/* ── Edit preview INSIDE the pill (animated) ── */}
+                <AnimatePresence initial={false}>
                 {editState && (
+                  <motion.div
+                    key="edit-preview"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+                    style={{ overflow: 'hidden' }}
+                  >
                   <div className="flex items-center gap-2.5 pl-3 pr-2 pt-2 pb-1.5">
                     <Pencil className="w-4 h-4 text-primary flex-shrink-0" />
                     <div className="flex-1 min-w-0 border-l-2 border-primary pl-2">
@@ -2252,7 +2275,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       <X className="w-4 h-4" />
                     </button>
                   </div>
+                  </motion.div>
                 )}
+                </AnimatePresence>
 
                 {/* Input row (GIF/Emoji + Textarea + attachment + Mic/Send) */}
                 <div className="flex items-end">
