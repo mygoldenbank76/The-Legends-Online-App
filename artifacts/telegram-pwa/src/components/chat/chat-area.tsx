@@ -1827,7 +1827,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   <div className={`rounded-[14px] px-2.5 py-[6px] text-[14.5px] leading-[1.3]
                     ${isMine
                       ? 'bubble-sent rounded-br-[4px]'
-                      : 'bubble-received rounded-bl-[4px]'
+                      : 'bubble-received rounded-tl-[4px]'
                     }`}
                   >
                     {/* Reply preview inside bubble — WhatsApp style */}
