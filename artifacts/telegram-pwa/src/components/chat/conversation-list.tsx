@@ -231,7 +231,7 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
       onClick={() => { if (openId) setOpenId(null); }}
     >
       <div
-        className="flex-1 overflow-y-auto py-1 px-2 scroll-container"
+        className="flex-1 overflow-y-auto py-1 px-3 scroll-container"
         style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}
       >
         {isLoading && conversations.length === 0 && (
