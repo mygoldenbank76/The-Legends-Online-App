@@ -142,17 +142,17 @@ export function ProfilePage({ user, onSaved }: Props) {
       className="h-full overflow-y-auto overscroll-contain"
       style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}
     >
-      <div className="flex flex-col gap-5 px-4 pt-5">
+      <div className="flex flex-col gap-5 px-4 pt-8">
         {/* Avatar — large hero with futuristic ring */}
-        <div className="flex flex-col items-center gap-3">
+        <div className="flex flex-col items-center gap-6">
           <motion.div
             initial={{ scale: 0.92, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: 'spring', damping: 22, stiffness: 240 }}
             className="relative"
           >
-            {/* Animated outer ring */}
-            <span aria-hidden className="absolute -inset-2 rounded-[28px] profile-hero-ring pointer-events-none" />
+            {/* Animated outer ring — kept tight so it doesn't overlap the header above or the name below */}
+            <span aria-hidden className="absolute -inset-1 rounded-[26px] profile-hero-ring pointer-events-none" />
             <div
               className="relative w-28 h-28 rounded-3xl bg-primary/20 overflow-hidden cursor-pointer group glow-primary-sm"
               onClick={() => fileRef.current?.click()}
