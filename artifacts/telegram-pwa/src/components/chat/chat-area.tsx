@@ -1643,7 +1643,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           {messages?.map((msg, index) => {
             const isMine = msg.senderId === user?.id;
             const prevMsg = messages[index - 1];
+            const nextMsg = messages[index + 1];
             const isSameAuthor = prevMsg && prevMsg.senderId === msg.senderId;
+            // Last message of a same-author chain (no next msg, or next msg is from someone else)
+            const isLastInGroup = !nextMsg || nextMsg.senderId !== msg.senderId;
             const reactionCounts = msg.reactions.reduce((a: Record<string, number>, r) => {
               a[r.emoji] = (a[r.emoji] || 0) + 1; return a;
             }, {});
@@ -1827,7 +1830,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   <div className={`rounded-[14px] px-2.5 py-[6px] text-[14.5px] leading-[1.3]
                     ${isMine
                       ? 'bubble-sent rounded-br-[4px]'
-                      : 'bubble-received rounded-tl-[4px]'
+                      : `bubble-received ${isLastInGroup ? 'rounded-tl-[4px]' : 'rounded-bl-[4px]'}`
                     }`}
                   >
                     {/* Reply preview inside bubble — WhatsApp style */}
