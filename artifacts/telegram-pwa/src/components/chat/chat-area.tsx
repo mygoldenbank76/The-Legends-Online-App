@@ -2184,7 +2184,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   rows={1}
                 />
 
-                {/* Right icon inside field: + attachment (hidden in edit mode) */}
+                {/* Right icons inside field: + attachment, then Mic/Send (Telegram-like) */}
                 {!editState && (
                   <button
                     onClick={() => setAttachmentSheetOpen(true)}
@@ -2196,39 +2196,39 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       : <Plus className="w-5 h-5" />}
                   </button>
                 )}
-              </div>
 
-              {/* ── Right action button (outside field): Mic / Send ── */}
-              <AnimatePresence mode="wait">
-                {content.trim() || editState ? (
-                  <motion.button
-                    key="send"
-                    onClick={handleSend}
-                    disabled={sending}
-                    initial={{ scale: 0.5, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.5, opacity: 0 }}
-                    transition={{ duration: 0.15 }}
-                    className="flex-shrink-0 w-11 h-11 rounded-full send-circle transition-all flex items-center justify-center mb-0.5"
-                  >
-                    {sending
-                      ? <Loader2 className="w-4 h-4 animate-spin" />
-                      : editState ? <Check className="w-4 h-4" /> : <Send className="w-4 h-4" />}
-                  </motion.button>
-                ) : (
-                  <motion.button
-                    key="mic"
-                    onClick={() => setVoiceActive(true)}
-                    initial={{ scale: 0.5, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.5, opacity: 0 }}
-                    transition={{ duration: 0.15 }}
-                    className="flex-shrink-0 w-11 h-11 rounded-full send-circle transition-all flex items-center justify-center mb-0.5"
-                  >
-                    <Mic className="w-4 h-4" />
-                  </motion.button>
-                )}
-              </AnimatePresence>
+                {/* ── Mic / Send — now INSIDE the pill, on the far right ── */}
+                <AnimatePresence mode="wait" initial={false}>
+                  {content.trim() || editState ? (
+                    <motion.button
+                      key="send"
+                      onClick={handleSend}
+                      disabled={sending}
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.5, opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="flex-shrink-0 w-9 h-9 mr-1 mb-1 rounded-full send-circle transition-all flex items-center justify-center self-end"
+                    >
+                      {sending
+                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                        : editState ? <Check className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+                    </motion.button>
+                  ) : (
+                    <motion.button
+                      key="mic"
+                      onClick={() => setVoiceActive(true)}
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.5, opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="flex-shrink-0 p-2.5 mr-1 mb-0.5 self-end text-primary/80 hover:text-primary transition-colors"
+                    >
+                      <Mic className="w-5 h-5" />
+                    </motion.button>
+                  )}
+                </AnimatePresence>
+              </div>
             </>
           )}
         </div>
