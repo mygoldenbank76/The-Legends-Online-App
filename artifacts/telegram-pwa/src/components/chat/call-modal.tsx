@@ -15,6 +15,7 @@ import {
   ChevronUp, ScreenShare, ScreenShareOff, Volume2, VolumeX,
 } from 'lucide-react';
 import { useCall } from '@/lib/call-context';
+import { getSharedAudioContext, unlockAudio } from '@/lib/audio-unlock';
 
 function formatCallDuration(startedAt?: number): string {
   if (!startedAt) return '0:00';
@@ -190,20 +191,25 @@ export function CallModal() {
   }, [status, startedAt]);
 
   // ── Ringtone (incoming) + dial tone (outgoing) ─────────────────────────────
-  // Generated with Web Audio API so we don't need an audio file.
+  // We reuse the SHARED, pre-unlocked AudioContext from `audio-unlock.ts`.
+  // Creating a fresh AudioContext per call leaves it in `suspended` state on
+  // mobile browsers (no fresh user gesture available when the call event
+  // arrives), which is why ringtones used to be silent.
   useEffect(() => {
     if (status !== 'incoming' && status !== 'outgoing') return;
 
-    const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
-    if (!AudioCtx) return;
+    const ctx = getSharedAudioContext();
+    if (!ctx) return;
 
-    const ctx: AudioContext = new AudioCtx();
+    // Try one more time to flip it into running state. If a previous user
+    // gesture has unlocked it, this call resolves synchronously.
+    unlockAudio();
+
     let stopped = false;
-    const oscillators: OscillatorNode[] = [];
-    const gains: GainNode[] = [];
+    const cleanups: (() => void)[] = [];
 
     function playPattern() {
-      if (stopped || ctx.state === 'closed') return;
+      if (stopped || !ctx || ctx.state === 'closed') return;
       const now = ctx.currentTime;
 
       if (status === 'incoming') {
@@ -214,16 +220,13 @@ export function CallModal() {
           osc.frequency.value = freq;
           osc.type = 'sine';
           gain.gain.setValueAtTime(0, now);
-          gain.gain.linearRampToValueAtTime(0.15, now + 0.05);
-          gain.gain.setValueAtTime(0.15, now + 0.95);
+          gain.gain.linearRampToValueAtTime(0.18, now + 0.05);
+          gain.gain.setValueAtTime(0.18, now + 0.95);
           gain.gain.linearRampToValueAtTime(0, now + 1);
           osc.connect(gain).connect(ctx.destination);
-          osc.start(now);
-          osc.stop(now + 1);
-          oscillators.push(osc);
-          gains.push(gain);
+          try { osc.start(now); osc.stop(now + 1); } catch { /* ctx not ready */ }
+          cleanups.push(() => { try { osc.stop(); osc.disconnect(); } catch {} try { gain.disconnect(); } catch {} });
         });
-        // Vibrate phone
         if ('vibrate' in navigator) navigator.vibrate([400, 200, 400]);
       } else {
         // Outgoing dial tone — single beep, 350Hz, 1s on / 2s off
@@ -236,15 +239,10 @@ export function CallModal() {
         gain.gain.setValueAtTime(0.08, now + 0.95);
         gain.gain.linearRampToValueAtTime(0, now + 1);
         osc.connect(gain).connect(ctx.destination);
-        osc.start(now);
-        osc.stop(now + 1);
-        oscillators.push(osc);
-        gains.push(gain);
+        try { osc.start(now); osc.stop(now + 1); } catch { /* ctx not ready */ }
+        cleanups.push(() => { try { osc.stop(); osc.disconnect(); } catch {} try { gain.disconnect(); } catch {} });
       }
     }
-
-    // Resume audio context if suspended (autoplay policy)
-    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
 
     playPattern();
     const intervalId = setInterval(playPattern, 3000);
@@ -252,10 +250,9 @@ export function CallModal() {
     return () => {
       stopped = true;
       clearInterval(intervalId);
-      oscillators.forEach(o => { try { o.stop(); o.disconnect(); } catch {} });
-      gains.forEach(g => { try { g.disconnect(); } catch {} });
+      cleanups.forEach((fn) => fn());
       if ('vibrate' in navigator) navigator.vibrate(0);
-      ctx.close().catch(() => {});
+      // Note: never call `ctx.close()` — the AudioContext is shared.
     };
   }, [status]);
 
