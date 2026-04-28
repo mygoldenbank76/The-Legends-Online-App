@@ -1956,23 +1956,58 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       </div>
       </div>{/* end flex-1 relative messages wrapper */}
 
-      {/* ── Reply bar ── */}
-      {replyTo && (
-        <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-sidebar border-t border-primary/20">
-          <Reply className="w-4 h-4 text-primary flex-shrink-0" />
-          <div className="flex-1 min-w-0 border-l-2 border-primary pl-2">
-            <p className="text-[11px] text-primary font-semibold truncate">
-              {replyTo.senderId === user?.id ? 'Vous' : replyTo.sender?.displayName}
-            </p>
-            <p className="text-xs text-muted-foreground truncate">
-              {replyTo.content || (replyTo.audioUrl ? '🎤 Message vocal' : '📷 Image')}
-            </p>
+      {/* ── Reply bar ── (Telegram-style: reply icon + thumbnail + name/preview + close) */}
+      {replyTo && (() => {
+        const isVideo = !!replyTo.imageUrl && /\.(mp4|webm|mov|avi|mkv)$/i.test(replyTo.imageUrl);
+        const isImage = !!replyTo.imageUrl && !isVideo;
+        const previewLabel = replyTo.audioUrl
+          ? 'Message vocal'
+          : isVideo
+          ? 'Vidéo'
+          : isImage
+          ? 'Photo'
+          : (replyTo.content || '');
+        const replyName = replyTo.senderId === user?.id ? 'Vous' : (replyTo.sender?.displayName || '');
+        return (
+          <div className="flex-shrink-0 flex items-center gap-3 px-3 py-2 bg-sidebar border-t border-primary/20">
+            <Reply className="w-5 h-5 text-primary flex-shrink-0" />
+            {/* Optional thumbnail for image / video */}
+            {isImage && (
+              <CachedImg
+                src={replyTo.imageUrl!}
+                alt="reply"
+                className="w-9 h-9 rounded-[6px] object-cover flex-shrink-0"
+              />
+            )}
+            {isVideo && (
+              <div className="w-9 h-9 rounded-[6px] bg-black/40 flex items-center justify-center flex-shrink-0">
+                <VideoIcon className="w-4 h-4 text-white/80" />
+              </div>
+            )}
+            {replyTo.audioUrl && !replyTo.imageUrl && (
+              <div className="w-9 h-9 rounded-[6px] bg-primary/15 flex items-center justify-center flex-shrink-0">
+                <Mic className="w-4 h-4 text-primary" />
+              </div>
+            )}
+            {/* Name + preview */}
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] text-primary font-semibold truncate leading-tight">
+                Répondre à {replyName}
+              </p>
+              <p className="text-xs text-muted-foreground truncate leading-tight mt-0.5">
+                {previewLabel}
+              </p>
+            </div>
+            <button
+              onClick={() => setReplyTo(null)}
+              className="text-muted-foreground hover:text-foreground p-1.5 flex-shrink-0 rounded-full hover:bg-foreground/5 transition-colors"
+              aria-label="Annuler la réponse"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button onClick={() => setReplyTo(null)} className="text-muted-foreground hover:text-foreground p-1 flex-shrink-0">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── Edit bar ── */}
       {editState && (
