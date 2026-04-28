@@ -2506,7 +2506,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   <button
                     onClick={() => setAttachmentSheetOpen(true)}
                     disabled={uploadingImg}
-                    className="flex-shrink-0 p-2.5 mb-0.5 self-end text-muted-foreground hover:text-foreground transition-colors"
+                    className="flex-shrink-0 w-10 h-10 mb-0 self-end flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
                   >
                     {uploadingImg
                       ? <Loader2 className="w-5 h-5 animate-spin" />
@@ -2514,7 +2514,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   </button>
                 )}
 
-                {/* ── Mic / Send — now INSIDE the pill, on the far right ── */}
+                {/* ── Mic / Send — now INSIDE the pill, on the far right ──
+                    Both buttons share identical 36x36 dimensions so the
+                    swap (mic↔send) doesn't reflow the row and shift the
+                    `+` button horizontally. */}
                 <AnimatePresence mode="wait" initial={false}>
                   {content.trim() || editState ? (
                     <motion.button
@@ -2525,7 +2528,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       animate={{ scale: 1, opacity: 1 }}
                       exit={{ scale: 0.5, opacity: 0 }}
                       transition={{ duration: 0.15 }}
-                      className="flex-shrink-0 w-9 h-9 mr-1 mb-1 rounded-full send-circle transition-all flex items-center justify-center self-end"
+                      className="flex-shrink-0 w-9 h-9 mr-1 mb-0.5 rounded-full send-circle transition-all flex items-center justify-center self-end"
                     >
                       {sending
                         ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -2539,7 +2542,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       animate={{ scale: 1, opacity: 1 }}
                       exit={{ scale: 0.5, opacity: 0 }}
                       transition={{ duration: 0.15 }}
-                      className="flex-shrink-0 p-2.5 mr-1 mb-0.5 self-end text-primary/80 hover:text-primary transition-colors"
+                      className="flex-shrink-0 w-9 h-9 mr-1 mb-0.5 self-end flex items-center justify-center text-primary/80 hover:text-primary transition-colors"
                     >
                       <Mic className="w-5 h-5" />
                     </motion.button>
