@@ -14,7 +14,6 @@ import { fr, enUS, es, ar, pt, de } from 'date-fns/locale';
 import { Trash2, Phone, Video as VideoIcon } from 'lucide-react';
 import { useCall } from '@/lib/call-context';
 import { cn } from '@/lib/utils';
-import { UserSearch } from './user-search';
 import { getAuthHeaders } from '@/lib/auth-fetch';
 
 import { usePreferences } from '@/lib/preferences-context';
@@ -231,10 +230,6 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
       className="flex flex-col h-full"
       onClick={() => { if (openId) setOpenId(null); }}
     >
-      <div className="flex-shrink-0 px-3 py-2">
-        <UserSearch onSelectUser={onSelectConv} />
-      </div>
-
       <div
         className="flex-1 overflow-y-auto py-1 px-2 scroll-container"
         style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}
