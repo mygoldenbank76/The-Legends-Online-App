@@ -145,7 +145,7 @@ function YouTubeEmbed({ preview, isMine }: { preview: LinkPreviewData; isMine: b
 
   if (playing && preview.embedUrl) {
     return (
-      <div className="mt-2 rounded-xl overflow-hidden" style={{ aspectRatio: '16/9', width: '100%' }}>
+      <div className="overflow-hidden" style={{ aspectRatio: '16/9', width: '100%' }}>
         <iframe
           src={preview.embedUrl}
           width="100%"
@@ -163,7 +163,7 @@ function YouTubeEmbed({ preview, isMine }: { preview: LinkPreviewData; isMine: b
   return (
     <button
       onClick={() => setPlaying(true)}
-      className="mt-2 relative w-full rounded-xl overflow-hidden group block"
+      className="relative w-full overflow-hidden group block"
       style={{ aspectRatio: '16/9', background: '#000' }}
     >
       {preview.image && (
@@ -205,7 +205,10 @@ export function LinkPreviewCard({ preview, isMine }: Props) {
   const platform = preview.platform ?? null;
   const cfg = platform ? PLATFORM_CONFIG[platform] : null;
 
-  const containerClass = `mt-2 rounded-xl overflow-hidden text-xs transition-all
+  // Edge-to-edge inside the message bubble (matches the negative-margin
+  // treatment used for images/videos so the preview sits flush with the
+  // bubble's inner edges and uses a matching rounded-[10px] corner radius).
+  const containerClass = `mt-1.5 -mx-1.5 rounded-[10px] overflow-hidden text-xs transition-all
     ${isMine
       ? 'bg-black/15 border border-white/10 hover:border-white/25'
       : 'bg-background/60 border border-border hover:border-primary/40 hover:glow-primary-sm'}`;
@@ -221,7 +224,7 @@ export function LinkPreviewCard({ preview, isMine }: Props) {
   if (platform === 'spotify' && preview.embedUrl) {
     return (
       <div className={containerClass} {...blockProps}>
-        <div className="px-3 pt-2 pb-1">
+        <div className="px-2.5 pt-1.5 pb-1">
           <PlatformBadge platform={platform} siteName={preview.siteName} />
           {preview.title && <p className="font-semibold mt-1 truncate text-foreground">{preview.title}</p>}
           {preview.description && <p className="opacity-70 line-clamp-1 mt-0.5">{preview.description}</p>}
@@ -236,7 +239,7 @@ export function LinkPreviewCard({ preview, isMine }: Props) {
     return (
       <div className={containerClass} {...blockProps}>
         <YouTubeEmbed preview={preview} isMine={isMine} />
-        <div className="px-3 py-2 flex items-start gap-2">
+        <div className="px-2.5 py-1.5 flex items-start gap-2">
           <div className="flex-1 min-w-0">
             <PlatformBadge platform={platform} siteName={preview.siteName} />
             {preview.title && <p className="font-semibold mt-1 text-foreground line-clamp-2">{preview.title}</p>}
@@ -263,12 +266,12 @@ export function LinkPreviewCard({ preview, isMine }: Props) {
       {...blockProps}
     >
       {hasImage && <GenericImage src={preview.image!} alt={preview.title ?? ''} />}
-      <div className="px-3 py-2">
+      <div className="px-2.5 py-1.5">
         <div className="flex items-center justify-between gap-2">
           <PlatformBadge platform={platform} siteName={preview.siteName} />
           <ExternalLink size={12} className="text-muted-foreground flex-shrink-0" />
         </div>
-        {preview.title && <p className="font-semibold mt-1.5 text-foreground line-clamp-2">{preview.title}</p>}
+        {preview.title && <p className="font-semibold mt-1 text-foreground line-clamp-2">{preview.title}</p>}
         {preview.description && <p className="opacity-70 line-clamp-2 mt-0.5">{preview.description}</p>}
         {!preview.title && !preview.description && (
           <p className="opacity-60 mt-1 truncate">{preview.url}</p>
