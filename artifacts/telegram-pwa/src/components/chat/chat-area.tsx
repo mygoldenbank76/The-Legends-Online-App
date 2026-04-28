@@ -891,6 +891,17 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       ).slice(0, 6)
     : [];
 
+  // Auto-grow the composer textarea up to 4 lines (Telegram-style).
+  // Runs whenever `content` changes (including programmatic updates).
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = 'auto';
+    // 100px ≈ 4 lines of text-sm (line-height ~20px) + py-2.5 padding.
+    const next = Math.min(ta.scrollHeight, 100);
+    ta.style.height = `${next}px`;
+  }, [content]);
+
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setContent(value);
