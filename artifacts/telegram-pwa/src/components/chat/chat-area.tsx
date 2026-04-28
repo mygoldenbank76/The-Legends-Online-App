@@ -1827,10 +1827,16 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   )}
 
                   {/* ── Bubble ── */}
+                  {/* Bubble corner logic (works for any chain length):
+                      - Sent: BR always sharp (tail). TR sharp when prev msg
+                        is from same author (visually connects to msg above).
+                      - Received: TL always sharp (anchor near avatar at top).
+                        BL sharp when next msg is from same author (visually
+                        connects to msg below). */}
                   <div className={`rounded-[14px] px-2.5 py-[6px] text-[14.5px] leading-[1.3]
                     ${isMine
-                      ? `bubble-sent ${isLastInGroup ? 'rounded-br-[4px]' : 'rounded-tr-[4px]'}`
-                      : `bubble-received ${(isSameAuthor && isLastInGroup) ? 'rounded-bl-[4px]' : 'rounded-tl-[4px]'}`
+                      ? `bubble-sent rounded-br-[4px] ${isSameAuthor ? 'rounded-tr-[4px]' : ''}`
+                      : `bubble-received rounded-tl-[4px] ${!isLastInGroup ? 'rounded-bl-[4px]' : ''}`
                     }`}
                   >
                     {/* Reply preview inside bubble — WhatsApp style */}
