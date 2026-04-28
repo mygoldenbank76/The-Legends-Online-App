@@ -1733,9 +1733,12 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                 onTouchMove={(e) => onTouchMove(e, msg.id)}
                 onTouchEnd={(e) => onTouchEnd(e, msg)}
               >
-                {/* Avatar column — arrow stacked above avatar for received messages */}
+                {/* Avatar column — pinned at the TOP of the message group
+                    (next to the sender name when shown). The swipe-reply
+                    arrow sits above the avatar and only takes space while
+                    the user is actively swiping. */}
                 {!isMine && (
-                  <div className="flex-shrink-0 self-end flex flex-col items-center mb-1" style={{ width: 28 }}>
+                  <div className="flex-shrink-0 self-start flex flex-col items-center mt-1" style={{ width: 28 }}>
                     {/* Swipe reply arrow — above avatar */}
                     <div
                       style={{
@@ -2068,32 +2071,12 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                         </div>
                       ) : <div />}
 
-                      {/* Time + edited + status */}
+                      {/* Time + edited — read-receipt indicators removed:
+                          users can still see "vu par" via the message
+                          context menu (long-press) for any sent message. */}
                       <div className={`text-[10px] flex items-center gap-1 flex-shrink-0 ${isMine ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>
                         {msg.editedAt && <span className="italic opacity-80">modifié</span>}
                         <span>{msgTime}</span>
-                        {isMine && (
-                          <span className="flex items-center -ml-0.5">
-                            {msg.status === 'read' ? (
-                              // Two colored (purple/white) checks = read
-                              <svg width="16" height="10" viewBox="0 0 16 10" className="text-[#a78bfa] drop-shadow-sm">
-                                <path d="M1 5l3 3L11 1" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                                <path d="M5 5l3 3 7-7" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                            ) : msg.status === 'delivered' ? (
-                              // Two gray checks = delivered
-                              <svg width="16" height="10" viewBox="0 0 16 10" className="opacity-70">
-                                <path d="M1 5l3 3L11 1" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                                <path d="M5 5l3 3 7-7" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                            ) : (
-                              // One gray check = sent
-                              <svg width="10" height="10" viewBox="0 0 10 10" className="opacity-70">
-                                <path d="M1 5l3 3 5-6" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                            )}
-                          </span>
-                        )}
                       </div>
                     </div>
                   </div>
