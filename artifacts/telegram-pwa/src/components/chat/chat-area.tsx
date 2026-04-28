@@ -1461,8 +1461,11 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             exit={{ opacity: 0, scale: 0.7 }}
             transition={{ duration: 0.15 }}
             onClick={() => { scrollBottom(0); setUnreadCount(0); }}
-            className="absolute bottom-3 right-3 z-20 w-10 h-10 rounded-full bg-card border border-border/60 shadow-lg flex items-center justify-center text-foreground hover:bg-primary/10 transition-colors"
-            style={{ backdropFilter: 'blur(12px)' }}
+            className="absolute right-3 z-40 w-10 h-10 rounded-full bg-card border border-border/60 shadow-lg flex items-center justify-center text-foreground hover:bg-primary/10 transition-colors"
+            style={{
+              backdropFilter: 'blur(12px)',
+              bottom: 'calc(4.25rem + env(safe-area-inset-bottom, 0px))',
+            }}
           >
             <ChevronDown className="w-5 h-5" />
             {unreadCount > 0 && (
