@@ -667,6 +667,26 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     prevComposerHeightRef.current = composerHeight;
   }, [composerHeight]);
 
+  // Direct trigger when reply/edit preview opens — does not depend on the
+  // ResizeObserver firing later. Uses a double rAF to wait until the messages
+  // list paddingBottom has been recomputed AND the browser has laid out before
+  // scrolling to the bottom.
+  useEffect(() => {
+    if (!replyTo && !editState) return;
+    if (!wasAtBottomRef.current) return;
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        const el = scrollRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+    };
+  }, [replyTo, editState]);
+
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || !scrollReady) return;
@@ -1493,7 +1513,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             className="absolute right-3 z-40 w-10 h-10 rounded-full bg-card border border-border/60 shadow-lg flex items-center justify-center text-foreground hover:bg-primary/10 transition-colors"
             style={{
               backdropFilter: 'blur(12px)',
-              bottom: `calc(${composerHeight + 12}px + env(safe-area-inset-bottom, 0px))`,
+              bottom: `calc(${composerHeight + 4}px + env(safe-area-inset-bottom, 0px))`,
             }}
           >
             <ChevronDown className="w-5 h-5" />
