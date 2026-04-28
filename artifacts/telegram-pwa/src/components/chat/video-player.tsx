@@ -14,6 +14,7 @@ interface Props {
   src: string;
   className?: string;
   poster?: string;
+  onExpand?: () => void;
 }
 
 function formatTime(s: number): string {
@@ -23,7 +24,7 @@ function formatTime(s: number): string {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
-export function VideoPlayer({ src, className = '', poster }: Props) {
+export function VideoPlayer({ src, className = '', poster, onExpand }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -103,6 +104,12 @@ export function VideoPlayer({ src, className = '', poster }: Props) {
 
   const toggleFullscreen = (e: React.MouseEvent) => {
     e.stopPropagation();
+    // Prefer in-app viewer (consistent UX across devices) when available
+    if (onExpand) {
+      videoRef.current?.pause();
+      onExpand();
+      return;
+    }
     const el = containerRef.current;
     if (!el) return;
     if (document.fullscreenElement) {

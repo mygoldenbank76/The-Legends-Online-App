@@ -1753,6 +1753,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                           <VideoPlayer
                             src={msg.imageUrl}
                             className="w-full rounded-[10px]"
+                            onExpand={() => {
+                              if (Date.now() - conversationOpenedAt.current < 900) return;
+                              setMediaViewer({ urls: [msg.imageUrl!], index: 0 });
+                            }}
                           />
                         ) : (
                           <CachedImg
