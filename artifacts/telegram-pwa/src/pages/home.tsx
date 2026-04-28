@@ -386,8 +386,9 @@ function MobileBottomNav({
           }}
         />
       )}
-      {/* Floating capsule shell — frame removed for a cleaner look */}
-      <div className={`relative flex items-stretch px-1.5 py-1 overflow-visible ${floating ? 'pointer-events-auto' : ''}`}>
+      {/* Floating capsule shell */}
+      <div className={`glass gradient-hairline-top shadow-floating-capsule relative flex items-stretch rounded-[14px] px-1.5 py-1 overflow-visible ${floating ? 'pointer-events-auto' : ''}`}>
+        <div className="absolute inset-0 rounded-[14px] overflow-hidden pointer-events-none -z-[1]" />
         {TAB_ORDER.map((id) => {
           const Icon = NAV_ICONS[id];
           const active = activeTab === id;
@@ -398,17 +399,9 @@ function MobileBottomNav({
               onClick={() => onSelect(id)}
               aria-label={t.tabs[id]}
               className={`flex-1 relative flex flex-col items-center justify-center py-2 gap-0.5 transition-colors ${
-                active ? 'text-white' : isProfile ? 'text-primary' : 'text-muted-foreground'
+                active ? 'text-primary' : isProfile ? 'text-primary' : 'text-muted-foreground'
               }`}
             >
-              {active && (
-                <motion.span
-                  layoutId="activeTabPill"
-                  className="absolute inset-x-1 inset-y-0.5 rounded-[10px] gradient-primary-soft border border-primary/40"
-                  style={{ boxShadow: '0 6px 20px -6px hsl(263 90% 65% / 0.55), inset 0 1px 0 rgba(255,255,255,0.10)' }}
-                  transition={{ type: 'spring', damping: 26, stiffness: 320 }}
-                />
-              )}
               <span className={`relative z-10 inline-flex items-center justify-center ${isProfile ? 'w-9 h-9' : 'w-7 h-7'}`}>
                 {isProfile && (
                   <>
