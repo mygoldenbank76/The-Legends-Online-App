@@ -2014,18 +2014,18 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         )}
       </AnimatePresence>
 
-      {/* ── Soft blur veil at the bottom — messages fade & blur as they pass under the floating composer ── */}
+      {/* ── Soft blur veil — only behind the floating composer, not above ── */}
       <div
         aria-hidden
         className="absolute inset-x-0 bottom-0 z-20 pointer-events-none"
         style={{
-          height: 'calc(7.5rem + env(safe-area-inset-bottom, 0px))',
+          height: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))',
           backdropFilter: 'blur(14px) saturate(140%)',
           WebkitBackdropFilter: 'blur(14px) saturate(140%)',
-          maskImage: 'linear-gradient(to top, rgba(0,0,0,1) 55%, rgba(0,0,0,0.85) 75%, rgba(0,0,0,0) 100%)',
-          WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,1) 55%, rgba(0,0,0,0.85) 75%, rgba(0,0,0,0) 100%)',
+          maskImage: 'linear-gradient(to top, rgba(0,0,0,1) 85%, rgba(0,0,0,0) 100%)',
+          WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,1) 85%, rgba(0,0,0,0) 100%)',
           background:
-            'linear-gradient(to top, hsl(var(--background) / 0.55), hsl(var(--background) / 0.25) 60%, transparent 100%)',
+            'linear-gradient(to top, hsl(var(--background) / 0.45), hsl(var(--background) / 0.2) 80%, transparent 100%)',
         }}
       />
 
