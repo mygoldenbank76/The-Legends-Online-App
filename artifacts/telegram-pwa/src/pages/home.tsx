@@ -364,10 +364,23 @@ function MobileBottomNav({
           ? 'absolute left-0 right-0 bottom-0 z-30 px-3 pt-1.5 pointer-events-none'
           : 'flex-shrink-0 px-3 pt-1.5 relative'
       }
-      style={{ paddingBottom: 'calc(0.375rem + env(safe-area-inset-bottom, 0px))' }}
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
+      {/* Soft blur veil — only behind the floating capsule, matches chat composer */}
+      {floating && (
+        <div
+          aria-hidden
+          className="absolute inset-x-0 bottom-0 -z-10 pointer-events-none"
+          style={{
+            height: 'calc(3.75rem + env(safe-area-inset-bottom, 0px))',
+            backdropFilter: 'blur(14px) saturate(140%)',
+            WebkitBackdropFilter: 'blur(14px) saturate(140%)',
+            background: 'linear-gradient(to top, hsl(var(--background) / 0.4), hsl(var(--background) / 0.25))',
+          }}
+        />
+      )}
       {/* Floating capsule shell */}
-      <div className={`glass gradient-hairline-top shadow-floating-capsule relative flex items-stretch rounded-[20px] px-1.5 py-1 overflow-hidden ${floating ? 'pointer-events-auto' : ''}`}>
+      <div className={`glass gradient-hairline-top shadow-floating-capsule relative flex items-stretch rounded-[14px] px-1.5 py-1 overflow-hidden ${floating ? 'pointer-events-auto' : ''}`}>
         {tabs.map((id) => {
           const Icon = NAV_ICONS[id];
           const active = activeTab === id;
@@ -382,7 +395,7 @@ function MobileBottomNav({
               {active && (
                 <motion.span
                   layoutId="activeTabPill"
-                  className="absolute inset-x-1 inset-y-0.5 rounded-2xl gradient-primary-soft border border-primary/40"
+                  className="absolute inset-x-1 inset-y-0.5 rounded-[10px] gradient-primary-soft border border-primary/40"
                   style={{ boxShadow: '0 6px 20px -6px hsl(263 90% 65% / 0.55), inset 0 1px 0 rgba(255,255,255,0.10)' }}
                   transition={{ type: 'spring', damping: 26, stiffness: 320 }}
                 />
