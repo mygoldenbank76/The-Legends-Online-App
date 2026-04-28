@@ -308,7 +308,7 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.03, duration: 0.2 }}
                   className={cn(
-                    'w-full flex items-center gap-3 px-3 py-3 rounded-[14px] transition-colors text-left select-none',
+                    'w-full flex items-center gap-3 px-0 py-3 rounded-[14px] transition-colors text-left select-none',
                     isActive
                       ? 'gradient-primary-soft border border-primary/35 glow-primary-sm'
                       : isRevealed
