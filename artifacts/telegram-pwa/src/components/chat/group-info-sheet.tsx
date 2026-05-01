@@ -157,7 +157,7 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
                             document.execCommand('copy');
                             document.body.removeChild(ta);
                           }
-                          toast({ title: t.groupInfo.linkCopied });
+                          toast({ title: t.groupInfo.linkCopied, duration: 2000 });
                         } catch {
                           // Silent fail — clipboard may be blocked by the browser
                         }
