@@ -85,6 +85,8 @@ type Dict = {
     reactions: string;
     views: string;
     back: string;
+    emptyTitle: string;
+    emptySubtitle: string;
   };
   groupInfo: {
     members: string;
@@ -273,6 +275,8 @@ export const i18n: Record<AppLang, Dict> = {
       reactions: 'Réactions',
       views: 'Vues',
       back: 'Retour',
+      emptyTitle: 'Premier contact',
+      emptySubtitle: 'Envoyez le premier message pour démarrer la conversation.',
     },
     groupInfo: {
       members: 'membres',
@@ -460,6 +464,8 @@ export const i18n: Record<AppLang, Dict> = {
       reactions: 'Reactions',
       views: 'Views',
       back: 'Back',
+      emptyTitle: 'First contact',
+      emptySubtitle: 'Send the first message to start the conversation.',
     },
     groupInfo: {
       members: 'members',
@@ -650,6 +656,8 @@ export const i18n: Record<AppLang, Dict> = {
       reactions: 'Reacciones',
       views: 'Vistas',
       back: 'Volver',
+      emptyTitle: 'Primer contacto',
+      emptySubtitle: 'Envía el primer mensaje para iniciar la conversación.',
     },
     groupInfo: {
       members: 'miembros',
@@ -840,6 +848,8 @@ export const i18n: Record<AppLang, Dict> = {
       reactions: 'التفاعلات',
       views: 'المشاهدات',
       back: 'رجوع',
+      emptyTitle: 'الاتصال الأول',
+      emptySubtitle: 'أرسل أول رسالة لبدء المحادثة.',
     },
     groupInfo: {
       members: 'أعضاء',
@@ -1030,6 +1040,8 @@ export const i18n: Record<AppLang, Dict> = {
       reactions: 'Reações',
       views: 'Visualizações',
       back: 'Voltar',
+      emptyTitle: 'Primeiro contato',
+      emptySubtitle: 'Envie a primeira mensagem para iniciar a conversa.',
     },
     groupInfo: {
       members: 'membros',
@@ -1220,6 +1232,8 @@ export const i18n: Record<AppLang, Dict> = {
       reactions: 'Reaktionen',
       views: 'Aufrufe',
       back: 'Zurück',
+      emptyTitle: 'Erstkontakt',
+      emptySubtitle: 'Sende die erste Nachricht, um das Gespräch zu beginnen.',
     },
     groupInfo: {
       members: 'Mitglieder',

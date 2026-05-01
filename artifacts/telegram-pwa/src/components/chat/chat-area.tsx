@@ -21,6 +21,7 @@ import {
   Mic, Copy, Heart, CheckCheck, ChevronDown,
   Search, Bell, BellOff, ChevronUp,
   Phone, Video as VideoIcon,
+  Sparkles,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { AttachmentSheet } from './attachment-sheet';
@@ -283,6 +284,80 @@ const SKELETON_ROWS = [
   { mine: false, w: '58%',  h: 40 },
   { mine: true,  w: '48%',  h: 40 },
 ];
+
+function EmptyConversation({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <div
+      className="absolute inset-0 flex items-center justify-center pointer-events-none px-6 z-10"
+      style={{ paddingBottom: 'calc(96px + env(safe-area-inset-bottom, 0px))' }}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.92, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        className="relative w-full max-w-[280px]"
+      >
+        {/* Outer glow halo */}
+        <motion.div
+          aria-hidden
+          animate={{ opacity: [0.55, 0.85, 0.55] }}
+          transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute -inset-5 rounded-[2rem] bg-gradient-to-br from-primary/30 via-fuchsia-500/15 to-cyan-400/25 blur-2xl"
+        />
+        {/* Glass card */}
+        <div className="relative glass rounded-3xl border border-white/10 px-6 pt-7 pb-5 flex flex-col items-center text-center shadow-2xl overflow-hidden">
+          {/* Sweeping shimmer */}
+          <motion.div
+            aria-hidden
+            initial={{ x: '-120%' }}
+            animate={{ x: '120%' }}
+            transition={{ duration: 3.2, repeat: Infinity, repeatDelay: 1.4, ease: 'easeInOut' }}
+            className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/10 to-transparent pointer-events-none"
+          />
+          {/* Animated icon assembly */}
+          <div className="relative w-20 h-20 mb-4 flex items-center justify-center">
+            {/* Pulsing aura */}
+            <motion.div
+              aria-hidden
+              animate={{ scale: [1, 1.3, 1], opacity: [0.55, 0.18, 0.55] }}
+              transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
+              className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/55 to-fuchsia-500/40 blur-xl"
+            />
+            {/* Rotating dashed ring */}
+            <motion.div
+              aria-hidden
+              animate={{ rotate: 360 }}
+              transition={{ duration: 9, repeat: Infinity, ease: 'linear' }}
+              className="absolute inset-1 rounded-full border-2 border-dashed border-primary/45"
+            />
+            {/* Counter-rotating thin ring */}
+            <motion.div
+              aria-hidden
+              animate={{ rotate: -360 }}
+              transition={{ duration: 14, repeat: Infinity, ease: 'linear' }}
+              className="absolute inset-[-4px] rounded-full border border-cyan-400/25"
+            />
+            {/* Floating inner orb */}
+            <motion.div
+              animate={{ y: [0, -3, 0] }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+              className="relative w-12 h-12 rounded-full bg-gradient-to-br from-primary via-fuchsia-500 to-cyan-400 flex items-center justify-center"
+              style={{ boxShadow: '0 0 28px rgba(124, 92, 255, 0.55), inset 0 0 12px rgba(255,255,255,0.15)' }}
+            >
+              <Sparkles className="w-6 h-6 text-white" strokeWidth={2.2} />
+            </motion.div>
+          </div>
+          <h3 className="relative text-base font-semibold text-gradient-primary mb-1.5 leading-tight tracking-tight">
+            {title}
+          </h3>
+          <p className="relative text-[13px] text-muted-foreground/90 leading-snug">
+            {subtitle}
+          </p>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
 
 function MessagesSkeleton() {
   return (
@@ -1757,6 +1832,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           </div>
         )}
         {isLoading && <MessagesSkeleton />}
+        {!isLoading && messages.length === 0 && (
+          <EmptyConversation title={uiT.chat.emptyTitle} subtitle={uiT.chat.emptySubtitle} />
+        )}
         <div ref={msgsWrapRef} className="flex flex-col gap-0.5 pb-2">
           {messages?.map((msg, index) => {
             const isMine = msg.senderId === user?.id;
