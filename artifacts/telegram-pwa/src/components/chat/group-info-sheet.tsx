@@ -359,6 +359,7 @@ function MainView(p: MainViewProps) {
             currentUserId={p.currentUserId}
             onClose={p.onCloseSheet}
             onOpenConversation={(convId) => p.onOpenConversation?.(convId)}
+            showActions={false}
           />
         </div>
       ) : (

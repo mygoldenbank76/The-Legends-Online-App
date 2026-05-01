@@ -124,8 +124,18 @@ export function UserProfileSheet({ user, currentUserId, onClose, onOpenConversat
  * bio + username card, add/remove contact). Exported so it can be embedded by
  * other sheets (e.g. GroupInfoSheet for direct conversations) above their own
  * extra content.
+ *
+ * `showActions` controls the Message + Appel tiles. They are hidden when the
+ * body is rendered inside an already-open conversation (where those actions
+ * would be redundant).
  */
-export function UserProfileBody({ user, currentUserId, onClose, onOpenConversation }: Props) {
+export function UserProfileBody({
+  user,
+  currentUserId,
+  onClose,
+  onOpenConversation,
+  showActions = true,
+}: Props & { showActions?: boolean }) {
   const { t, appLanguage } = usePreferences();
   const p = t.profile;
   const { toast } = useToast();
@@ -286,7 +296,7 @@ export function UserProfileBody({ user, currentUserId, onClose, onOpenConversati
       </div>
 
       {/* Action buttons row: Message + Appeler */}
-      {!isSelf && (
+      {!isSelf && showActions && (
         <div className="grid grid-cols-2 gap-2.5">
           <ActionTile
             icon={messageLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <MessageSquare className="w-5 h-5" />}
