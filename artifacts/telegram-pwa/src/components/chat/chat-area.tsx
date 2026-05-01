@@ -2843,6 +2843,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           onClose={() => setGroupInfoOpen(false)}
           conversation={conversation as any}
           messages={(messages || []) as any}
+          onOpenConversation={onOpenConversation}
         />
       )}
 

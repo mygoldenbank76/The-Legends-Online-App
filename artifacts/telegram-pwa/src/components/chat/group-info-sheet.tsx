@@ -24,11 +24,15 @@ import { getAuthHeaders } from '@/lib/auth-fetch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { MediaViewer } from './media-viewer';
+import { UserProfileSheet } from './user-profile-sheet';
+import { useAuth } from '@/lib/auth-context';
 
 type Participant = {
   id: number;
   displayName: string;
+  username?: string;
   avatar?: string | null;
+  bio?: string | null;
   isOnline?: boolean;
 };
 
@@ -57,6 +61,7 @@ type Props = {
   onClose: () => void;
   conversation: Conversation;
   messages: Msg[];
+  onOpenConversation?: (convId: number) => void;
 };
 
 type View = 'main' | 'searchMembers' | 'addMembers';
@@ -65,11 +70,13 @@ function isVideo(url: string) {
   return /\.(mp4|webm|mov|avi|mkv)$/i.test(url);
 }
 
-export function GroupInfoSheet({ open, onClose, conversation, messages }: Props) {
+export function GroupInfoSheet({ open, onClose, conversation, messages, onOpenConversation }: Props) {
   const { t, appLanguage } = usePreferences();
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
   const [mediaViewer, setMediaViewer] = useState<{ urls: string[]; index: number } | null>(null);
+  const [profileUser, setProfileUser] = useState<Participant | null>(null);
   const isGroup = conversation?.type === 'group';
 
   type Tab = 'media' | 'files' | 'links' | 'voice' | 'gifs';
@@ -82,6 +89,7 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
     if (!open) {
       setView('main');
       setMenuOpen(false);
+      setProfileUser(null);
     }
   }, [open]);
 
@@ -194,6 +202,7 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
               <SearchMembersView
                 onBack={() => setView('main')}
                 participants={conversation.participants ?? []}
+                onUserClick={(p) => setProfileUser(p)}
                 t={t}
               />
             )}
@@ -226,6 +235,20 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
           urls={mediaViewer.urls}
           startIndex={mediaViewer.index}
           onClose={() => setMediaViewer(null)}
+        />
+      )}
+
+      {/* User profile detail (opened by tapping a member) */}
+      {profileUser && currentUser && (
+        <UserProfileSheet
+          user={profileUser}
+          currentUserId={currentUser.id}
+          onClose={() => setProfileUser(null)}
+          onOpenConversation={(convId) => {
+            setProfileUser(null);
+            onClose();
+            onOpenConversation?.(convId);
+          }}
         />
       )}
     </>
@@ -497,10 +520,12 @@ function MainView(p: MainViewProps) {
 function SearchMembersView({
   onBack,
   participants,
+  onUserClick,
   t,
 }: {
   onBack: () => void;
   participants: Participant[];
+  onUserClick: (p: Participant) => void;
   t: ReturnType<typeof usePreferences>['t'];
 }) {
   const [query, setQuery] = useState('');
@@ -542,22 +567,26 @@ function SearchMembersView({
         ) : (
           <ul className="space-y-1">
             {filtered.map((m) => (
-              <li
-                key={m.id}
-                className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-foreground/5 transition-colors"
-              >
-                <Avatar className="w-10 h-10">
-                  <AvatarImage src={m.avatar ?? undefined} />
-                  <AvatarFallback className="gradient-primary text-white text-sm">
-                    {m.displayName.substring(0, 1).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-foreground truncate">{m.displayName}</p>
-                  {m.isOnline && (
-                    <p className="text-[11px] text-primary">en ligne</p>
-                  )}
-                </div>
+              <li key={m.id}>
+                <button
+                  type="button"
+                  onClick={() => onUserClick(m)}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-foreground/5 active:bg-foreground/10 transition-colors text-left"
+                  data-testid={`button-member-${m.id}`}
+                >
+                  <Avatar className="w-10 h-10">
+                    <AvatarImage src={m.avatar ?? undefined} />
+                    <AvatarFallback className="gradient-primary text-white text-sm">
+                      {m.displayName.substring(0, 1).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-foreground truncate">{m.displayName}</p>
+                    {m.isOnline && (
+                      <p className="text-[11px] text-primary">en ligne</p>
+                    )}
+                  </div>
+                </button>
               </li>
             ))}
           </ul>
