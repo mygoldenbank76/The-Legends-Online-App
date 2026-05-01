@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, RefreshCw, MessageSquare, Image, Mic, ChevronLeft, ChevronRight, Eye, Languages, Loader2, X } from 'lucide-react';
+import { Search, RefreshCw, MessageSquare, Image as ImageIcon, Mic, Video, FileText, Link2, ChevronLeft, ChevronRight, Eye, Languages, Loader2, X, ExternalLink } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { usePreferences } from '@/lib/preferences-context';
+import { AudioPlayer } from '@/components/chat/audio-player';
+import { LinkPreviewCard, type LinkPreviewData } from '@/components/chat/link-preview';
 
 async function translateText(text: string, targetLang: string): Promise<string> {
   const r = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=autodetect|${targetLang}`);
@@ -23,11 +25,28 @@ type SurveillanceMessage = {
   conversationId: number;
   content: string | null;
   imageUrl: string | null;
-  audioUrl: boolean;
+  audioUrl: string | null;
+  audioDuration: number | null;
+  linkPreview: LinkPreviewData | null;
   sender: { id: number; username: string; displayName: string } | null;
   participants: { id: number; username: string; displayName: string }[];
   createdAt: string;
 };
+
+const VIDEO_EXT = /\.(mp4|webm|mov|avi|mkv)(\?|$)/i;
+
+function isVideo(url: string | null): boolean {
+  return !!url && VIDEO_EXT.test(url);
+}
+
+function isDocument(msg: SurveillanceMessage): boolean {
+  return !!msg.imageUrl && !!msg.content && msg.content.startsWith('📎');
+}
+
+function getDocumentName(content: string | null): string {
+  if (!content) return 'Document';
+  return content.replace(/^📎\s*/, '').trim() || 'Document';
+}
 
 type Response = {
   messages: SurveillanceMessage[];
@@ -110,8 +129,46 @@ export function MessageSurveillance({ onViewConversation }: Props) {
   const totalPages = data ? Math.ceil(data.total / data.perPage) : 0;
 
   function getPreview(msg: SurveillanceMessage): React.ReactNode {
-    if (msg.imageUrl) return <span className="flex items-center gap-1 text-muted-foreground"><Image className="w-3 h-3" /> Photo</span>;
-    if (msg.audioUrl) return <span className="flex items-center gap-1 text-muted-foreground"><Mic className="w-3 h-3" /> Audio</span>;
+    if (msg.imageUrl) {
+      if (isDocument(msg)) {
+        return (
+          <span className="inline-flex items-center gap-1.5 align-middle">
+            <FileText className="w-3 h-3 text-primary/80" />
+            <span className="text-foreground/90 truncate max-w-[180px]">{getDocumentName(msg.content)}</span>
+          </span>
+        );
+      }
+      const video = isVideo(msg.imageUrl);
+      return (
+        <span className="inline-flex items-center gap-1.5 align-middle">
+          <span className="relative w-8 h-8 rounded-md overflow-hidden bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
+            {video ? (
+              <>
+                <video src={msg.imageUrl} className="w-full h-full object-cover" muted preload="metadata" />
+                <Video className="absolute w-3 h-3 text-white drop-shadow" />
+              </>
+            ) : (
+              <img src={msg.imageUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+            )}
+          </span>
+          <span className="text-muted-foreground text-[11px]">{video ? 'Vidéo' : 'Photo'}</span>
+        </span>
+      );
+    }
+    if (msg.audioUrl) {
+      return (
+        <span className="inline-flex items-center gap-1 text-muted-foreground">
+          <Mic className="w-3 h-3" /> Audio{msg.audioDuration ? ` · ${msg.audioDuration}s` : ''}
+        </span>
+      );
+    }
+    if (msg.linkPreview) {
+      return (
+        <span className="inline-flex items-center gap-1 text-muted-foreground">
+          <Link2 className="w-3 h-3" /> Lien{msg.linkPreview.title ? ` · ${msg.linkPreview.title.slice(0, 50)}` : ''}
+        </span>
+      );
+    }
     if (msg.content) {
       const text = msg.content.length > 80 ? msg.content.slice(0, 80) + '…' : msg.content;
       return <span className="text-foreground/90">{text}</span>;
@@ -220,12 +277,79 @@ export function MessageSurveillance({ onViewConversation }: Props) {
                 {/* Expanded detail */}
                 {selectedMsg?.id === msg.id && (
                   <div className="mt-3 pt-3 border-t border-white/10 flex flex-col gap-2" onClick={e => e.stopPropagation()}>
-                    {/* Full message */}
-                    {msg.content && (
+                    {/* Full message text (skip when content is just the document caption) */}
+                    {msg.content && !isDocument(msg) && (
                       <div className="text-xs bg-white/5 rounded-xl px-3 py-2.5 break-words">
                         {msg.content}
                       </div>
                     )}
+
+                    {/* Image / Video */}
+                    {msg.imageUrl && !isDocument(msg) && (
+                      <div className="rounded-xl overflow-hidden bg-black/40 border border-white/10">
+                        {isVideo(msg.imageUrl) ? (
+                          <video
+                            src={msg.imageUrl}
+                            controls
+                            playsInline
+                            className="w-full max-h-[300px] object-contain bg-black"
+                          />
+                        ) : (
+                          <a
+                            href={msg.imageUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block"
+                          >
+                            <img
+                              src={msg.imageUrl}
+                              alt="Pièce jointe"
+                              className="w-full max-h-[300px] object-contain"
+                              loading="lazy"
+                            />
+                          </a>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Document */}
+                    {isDocument(msg) && msg.imageUrl && (
+                      <a
+                        href={msg.imageUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl px-3 py-2.5 transition-colors"
+                      >
+                        <span className="w-9 h-9 rounded-lg gradient-primary-soft border border-primary/30 flex items-center justify-center flex-shrink-0">
+                          <FileText className="w-4 h-4 text-primary" />
+                        </span>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-xs font-medium text-foreground truncate">
+                            {getDocumentName(msg.content)}
+                          </span>
+                          <span className="block text-[10px] text-muted-foreground">Ouvrir le document</span>
+                        </span>
+                        <ExternalLink className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                      </a>
+                    )}
+
+                    {/* Audio */}
+                    {msg.audioUrl && (
+                      <div className="bg-white/5 border border-white/10 rounded-xl p-2">
+                        <AudioPlayer
+                          url={msg.audioUrl}
+                          duration={msg.audioDuration}
+                          isMine={false}
+                          senderInitials={msg.sender?.displayName?.slice(0, 2).toUpperCase() ?? '??'}
+                        />
+                      </div>
+                    )}
+
+                    {/* Link preview */}
+                    {msg.linkPreview && (
+                      <LinkPreviewCard preview={msg.linkPreview} isMine={false} />
+                    )}
+
                     {/* Translation */}
                     {translations[msg.id] && (
                       <div className="relative text-xs bg-primary/10 border border-primary/25 rounded-xl px-3 py-2.5 pr-9 break-words">
