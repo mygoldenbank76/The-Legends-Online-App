@@ -89,6 +89,7 @@ type Dict = {
   groupInfo: {
     members: string;
     groupLink: string;
+    linkCopied: string;
     media: string;
     files: string;
     links: string;
@@ -223,6 +224,7 @@ export const i18n: Record<AppLang, Dict> = {
     groupInfo: {
       members: 'membres',
       groupLink: 'Lien du groupe',
+      linkCopied: 'Lien copié dans le presse-papiers',
       media: 'Médias',
       files: 'Fichiers',
       links: 'Liens',
@@ -356,6 +358,7 @@ export const i18n: Record<AppLang, Dict> = {
     groupInfo: {
       members: 'members',
       groupLink: 'Group link',
+      linkCopied: 'Link copied to clipboard',
       media: 'Media',
       files: 'Files',
       links: 'Links',
@@ -492,6 +495,7 @@ export const i18n: Record<AppLang, Dict> = {
     groupInfo: {
       members: 'miembros',
       groupLink: 'Enlace del grupo',
+      linkCopied: 'Enlace copiado al portapapeles',
       media: 'Medios',
       files: 'Archivos',
       links: 'Enlaces',
@@ -628,6 +632,7 @@ export const i18n: Record<AppLang, Dict> = {
     groupInfo: {
       members: 'أعضاء',
       groupLink: 'رابط المجموعة',
+      linkCopied: 'تم نسخ الرابط إلى الحافظة',
       media: 'الوسائط',
       files: 'الملفات',
       links: 'الروابط',
@@ -764,6 +769,7 @@ export const i18n: Record<AppLang, Dict> = {
     groupInfo: {
       members: 'membros',
       groupLink: 'Link do grupo',
+      linkCopied: 'Link copiado para a área de transferência',
       media: 'Mídia',
       files: 'Arquivos',
       links: 'Links',
@@ -900,6 +906,7 @@ export const i18n: Record<AppLang, Dict> = {
     groupInfo: {
       members: 'Mitglieder',
       groupLink: 'Gruppenlink',
+      linkCopied: 'Link in die Zwischenablage kopiert',
       media: 'Medien',
       files: 'Dateien',
       links: 'Links',

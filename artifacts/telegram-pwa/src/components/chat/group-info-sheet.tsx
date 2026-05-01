@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, Link2, Image as ImageIcon, FileText, Mic, Play, ExternalLink, Film } from 'lucide-react';
 import { usePreferences } from '@/lib/preferences-context';
 import { translateGroupName } from '@/lib/i18n';
+import { useToast } from '@/hooks/use-toast';
 import { MediaViewer } from './media-viewer';
 
 type Participant = {
@@ -45,7 +46,9 @@ function isVideo(url: string) {
 
 export function GroupInfoSheet({ open, onClose, conversation, messages }: Props) {
   const { t, appLanguage } = usePreferences();
+  const { toast } = useToast();
   const [mediaViewer, setMediaViewer] = useState<{ urls: string[]; index: number } | null>(null);
+  const isGroup = conversation?.type === 'group';
 
   type Tab = 'media' | 'files' | 'links' | 'voice' | 'gifs';
   const [tab, setTab] = useState<Tab>('media');
@@ -128,25 +131,47 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
                   <p className="text-sm text-muted-foreground">{memberCount} {t.groupInfo.members}</p>
                 </div>
 
-                {/* Group link */}
-                <div className="mx-4 mb-4 glass rounded-2xl px-4 py-3 flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full gradient-primary-soft border border-primary/30 flex items-center justify-center flex-shrink-0">
-                    <Link2 className="w-4 h-4 text-primary" />
+                {/* Group link — only shown for groups, not for private 1-on-1 chats */}
+                {isGroup && (
+                  <div className="mx-4 mb-4 glass rounded-2xl px-4 py-3 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full gradient-primary-soft border border-primary/30 flex items-center justify-center flex-shrink-0">
+                      <Link2 className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] text-muted-foreground">{t.groupInfo.groupLink}</p>
+                      <p className="text-xs text-foreground truncate font-mono">{groupLink.substring(0, 35)}...</p>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        try {
+                          if (navigator.clipboard?.writeText) {
+                            await navigator.clipboard.writeText(groupLink);
+                          } else {
+                            // Fallback for older / insecure contexts
+                            const ta = document.createElement('textarea');
+                            ta.value = groupLink;
+                            ta.style.position = 'fixed';
+                            ta.style.opacity = '0';
+                            document.body.appendChild(ta);
+                            ta.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(ta);
+                          }
+                          toast({ title: t.groupInfo.linkCopied });
+                        } catch {
+                          // Silent fail — clipboard may be blocked by the browser
+                        }
+                      }}
+                      className="text-muted-foreground hover:text-primary transition-colors p-1 flex-shrink-0"
+                      aria-label={t.groupInfo.groupLink}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" strokeWidth="2" />
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" strokeWidth="2" />
+                      </svg>
+                    </button>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] text-muted-foreground">{t.groupInfo.groupLink}</p>
-                    <p className="text-xs text-foreground truncate font-mono">{groupLink.substring(0, 35)}...</p>
-                  </div>
-                  <button
-                    onClick={() => navigator.clipboard?.writeText(groupLink)}
-                    className="text-muted-foreground hover:text-primary transition-colors p-1 flex-shrink-0"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" strokeWidth="2" />
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" strokeWidth="2" />
-                    </svg>
-                  </button>
-                </div>
+                )}
 
                 {/* Tabs */}
                 <div className="mx-4 gradient-hairline-bottom pb-2">
