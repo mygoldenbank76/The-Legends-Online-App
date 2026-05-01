@@ -60,6 +60,7 @@ async function buildMessage(messageId: number, requestingUserId?: number): Promi
     imageUrl: msg.isDeleted ? null : msg.imageUrl,
     mediaWidth: msg.isDeleted ? null : msg.mediaWidth,
     mediaHeight: msg.isDeleted ? null : msg.mediaHeight,
+    thumbnailUrl: msg.isDeleted ? null : msg.thumbnailUrl,
     mediaAlbum: msg.isDeleted ? null : (msg.mediaAlbum as string[] | null),
     audioUrl: msg.isDeleted ? null : msg.audioUrl,
     audioDuration: msg.isDeleted ? null : msg.audioDuration,
@@ -89,6 +90,7 @@ type FormattedMessage = {
   imageUrl: string | null;
   mediaWidth?: number | null;
   mediaHeight?: number | null;
+  thumbnailUrl?: string | null;
   mediaAlbum?: string[] | null;
   audioUrl?: string | null;
   audioDuration?: number | null;
@@ -223,6 +225,7 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
       imageUrl: m.isDeleted ? null : m.imageUrl,
       mediaWidth: m.isDeleted ? null : m.mediaWidth,
       mediaHeight: m.isDeleted ? null : m.mediaHeight,
+      thumbnailUrl: m.isDeleted ? null : m.thumbnailUrl,
       mediaAlbum: m.isDeleted ? null : (m.mediaAlbum as string[] | null),
       audioUrl: m.isDeleted ? null : m.audioUrl,
       audioDuration: m.isDeleted ? null : m.audioDuration,
@@ -266,7 +269,7 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
   if (isNaN(conversationId)) { res.status(400).json({ error: "Invalid conversation ID" }); return; }
 
   const {
-    content, imageUrl, mediaWidth, mediaHeight, mediaAlbum,
+    content, imageUrl, mediaWidth, mediaHeight, thumbnailUrl, mediaAlbum,
     audioUrl, audioDuration, replyToId, poll, disableLinkPreview,
   } = req.body as {
     content?: string;
@@ -276,6 +279,12 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
     // correctly on the very first paint.
     mediaWidth?: number;
     mediaHeight?: number;
+    // For video messages: URL to the server-stored JPEG of the first frame
+    // (captured by the sender's browser at send time and uploaded as a
+    // regular image). The receiving client uses this as the poster so the
+    // bubble shows a real preview thumbnail on the very first paint —
+    // no momentary black box, no per-recipient on-the-fly capture.
+    thumbnailUrl?: string;
     mediaAlbum?: string[];
     audioUrl?: string;
     audioDuration?: number;
@@ -336,6 +345,11 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
     // image/video — they don't apply to album entries or audio messages.
     mediaWidth: imageUrl ? safeWidth : null,
     mediaHeight: imageUrl ? safeHeight : null,
+    // Only persist the thumbnail URL alongside an actual single-media
+    // message; thumbnails for albums or non-image entries don't apply.
+    thumbnailUrl: imageUrl && typeof thumbnailUrl === "string" && thumbnailUrl.length > 0
+      ? thumbnailUrl
+      : null,
     mediaAlbum: (mediaAlbum && mediaAlbum.length > 0 ? mediaAlbum : null) as string[] | null,
     audioUrl: audioUrl ?? null,
     audioDuration: audioDuration ?? null,

@@ -19,6 +19,8 @@ export interface Message {
   content?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /** @nullable */
+  thumbnailUrl?: string | null;
   linkPreview?: LinkPreview;
   replyTo?: __Message;
   /** @nullable */

@@ -36,7 +36,7 @@ import { FormattingToolbar } from './formatting-toolbar';
 import { RichText, applyFormat } from './rich-text';
 import type { FormatType } from './rich-text';
 import { GifPicker } from './gif-picker';
-import { getMediaDimensions } from '@/lib/media-dimensions';
+import { getMediaDimensions, captureVideoFirstFrame } from '@/lib/media-dimensions';
 import type { GifResult } from './gif-picker';
 import { MediaPickerModal } from './media-picker-modal';
 import type { MediaQuality } from './media-picker-modal';
@@ -1383,31 +1383,66 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
     let aborted = false;
     let urls: string[] = [];
+    // Thumbnail URLs for video entries, indexed by position in `entries`.
+    // For non-video entries (or videos whose first-frame capture failed)
+    // the slot stays `null` and the message goes out without a thumbnail.
+    let thumbUrls: Array<string | null> = entries.map(() => null);
     try {
-      urls = await Promise.all(
-        entries.map(async (entry) => {
+      const uploaded = await Promise.all(
+        entries.map(async (entry, idx) => {
           try {
-            const result = await uploadFileWithProgress<{ url: string }>(
-              '/api/uploads/image',
-              entry.file,
-              'file',
-              {
-                signal: entry.abort.signal,
-                onProgress: ({ loaded, total }) => {
-                  setPendingUploads(prev => prev.map(p =>
-                    p.id === entry.id ? { ...p, loaded, total } : p
-                  ));
+            // Run the main media upload AND the (video-only) first-frame
+            // thumbnail capture+upload in parallel so the thumbnail
+            // round-trip never delays the actual send. The thumbnail
+            // upload is best-effort: a failure resolves to null so the
+            // message still goes through, just without a server poster.
+            const [mainResult, thumbUrl] = await Promise.all([
+              uploadFileWithProgress<{ url: string }>(
+                '/api/uploads/image',
+                entry.file,
+                'file',
+                {
+                  signal: entry.abort.signal,
+                  onProgress: ({ loaded, total }) => {
+                    setPendingUploads(prev => prev.map(p =>
+                      p.id === entry.id ? { ...p, loaded, total } : p
+                    ));
+                  },
                 },
-              },
-            );
-            return result.url;
+              ),
+              entry.isVideo
+                ? captureVideoFirstFrame(entry.file)
+                    .then(async (blob) => {
+                      if (!blob || entry.abort.signal.aborted) return null;
+                      try {
+                        const thumbFile = new File(
+                          [blob],
+                          `thumbnail-${entry.id}.jpg`,
+                          { type: 'image/jpeg' },
+                        );
+                        const r = await uploadFileWithProgress<{ url: string }>(
+                          '/api/uploads/image',
+                          thumbFile,
+                          'file',
+                          { signal: entry.abort.signal },
+                        );
+                        return r.url;
+                      } catch {
+                        return null; // best-effort
+                      }
+                    })
+                    .catch(() => null)
+                : Promise.resolve(null as string | null),
+            ]);
+            return { url: mainResult.url, thumbUrl, idx };
           } catch (err) {
-            // Cancel siblings so the whole group fails atomically
             abortGroup();
             throw err;
           }
         }),
       );
+      urls = uploaded.map(u => u.url);
+      thumbUrls = uploaded.map(u => u.thumbUrl);
     } catch (err) {
       if (err instanceof UploadAbortError) {
         aborted = true;
@@ -1453,6 +1488,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         // Single image/video: forward the intrinsic dimensions so the
         // server stores them and every client (including future page
         // loads) can render the bubble at the correct shape instantly.
+        // For videos we also forward the captured first-frame thumbnail
+        // URL so receivers see a real poster on the very first paint —
+        // no per-device decoding needed, no momentary black box.
         const e0 = entries[0];
         await sendMsg.mutateAsync({
           conversationId: targetConvId,
@@ -1462,6 +1500,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             replyToId: replyId,
             mediaWidth: e0.width,
             mediaHeight: e0.height,
+            thumbnailUrl: thumbUrls[0] ?? undefined,
           } as any,
         });
       } else {
@@ -2333,6 +2372,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                           // with native controls — same UX as Telegram.
                           <VideoThumbnail
                             src={msg.imageUrl}
+                            thumbnailUrl={(msg as any).thumbnailUrl ?? null}
                             className="w-full rounded-[10px]"
                             intrinsicWidth={msg.mediaWidth ?? undefined}
                             intrinsicHeight={msg.mediaHeight ?? undefined}

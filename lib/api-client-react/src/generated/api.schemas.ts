@@ -108,6 +108,8 @@ export interface Message {
   content?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /** @nullable */
+  thumbnailUrl?: string | null;
   linkPreview?: LinkPreview;
   replyTo?: Message;
   /** @nullable */
@@ -139,6 +141,8 @@ export interface SendMessageBody {
   content?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  /** @nullable */
+  thumbnailUrl?: string | null;
   /** @nullable */
   replyToId?: number | null;
 }

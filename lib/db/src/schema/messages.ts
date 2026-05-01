@@ -14,6 +14,13 @@ export const messagesTable = pgTable("messages", {
   // backwards compatibility with rows created before these columns existed.
   mediaWidth: integer("media_width"),
   mediaHeight: integer("media_height"),
+  // For video messages: URL to a server-stored JPEG of the first frame,
+  // captured by the sender's browser at send time and uploaded alongside
+  // the video. Lets every recipient see a real preview thumbnail on the
+  // very first paint — no need to wait for their device to decode the
+  // first frame, and no momentary black box. Nullable: pre-existing
+  // videos and non-video messages don't have one.
+  thumbnailUrl: text("thumbnail_url"),
   audioUrl: text("audio_url"),
   audioDuration: integer("audio_duration"),
   pollId: integer("poll_id"),

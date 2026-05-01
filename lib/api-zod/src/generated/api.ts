@@ -142,6 +142,7 @@ export const ListConversationsResponseItem = zod.object({
         .optional(),
       content: zod.string().nullish(),
       imageUrl: zod.string().nullish(),
+      thumbnailUrl: zod.string().nullish(),
       linkPreview: zod
         .object({
           url: zod.string(),
@@ -251,6 +252,7 @@ export const ListMessagesResponseItem = zod.object({
     .optional(),
   content: zod.string().nullish(),
   imageUrl: zod.string().nullish(),
+  thumbnailUrl: zod.string().nullish(),
   linkPreview: zod
     .object({
       url: zod.string(),
@@ -298,6 +300,7 @@ export const SendMessageParams = zod.object({
 export const SendMessageBody = zod.object({
   content: zod.string().nullish(),
   imageUrl: zod.string().nullish(),
+  thumbnailUrl: zod.string().nullish(),
   replyToId: zod.number().nullish(),
 });
 
@@ -342,6 +345,7 @@ export const EditMessageResponse = zod.object({
     .optional(),
   content: zod.string().nullish(),
   imageUrl: zod.string().nullish(),
+  thumbnailUrl: zod.string().nullish(),
   linkPreview: zod
     .object({
       url: zod.string(),
@@ -430,6 +434,7 @@ export const AddReactionResponse = zod.object({
     .optional(),
   content: zod.string().nullish(),
   imageUrl: zod.string().nullish(),
+  thumbnailUrl: zod.string().nullish(),
   linkPreview: zod
     .object({
       url: zod.string(),

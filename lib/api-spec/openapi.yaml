@@ -659,6 +659,8 @@ components:
           type: ["string", "null"]
         imageUrl:
           type: ["string", "null"]
+        thumbnailUrl:
+          type: ["string", "null"]
         linkPreview:
           $ref: "#/components/schemas/LinkPreview"
         replyTo:
@@ -687,6 +689,8 @@ components:
         content:
           type: ["string", "null"]
         imageUrl:
+          type: ["string", "null"]
+        thumbnailUrl:
           type: ["string", "null"]
         replyToId:
           type: ["integer", "null"]
