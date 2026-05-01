@@ -41,6 +41,8 @@ import { MediaPickerModal } from './media-picker-modal';
 import type { MediaQuality } from './media-picker-modal';
 import { MediaViewer } from './media-viewer';
 import { CachedImg } from './cached-img';
+import { UploadProgressOverlay } from './upload-progress-overlay';
+import { uploadFileWithProgress, UploadAbortError } from '@/lib/upload-with-progress';
 import { preloadMedia } from '@/lib/media-cache';
 import { prewarmIframe } from '@/lib/iframe-pool';
 import { VideoPlayer } from './video-player';
@@ -93,6 +95,21 @@ type Msg = {
 
 type ChatAreaProps = { conversationId: number; onBack?: () => void; onOpenConversation?: (convId: number) => void };
 type CtxMenu = { msgId: number } | null;
+
+// Optimistic upload entry shown as a fake outgoing bubble while files upload
+type PendingUpload = {
+  id: string;             // local unique id
+  groupId: string;        // groups files sent together (single bubble / album)
+  conversationId: number; // bound to the conversation it was started in
+  file: File;
+  previewUrl: string;     // blob URL for instant preview
+  isVideo: boolean;
+  loaded: number;         // bytes uploaded
+  total: number;          // total bytes
+  abort: AbortController;
+  caption?: string;       // only first item of a group carries the caption
+  replyToId?: number;
+};
 type TranslateEntry = { msgId: number; text: string };
 
 async function translateText(text: string, targetLang: string): Promise<string> {
@@ -519,6 +536,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const [content, setContent] = useState('');
   const [sending, setSending] = useState(false);
   const [uploadingImg, setUploadingImg] = useState(false);
+  // Optimistic uploads shown as fake bubbles with a circular progress ring
+  const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
+  const pendingUploadsRef = useRef<PendingUpload[]>([]);
+  pendingUploadsRef.current = pendingUploads;
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [ctxMenu, setCtxMenu] = useState<CtxMenu>(null);
   const [replyTo, setReplyTo] = useState<Msg | null>(null);
@@ -1258,38 +1279,152 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     if (e.target) e.target.value = '';
   };
 
-  // Called by MediaPickerModal when user hits send
+  // Cancel an in-flight upload (clicking the X over the progress ring)
+  const cancelPendingUpload = useCallback((id: string) => {
+    const entry = pendingUploadsRef.current.find(p => p.id === id);
+    if (entry) entry.abort.abort();
+  }, []);
+
+  // Abort all pending uploads + revoke blob URLs when the chat area unmounts.
+  useEffect(() => {
+    return () => {
+      for (const p of pendingUploadsRef.current) {
+        p.abort.abort();
+        URL.revokeObjectURL(p.previewUrl);
+      }
+    };
+  }, []);
+
+  // Dedicated upload-conversation ref (do NOT reuse prevConvIdRef from the
+  // pagination effect — that one runs first and would always make this
+  // condition false). When the conversation changes, abort + revoke all
+  // pending uploads from the previous conversation.
+  const uploadConvIdRef = useRef(conversationId);
+  useEffect(() => {
+    if (uploadConvIdRef.current !== conversationId) {
+      const stale = pendingUploadsRef.current;
+      if (stale.length > 0) {
+        stale.forEach(p => { p.abort.abort(); URL.revokeObjectURL(p.previewUrl); });
+        setPendingUploads([]);
+      }
+      uploadConvIdRef.current = conversationId;
+    }
+  }, [conversationId]);
+
+  // Called by MediaPickerModal when user hits send.
+  // Telegram-style flow: instant optimistic preview, real upload via XHR with
+  // progress events, ability to cancel mid-upload, then the real message is
+  // sent with the resulting URL(s) and the placeholder is removed.
   const handleMediaSend = useCallback(async (
     files: File[],
     caption: string,
     _quality: MediaQuality,
   ) => {
     setMediaPicker(null);
+    if (files.length === 0) return;
+
+    const groupId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const targetConvId = conversationId;
+    const replyId = replyTo?.id;
+    setReplyTo(null);
+
+    // 1. Build optimistic entries (blob URLs → instant preview)
+    const entries: PendingUpload[] = files.map((file, idx) => ({
+      id: `${groupId}-${idx}`,
+      groupId,
+      conversationId: targetConvId,
+      file,
+      previewUrl: URL.createObjectURL(file),
+      isVideo: file.type.startsWith('video/'),
+      loaded: 0,
+      total: file.size,
+      abort: new AbortController(),
+      caption: idx === 0 ? caption : undefined,
+      replyToId: replyId,
+    }));
+
+    setPendingUploads(prev => [...prev, ...entries]);
+    forceScrollRef.current = true;
+    // Defer scroll so the new bubbles are in the DOM before we measure
+    requestAnimationFrame(() => scrollBottom(0));
+
+    // 2. Upload all files in parallel with progress + cancellation.
+    //    If any single upload fails or is cancelled, abort the WHOLE group
+    //    so we don't leave orphan in-flight uploads in the background.
+    const abortGroup = () => entries.forEach(e => {
+      if (!e.abort.signal.aborted) e.abort.abort();
+    });
+
+    let aborted = false;
+    let urls: string[] = [];
     try {
-      setUploadingImg(true);
-      // Upload all files in parallel, then send ONE album message
-      const urls = await Promise.all(
-        files.map(file => uploadImage.mutateAsync({ data: { file } }).then(r => r.url))
+      urls = await Promise.all(
+        entries.map(async (entry) => {
+          try {
+            const result = await uploadFileWithProgress<{ url: string }>(
+              '/api/uploads/image',
+              entry.file,
+              'file',
+              {
+                signal: entry.abort.signal,
+                onProgress: ({ loaded, total }) => {
+                  setPendingUploads(prev => prev.map(p =>
+                    p.id === entry.id ? { ...p, loaded, total } : p
+                  ));
+                },
+              },
+            );
+            return result.url;
+          } catch (err) {
+            // Cancel siblings so the whole group fails atomically
+            abortGroup();
+            throw err;
+          }
+        }),
       );
+    } catch (err) {
+      if (err instanceof UploadAbortError) {
+        aborted = true;
+      } else {
+        console.error('Upload error:', err);
+      }
+    }
+
+    // 3. Cleanup placeholders (always — completion or abort)
+    entries.forEach(p => URL.revokeObjectURL(p.previewUrl));
+    setPendingUploads(prev => prev.filter(p => !entries.some(e => e.id === p.id)));
+
+    if (aborted || urls.length !== entries.length) {
+      // User cancelled (or one upload failed) → don't send the message
+      return;
+    }
+
+    // 4. Stale-session guard: if user switched away from this conversation
+    //    while uploads were running, drop the result instead of posting it
+    //    to a different (now-active) conversation.
+    if (uploadConvIdRef.current !== targetConvId) {
+      return;
+    }
+
+    // 5. Send the real message with the uploaded URL(s)
+    try {
       forceScrollRef.current = true;
       if (urls.length === 1) {
-        // Single file → classic imageUrl message
         await sendMsg.mutateAsync({
-          conversationId,
-          data: { imageUrl: urls[0], content: caption || undefined, replyToId: replyTo?.id },
+          conversationId: targetConvId,
+          data: { imageUrl: urls[0], content: caption || undefined, replyToId: replyId },
         });
       } else {
-        // Multiple files → one album message with mediaAlbum JSON field
         await sendMsg.mutateAsync({
-          conversationId,
-          data: { mediaAlbum: urls, content: caption || undefined, replyToId: replyTo?.id } as any,
+          conversationId: targetConvId,
+          data: { mediaAlbum: urls, content: caption || undefined, replyToId: replyId } as any,
         });
       }
-      setReplyTo(null);
       invalidate();
-    } catch (err) { console.error(err); }
-    finally { setUploadingImg(false); }
-  }, [uploadImage, sendMsg, conversationId, replyTo, invalidate]);
+    } catch (err) {
+      console.error('Send message error:', err);
+    }
+  }, [conversationId, replyTo, sendMsg, invalidate, scrollBottom]);
 
   const handleDocumentChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -2281,6 +2416,105 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
               </div>
             );
           })}
+
+          {/* ── Optimistic upload bubbles (Telegram-style) ──
+              While files upload, show a fake outgoing bubble with the
+              local blob preview, a circular progress ring around an X
+              cancel button, and a "loaded / total" bytes badge.
+              Files sent together (same groupId) share one bubble. */}
+          {(() => {
+            const visible = pendingUploads.filter(p => p.conversationId === conversationId);
+            if (visible.length === 0) return null;
+            const groups: PendingUpload[][] = [];
+            const seen = new Set<string>();
+            for (const p of visible) {
+              if (seen.has(p.groupId)) continue;
+              seen.add(p.groupId);
+              groups.push(visible.filter(x => x.groupId === p.groupId));
+            }
+            return groups.map((items) => {
+              const caption = items[0]?.caption;
+              const isAlbum = items.length > 1;
+              return (
+                <div
+                  key={`pending-${items[0].groupId}`}
+                  className="flex items-end gap-2 w-full justify-end mt-3"
+                >
+                  <div className="max-w-[80%] relative">
+                    <div className="rounded-[14px] px-2.5 py-[6px] text-[14.5px] leading-[1.3] bubble-sent rounded-br-[4px]">
+                      {!isAlbum ? (
+                        <div className="mb-1.5 -mx-1.5 -mt-0.5 overflow-hidden rounded-[10px] bg-foreground/5 relative">
+                          {items[0].isVideo ? (
+                            <video
+                              src={items[0].previewUrl}
+                              className="w-full max-h-64 object-cover rounded-[10px]"
+                              muted
+                              playsInline
+                            />
+                          ) : (
+                            <img
+                              src={items[0].previewUrl}
+                              alt=""
+                              className="w-full max-h-64 object-cover rounded-[10px]"
+                            />
+                          )}
+                          <UploadProgressOverlay
+                            loaded={items[0].loaded}
+                            total={items[0].total}
+                            onCancel={() => cancelPendingUpload(items[0].id)}
+                          />
+                        </div>
+                      ) : (
+                        <div
+                          className="mb-1.5 -mx-1.5 -mt-0.5 overflow-hidden rounded-[10px] grid gap-[2px]"
+                          style={{
+                            gridTemplateColumns: items.length === 2 ? '1fr 1fr' : '1fr 1fr',
+                            gridAutoRows: items.length <= 2 ? '180px' : '120px',
+                          }}
+                        >
+                          {items.slice(0, 6).map(item => (
+                            <div key={item.id} className="relative bg-foreground/5 overflow-hidden">
+                              {item.isVideo ? (
+                                <video
+                                  src={item.previewUrl}
+                                  className="w-full h-full object-cover"
+                                  muted
+                                  playsInline
+                                />
+                              ) : (
+                                <img
+                                  src={item.previewUrl}
+                                  alt=""
+                                  className="w-full h-full object-cover"
+                                />
+                              )}
+                              <UploadProgressOverlay
+                                loaded={item.loaded}
+                                total={item.total}
+                                onCancel={() => cancelPendingUpload(item.id)}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {caption && (
+                        <div className="whitespace-pre-wrap break-words leading-snug">
+                          <RichText text={caption} isMine={true} />
+                        </div>
+                      )}
+
+                      <div className="flex items-end justify-end mt-0.5 -mb-0.5">
+                        <div className="text-[11px] flex items-center gap-1 text-primary-foreground/60">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            });
+          })()}
         </div>
       </div>
       </div>{/* end flex-1 relative messages wrapper */}
