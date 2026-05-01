@@ -312,7 +312,7 @@ function MessagesSkeleton() {
 
 export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAreaProps) {
   const { user } = useAuth();
-  const { socket, joinConversation, emitTyping, typingUsers, presenceMap } = useSocket();
+  const { socket, joinConversation, leaveConversation, emitTyping, typingUsers, presenceMap, roomPresenceMap } = useSocket();
   const { initiateCall } = useCall();
   const queryClient = useQueryClient();
   const { translateLanguage, t: uiT, appLanguage } = usePreferences();
@@ -586,9 +586,14 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const [mentionStartIdx, setMentionStartIdx] = useState(-1);
 
   // ── Socket ──────────────────────────────────────────────────
+  // Join the room when this conversation is opened, and leave it when the user
+  // switches to another chat — this drives per-room "who is here right now"
+  // presence so other members see the count drop instantly.
   useEffect(() => {
-    if (socket && conversationId) joinConversation(conversationId);
-  }, [socket, conversationId, joinConversation]);
+    if (!socket || !conversationId) return;
+    joinConversation(conversationId);
+    return () => { leaveConversation(conversationId); };
+  }, [socket, conversationId, joinConversation, leaveConversation]);
 
   useEffect(() => {
     if (!socket) return;
@@ -1443,12 +1448,12 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
   const isGroup = conversation?.type === 'group';
   const memberCount = (conversation as any)?.participants?.length ?? 0;
-  const onlineMemberCount = (conversation as any)?.participants?.reduce((acc: number, p: any) => {
-    if (p.id === user?.id) return acc;
-    const live = presenceMap.get(p.id);
-    const online = live ? live.isOnline : !!p.isOnline;
-    return acc + (online ? 1 : 0);
-  }, 0) ?? 0;
+  // "Online" in a group means *currently viewing this conversation* (per-room
+  // presence), not just "connected to the app somewhere". This count includes
+  // the current user since they're, by definition, viewing this room right now.
+  const onlineMemberCount = conversationId
+    ? (roomPresenceMap.get(conversationId)?.size ?? 0)
+    : 0;
 
   const ctxMsg = messages?.find(m => m.id === ctxMenu?.msgId);
   const isMineCtx = ctxMsg?.senderId === user?.id;

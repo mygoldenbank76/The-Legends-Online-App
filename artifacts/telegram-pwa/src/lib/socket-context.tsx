@@ -22,6 +22,8 @@ type SocketContextType = {
   emitTyping: (conversationId: number, isTyping: boolean) => void;
   typingUsers: TypingUser[];
   presenceMap: Map<number, PresenceEntry>;
+  // userIds currently *actively viewing* a given conversation (per-room presence)
+  roomPresenceMap: Map<number, Set<number>>;
 };
 
 // Minimal shape of a message delivered by socket (matches server FormattedMessage)
@@ -56,11 +58,17 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [presenceMap, setPresenceMap] = useState<Map<number, PresenceEntry>>(new Map());
+  const [roomPresenceMap, setRoomPresenceMap] = useState<Map<number, Set<number>>>(new Map());
   const typingTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   useEffect(() => {
     if (!user) {
       if (socket) { socket.disconnect(); setSocket(null); }
+      // Clear all in-memory presence state on logout to avoid leaking stale
+      // rosters across user sessions in the same browser.
+      setRoomPresenceMap(new Map());
+      setPresenceMap(new Map());
+      setTypingUsers([]);
       return;
     }
 
@@ -204,17 +212,51 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       });
     });
 
+    // ── Per-room ("active in this conversation") presence ───────────────────
+    newSocket.on('user_joined_room', ({ conversationId, userId: joinedId }: { conversationId: number; userId: number }) => {
+      setRoomPresenceMap(prev => {
+        const next = new Map(prev);
+        const set = new Set(next.get(conversationId) ?? []);
+        set.add(joinedId);
+        next.set(conversationId, set);
+        return next;
+      });
+    });
+
+    newSocket.on('user_left_room', ({ conversationId, userId: leftId }: { conversationId: number; userId: number }) => {
+      setRoomPresenceMap(prev => {
+        const next = new Map(prev);
+        const set = new Set(next.get(conversationId) ?? []);
+        set.delete(leftId);
+        next.set(conversationId, set);
+        return next;
+      });
+    });
+
     setSocket(newSocket);
     return () => { newSocket.disconnect(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, queryClient]);
 
   const joinConversation = (conversationId: number) => {
-    socket?.emit('join_conversation', conversationId);
+    socket?.emit('join_conversation', conversationId, (roster: number[]) => {
+      // Seed local room presence with the current roster from the server
+      setRoomPresenceMap(prev => {
+        const next = new Map(prev);
+        next.set(conversationId, new Set(roster));
+        return next;
+      });
+    });
   };
 
   const leaveConversation = (conversationId: number) => {
     socket?.emit('leave_conversation', conversationId);
+    // Clear local roster for this conversation — we no longer track it
+    setRoomPresenceMap(prev => {
+      const next = new Map(prev);
+      next.delete(conversationId);
+      return next;
+    });
   };
 
   const emitTyping = (conversationId: number, isTyping: boolean) => {
@@ -222,7 +264,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <SocketContext.Provider value={{ socket, joinConversation, leaveConversation, emitTyping, typingUsers, presenceMap }}>
+    <SocketContext.Provider value={{ socket, joinConversation, leaveConversation, emitTyping, typingUsers, presenceMap, roomPresenceMap }}>
       {children}
     </SocketContext.Provider>
   );

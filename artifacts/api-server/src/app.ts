@@ -24,8 +24,16 @@ export const io = new SocketIOServer(httpServer, {
 
 // userId -> Set of socketIds (to emit to a specific user)
 export const userSockets = new Map<number, Set<string>>();
-// conversationId -> Set of userIds currently in the room
-export const roomPresence = new Map<number, Set<number>>();
+// conversationId -> (userId -> number of *sockets* this user has actively
+// viewing the room). A user counts as "present" when their count > 0, so
+// closing one tab while another is still open does NOT remove them.
+const roomPresence = new Map<number, Map<number, number>>();
+// Helper for other modules (e.g. read receipts) — returns the set of userIds
+// currently present in a conversation room.
+export function getRoomMembers(conversationId: number): Set<number> {
+  const m = roomPresence.get(conversationId);
+  return m ? new Set(m.keys()) : new Set();
+}
 
 // ── Call tracking (for WhatsApp-style call log bubbles) ──────────────────────
 type ActiveCall = {
@@ -254,41 +262,96 @@ io.on("connection", async (socket) => {
     }
   });
 
-  socket.on("join_conversation", async (conversationId: number) => {
+  socket.on("join_conversation", async (conversationId: number, ack?: (roster: number[]) => void) => {
+    if (!userId) {
+      if (typeof ack === "function") ack([]);
+      return;
+    }
+
+    // ── Authorization: only participants may join the room and see the roster ──
+    try {
+      const membership = await db
+        .select({ userId: conversationParticipantsTable.userId })
+        .from(conversationParticipantsTable)
+        .where(and(
+          eq(conversationParticipantsTable.conversationId, conversationId),
+          eq(conversationParticipantsTable.userId, userId),
+        ))
+        .limit(1);
+      if (membership.length === 0) {
+        logger.warn({ userId, conversationId }, "Rejected join_conversation — not a participant");
+        if (typeof ack === "function") ack([]);
+        return;
+      }
+    } catch (err) {
+      logger.error({ err, userId, conversationId }, "Membership check failed");
+      if (typeof ack === "function") ack([]);
+      return;
+    }
+
     socket.join(`conversation:${conversationId}`);
     logger.info({ socketId: socket.id, conversationId }, "Joined conversation room");
 
-    if (userId) {
-      if (!roomPresence.has(conversationId)) roomPresence.set(conversationId, new Set());
-      roomPresence.get(conversationId)!.add(userId);
+    // Track which rooms THIS specific socket has joined, for clean disconnect handling
+    if (!socket.data.joinedRooms) socket.data.joinedRooms = new Set<number>();
+    const joinedRooms: Set<number> = socket.data.joinedRooms;
+    const isNewJoinForThisSocket = !joinedRooms.has(conversationId);
+    joinedRooms.add(conversationId);
 
-      // Notify senders of recent messages that their messages have been delivered
-      try {
-        const recentMsgs = await db.select({ senderId: messagesTable.senderId })
-          .from(messagesTable)
-          .where(and(
-            eq(messagesTable.conversationId, conversationId),
-            ne(messagesTable.senderId, userId),
-          ))
-          .limit(60);
+    // Per-user socket count: a user is "present" while count > 0
+    if (!roomPresence.has(conversationId)) roomPresence.set(conversationId, new Map());
+    const userMap = roomPresence.get(conversationId)!;
+    const prevCount = userMap.get(userId) ?? 0;
 
-        const senderIds = [...new Set(recentMsgs.map(m => m.senderId))];
-        for (const senderId of senderIds) {
-          const senderSocketIds = userSockets.get(senderId);
-          if (senderSocketIds) {
-            for (const socketId of senderSocketIds) {
-              io.to(socketId).emit("messages_delivered", { conversationId, deliveredTo: userId });
-            }
+    if (isNewJoinForThisSocket) {
+      userMap.set(userId, prevCount + 1);
+      // Only broadcast on the 0 -> 1 transition (first tab opens this room)
+      if (prevCount === 0) {
+        socket.to(`conversation:${conversationId}`).emit('user_joined_room', { conversationId, userId });
+      }
+    }
+
+    // Reply to the joining client with the current roster (includes self)
+    if (typeof ack === "function") ack([...userMap.keys()]);
+
+    // Notify senders of recent messages that their messages have been delivered
+    try {
+      const recentMsgs = await db.select({ senderId: messagesTable.senderId })
+        .from(messagesTable)
+        .where(and(
+          eq(messagesTable.conversationId, conversationId),
+          ne(messagesTable.senderId, userId),
+        ))
+        .limit(60);
+
+      const senderIds = [...new Set(recentMsgs.map(m => m.senderId))];
+      for (const senderId of senderIds) {
+        const senderSocketIds = userSockets.get(senderId);
+        if (senderSocketIds) {
+          for (const socketId of senderSocketIds) {
+            io.to(socketId).emit("messages_delivered", { conversationId, deliveredTo: userId });
           }
         }
-      } catch { /* non-critical */ }
-    }
+      }
+    } catch { /* non-critical */ }
   });
 
   socket.on("leave_conversation", (conversationId: number) => {
     socket.leave(`conversation:${conversationId}`);
-    if (userId && roomPresence.has(conversationId)) {
-      roomPresence.get(conversationId)!.delete(userId);
+    if (!userId) return;
+    const joinedRooms: Set<number> | undefined = socket.data.joinedRooms;
+    if (!joinedRooms || !joinedRooms.has(conversationId)) return;
+    joinedRooms.delete(conversationId);
+
+    const userMap = roomPresence.get(conversationId);
+    if (!userMap) return;
+    const prevCount = userMap.get(userId) ?? 0;
+    if (prevCount <= 1) {
+      userMap.delete(userId);
+      socket.to(`conversation:${conversationId}`).emit('user_left_room', { conversationId, userId });
+      if (userMap.size === 0) roomPresence.delete(conversationId);
+    } else {
+      userMap.set(userId, prevCount - 1);
     }
   });
 
@@ -335,8 +398,23 @@ io.on("connection", async (socket) => {
           io.to(`conversation:${conversationId}`).emit('user_offline', { userId, lastSeen: Date.now() });
         }
       }
-      for (const members of roomPresence.values()) {
-        members.delete(userId);
+      // Decrement room presence counts ONLY for rooms this specific socket joined.
+      // If another tab/socket of the same user is still viewing a room, the user
+      // remains "present" and no broadcast is fired.
+      const joinedRooms: Set<number> | undefined = socket.data.joinedRooms;
+      if (joinedRooms) {
+        for (const convId of joinedRooms) {
+          const userMap = roomPresence.get(convId);
+          if (!userMap) continue;
+          const prevCount = userMap.get(userId) ?? 0;
+          if (prevCount <= 1) {
+            userMap.delete(userId);
+            io.to(`conversation:${convId}`).emit('user_left_room', { conversationId: convId, userId });
+            if (userMap.size === 0) roomPresence.delete(convId);
+          } else {
+            userMap.set(userId, prevCount - 1);
+          }
+        }
       }
     }
   });

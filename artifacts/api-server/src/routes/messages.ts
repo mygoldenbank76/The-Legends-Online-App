@@ -8,7 +8,7 @@ import { eq, and, lt, desc, inArray, ne, gt, gte } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 import { formatUser } from "./users";
 import { extractFirstUrl, fetchLinkPreview } from "../lib/linkPreview";
-import { io, userSockets, roomPresence } from "../app";
+import { io, userSockets, getRoomMembers } from "../app";
 import { buildPoll } from "./polls";
 import { notifyNewMessage } from "../lib/pushNotifications";
 
@@ -180,7 +180,7 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
     ));
 
   // IDs of non-sender participants currently in the socket room
-  const presentInRoom = roomPresence.get(conversationId) ?? new Set<number>();
+  const presentInRoom = getRoomMembers(conversationId);
 
   // Helper: compute status for a message sent by the current user
   function computeStatus(msg: typeof msgs[number]): 'sent' | 'delivered' | 'read' {
