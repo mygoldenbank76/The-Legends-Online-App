@@ -136,7 +136,7 @@ export function UserDetailsModal({ userId, onClose, onNavigateToDM }: Props) {
 
   if (loading) {
     return createPortal(
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="fixed inset-0 z-[500] flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
         <div className="glass-strong w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6">
           <div className="text-center text-muted-foreground text-sm">Chargement...</div>
         </div>
@@ -149,7 +149,7 @@ export function UserDetailsModal({ userId, onClose, onNavigateToDM }: Props) {
   const initials = user.displayName.substring(0, 2).toUpperCase();
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[500] flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div
         className="glass-strong w-full max-w-md rounded-t-3xl sm:rounded-3xl flex flex-col max-h-[88dvh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
