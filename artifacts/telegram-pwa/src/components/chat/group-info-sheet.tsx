@@ -18,9 +18,8 @@ import {
 import { usePreferences } from '@/lib/preferences-context';
 import { translateGroupName } from '@/lib/i18n';
 import { useToast } from '@/hooks/use-toast';
-import { useSearchUsers, getGetConversationQueryKey } from '@workspace/api-client-react';
+import { useListContacts, getGetConversationQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useDebounce } from '@/hooks/use-debounce';
 import { getAuthHeaders } from '@/lib/auth-fetch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -572,6 +571,7 @@ function SearchMembersView({
 
 type SearchedUser = {
   id: number;
+  username: string;
   displayName: string;
   avatar?: string | null;
 };
@@ -592,32 +592,25 @@ function AddMembersView({
   t: ReturnType<typeof usePreferences>['t'];
 }) {
   const [query, setQuery] = useState('');
-  const debouncedQuery = useDebounce(query, 300);
   const [selected, setSelected] = useState<Map<number, SearchedUser>>(new Map());
   const [submitting, setSubmitting] = useState(false);
 
-  // Use the codegen hook for searching users (mirrors /users/search?q=)
-  const { data: searchResults, isLoading, error: searchError } = useSearchUsers(
-    { q: debouncedQuery },
-    { query: { enabled: debouncedQuery.trim().length > 0 } },
-  );
+  // Pull from the user's own contact list rather than searching all users.
+  const { data: contacts, isLoading } = useListContacts();
 
   const existingSet = useMemo(() => new Set(existingIds), [existingIds]);
 
-  // eslint-disable-next-line no-console
-  console.log('[AddMembers]', {
-    debouncedQuery,
-    isLoading,
-    searchError,
-    searchResults,
-    existingIds,
-  });
-
   const candidates: SearchedUser[] = useMemo(() => {
-    const base = (searchResults ?? []) as SearchedUser[];
-    // Hide users that are already members; they cannot be added again.
-    return base.filter((u) => !existingSet.has(u.id));
-  }, [searchResults, existingSet]);
+    const base = (contacts ?? []) as SearchedUser[];
+    const trimmed = query.trim().toLowerCase();
+    const notMembers = base.filter((u) => !existingSet.has(u.id));
+    if (!trimmed) return notMembers;
+    return notMembers.filter(
+      (u) =>
+        u.displayName.toLowerCase().includes(trimmed) ||
+        u.username.toLowerCase().includes(trimmed),
+    );
+  }, [contacts, existingSet, query]);
 
   const toggle = (u: SearchedUser) => {
     setSelected((prev) => {
@@ -634,7 +627,7 @@ function AddMembersView({
     try {
       const res = await fetch(`/api/conversations/${conversationId}/participants`, {
         method: 'POST',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' } as Record<string, string>,
         body: JSON.stringify({ userIds: Array.from(selected.keys()) }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -715,17 +708,15 @@ function AddMembersView({
 
       {/* Results */}
       <div className="flex-1 overflow-y-auto px-2 py-1">
-        {debouncedQuery.trim().length === 0 ? (
-          <EmptyState
-            icon={<UserPlus className="w-8 h-8" />}
-            label={t.groupInfo.searchPeoplePlaceholder}
-          />
-        ) : isLoading ? (
+        {isLoading ? (
           <div className="flex justify-center py-6">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
           </div>
         ) : candidates.length === 0 ? (
-          <EmptyState icon={<Search className="w-8 h-8" />} label={t.groupInfo.noPeopleFound} />
+          <EmptyState
+            icon={query.trim() ? <Search className="w-8 h-8" /> : <UserPlus className="w-8 h-8" />}
+            label={query.trim() ? t.groupInfo.noPeopleFound : t.contacts.noContacts}
+          />
         ) : (
           <ul className="space-y-1">
             {candidates.map((u) => {

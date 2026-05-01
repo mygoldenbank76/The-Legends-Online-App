@@ -26,7 +26,7 @@ export const SUPPORTED_TRANSLATE_LANGUAGES: { code: TranslateLang; label: string
 ];
 
 type Dict = {
-  tabs: { groups: string; messages: string; profile: string; shop: string; settings: string };
+  tabs: { groups: string; messages: string; profile: string; contacts: string; settings: string };
   settings: {
     title: string;
     account: string;
@@ -161,17 +161,45 @@ type Dict = {
     saved: string;
     sendMessage: string;
     opening: string;
+    copyUsername: string;
+    usernameCopied: string;
+  };
+  contacts: {
+    title: string;
+    searchPlaceholder: string;
+    inviteFriends: string;
+    inviteMessage: string;
+    sortByOnline: string;
+    onlineRecently: string;
+    noContacts: string;
+    noContactsHint: string;
+    noResults: string;
+    newContact: string;
+    identifier: string;
+    identifierPlaceholder: string;
+    identifierHint: string;
+    create: string;
+    creating: string;
+    contactAdded: string;
+    contactAlreadyExists: string;
+    userNotFound: string;
+    cannotAddSelf: string;
+    addContactError: string;
+    cancel: string;
+    inviteLinkCopied: string;
+    addFromContacts: string;
+    contactsInGroup: string;
+    selectContacts: string;
   };
   home: {
     selectConversation: string;
-    loadingShop: string;
   };
   groupNames: Record<string, string>;
 };
 
 export const i18n: Record<AppLang, Dict> = {
   fr: {
-    tabs: { groups: 'Groupes', messages: 'Messages', profile: 'Profil', shop: 'Shop', settings: 'Paramètres' },
+    tabs: { groups: 'Groupes', messages: 'Messages', profile: 'Profil', contacts: 'Contacts', settings: 'Paramètres' },
     settings: {
       title: 'Paramètres',
       account: 'Compte',
@@ -306,16 +334,44 @@ export const i18n: Record<AppLang, Dict> = {
       saved: 'Enregistré !',
       sendMessage: 'Envoyer un message',
       opening: 'Ouverture…',
+      copyUsername: "Copier l'identifiant",
+      usernameCopied: "Identifiant copié",
+    },
+    contacts: {
+      title: "Contacts",
+      searchPlaceholder: "Rechercher des contacts",
+      inviteFriends: "Inviter des amis",
+      inviteMessage: "Salut, je t'invite à me rejoindre sur The Legends Online :",
+      sortByOnline: "Trier par heure de connexion",
+      onlineRecently: "en ligne récemment",
+      noContacts: "Aucun contact pour le moment",
+      noContactsHint: "Ajoute ton premier contact avec son identifiant.",
+      noResults: "Aucun résultat",
+      newContact: "Nouveau contact",
+      identifier: "Identifiant",
+      identifierPlaceholder: "L'identifiant de la personne",
+      identifierHint: "Entre l'identifiant exact (sans @) de la personne à ajouter.",
+      create: "Créer le contact",
+      creating: "Ajout en cours…",
+      contactAdded: "Contact ajouté",
+      contactAlreadyExists: "Cette personne fait déjà partie de tes contacts",
+      userNotFound: "Aucun utilisateur trouvé avec cet identifiant",
+      cannotAddSelf: "Tu ne peux pas t'ajouter toi-même",
+      addContactError: "Impossible d'ajouter le contact",
+      cancel: "Annuler",
+      inviteLinkCopied: "Lien d'invitation copié",
+      addFromContacts: "Ajouter depuis mes contacts",
+      contactsInGroup: "Mes contacts",
+      selectContacts: "Sélectionne les contacts à ajouter",
     },
     home: {
       selectConversation: 'Sélectionne une conversation',
-      loadingShop: 'Chargement du shop…',
     },
     groupNames: {},
   },
 
   en: {
-    tabs: { groups: 'Groups', messages: 'Messages', profile: 'Profile', shop: 'Shop', settings: 'Settings' },
+    tabs: { groups: 'Groups', messages: 'Messages', profile: 'Profile', contacts: 'Contacts', settings: 'Settings' },
     settings: {
       title: 'Settings',
       account: 'Account',
@@ -450,10 +506,38 @@ export const i18n: Record<AppLang, Dict> = {
       saved: 'Saved!',
       sendMessage: 'Send a message',
       opening: 'Opening…',
+      copyUsername: "Copy username",
+      usernameCopied: "Username copied",
+    },
+    contacts: {
+      title: "Contacts",
+      searchPlaceholder: "Search contacts",
+      inviteFriends: "Invite friends",
+      inviteMessage: "Hey, I'd like you to join me on The Legends Online:",
+      sortByOnline: "Sort by recent activity",
+      onlineRecently: "online recently",
+      noContacts: "No contacts yet",
+      noContactsHint: "Add your first contact by their username.",
+      noResults: "No results",
+      newContact: "New contact",
+      identifier: "Username",
+      identifierPlaceholder: "The person's username",
+      identifierHint: "Enter the exact username (no @) to add.",
+      create: "Create contact",
+      creating: "Adding…",
+      contactAdded: "Contact added",
+      contactAlreadyExists: "This person is already in your contacts",
+      userNotFound: "No user found with this username",
+      cannotAddSelf: "You can't add yourself",
+      addContactError: "Could not add contact",
+      cancel: "Cancel",
+      inviteLinkCopied: "Invite link copied",
+      addFromContacts: "Add from my contacts",
+      contactsInGroup: "My contacts",
+      selectContacts: "Select contacts to add",
     },
     home: {
       selectConversation: 'Select a conversation',
-      loadingShop: 'Loading shop…',
     },
     groupNames: {
       'Discussion générale': 'General Discussion',
@@ -462,7 +546,7 @@ export const i18n: Record<AppLang, Dict> = {
   },
 
   es: {
-    tabs: { groups: 'Grupos', messages: 'Mensajes', profile: 'Perfil', shop: 'Tienda', settings: 'Ajustes' },
+    tabs: { groups: 'Grupos', messages: 'Mensajes', profile: 'Perfil', contacts: 'Contactos', settings: 'Ajustes' },
     settings: {
       title: 'Ajustes',
       account: 'Cuenta',
@@ -597,10 +681,38 @@ export const i18n: Record<AppLang, Dict> = {
       saved: '¡Guardado!',
       sendMessage: 'Enviar un mensaje',
       opening: 'Abriendo…',
+      copyUsername: "Copiar identificador",
+      usernameCopied: "Identificador copiado",
+    },
+    contacts: {
+      title: "Contactos",
+      searchPlaceholder: "Buscar contactos",
+      inviteFriends: "Invitar amigos",
+      inviteMessage: "Hola, te invito a unirte a The Legends Online:",
+      sortByOnline: "Ordenar por actividad reciente",
+      onlineRecently: "en línea recientemente",
+      noContacts: "Sin contactos todavía",
+      noContactsHint: "Añade tu primer contacto por su identificador.",
+      noResults: "Sin resultados",
+      newContact: "Nuevo contacto",
+      identifier: "Identificador",
+      identifierPlaceholder: "El identificador de la persona",
+      identifierHint: "Introduce el identificador exacto (sin @) a añadir.",
+      create: "Crear contacto",
+      creating: "Añadiendo…",
+      contactAdded: "Contacto añadido",
+      contactAlreadyExists: "Esta persona ya está en tus contactos",
+      userNotFound: "No se encontró ningún usuario con ese identificador",
+      cannotAddSelf: "No puedes añadirte a ti mismo",
+      addContactError: "No se pudo añadir el contacto",
+      cancel: "Cancelar",
+      inviteLinkCopied: "Enlace de invitación copiado",
+      addFromContacts: "Añadir desde mis contactos",
+      contactsInGroup: "Mis contactos",
+      selectContacts: "Selecciona contactos para añadir",
     },
     home: {
       selectConversation: 'Selecciona una conversación',
-      loadingShop: 'Cargando tienda…',
     },
     groupNames: {
       'Discussion générale': 'Discusión general',
@@ -609,7 +721,7 @@ export const i18n: Record<AppLang, Dict> = {
   },
 
   ar: {
-    tabs: { groups: 'المجموعات', messages: 'الرسائل', profile: 'الملف الشخصي', shop: 'المتجر', settings: 'الإعدادات' },
+    tabs: { groups: 'المجموعات', messages: 'الرسائل', profile: 'الملف الشخصي', contacts: 'جهات الاتصال', settings: 'الإعدادات' },
     settings: {
       title: 'الإعدادات',
       account: 'الحساب',
@@ -744,10 +856,38 @@ export const i18n: Record<AppLang, Dict> = {
       saved: 'تم الحفظ!',
       sendMessage: 'إرسال رسالة',
       opening: 'جارٍ الفتح…',
+      copyUsername: "نسخ المعرف",
+      usernameCopied: "تم نسخ المعرف",
+    },
+    contacts: {
+      title: "جهات الاتصال",
+      searchPlaceholder: "ابحث عن جهات الاتصال",
+      inviteFriends: "دعوة الأصدقاء",
+      inviteMessage: "مرحبًا، أدعوك للانضمام إلى The Legends Online:",
+      sortByOnline: "الترتيب حسب النشاط الأخير",
+      onlineRecently: "متصل مؤخرًا",
+      noContacts: "لا توجد جهات اتصال بعد",
+      noContactsHint: "أضف أول جهة اتصال باستخدام معرّفها.",
+      noResults: "لا توجد نتائج",
+      newContact: "جهة اتصال جديدة",
+      identifier: "المعرّف",
+      identifierPlaceholder: "معرّف الشخص",
+      identifierHint: "أدخل المعرّف الدقيق (بدون @) لإضافته.",
+      create: "إنشاء جهة اتصال",
+      creating: "جارٍ الإضافة…",
+      contactAdded: "تمت إضافة جهة الاتصال",
+      contactAlreadyExists: "هذا الشخص موجود بالفعل في جهات اتصالك",
+      userNotFound: "لم يتم العثور على مستخدم بهذا المعرّف",
+      cannotAddSelf: "لا يمكنك إضافة نفسك",
+      addContactError: "تعذر إضافة جهة الاتصال",
+      cancel: "إلغاء",
+      inviteLinkCopied: "تم نسخ رابط الدعوة",
+      addFromContacts: "أضف من جهات اتصالي",
+      contactsInGroup: "جهات اتصالي",
+      selectContacts: "اختر جهات الاتصال المراد إضافتها",
     },
     home: {
       selectConversation: 'اختر محادثة',
-      loadingShop: 'تحميل المتجر…',
     },
     groupNames: {
       'Discussion générale': 'نقاش عام',
@@ -756,7 +896,7 @@ export const i18n: Record<AppLang, Dict> = {
   },
 
   pt: {
-    tabs: { groups: 'Grupos', messages: 'Mensagens', profile: 'Perfil', shop: 'Loja', settings: 'Configurações' },
+    tabs: { groups: 'Grupos', messages: 'Mensagens', profile: 'Perfil', contacts: 'Contatos', settings: 'Configurações' },
     settings: {
       title: 'Configurações',
       account: 'Conta',
@@ -891,10 +1031,38 @@ export const i18n: Record<AppLang, Dict> = {
       saved: 'Salvo!',
       sendMessage: 'Enviar mensagem',
       opening: 'Abrindo…',
+      copyUsername: "Copiar identificador",
+      usernameCopied: "Identificador copiado",
+    },
+    contacts: {
+      title: "Contatos",
+      searchPlaceholder: "Pesquisar contatos",
+      inviteFriends: "Convidar amigos",
+      inviteMessage: "Olá, te convido para o The Legends Online:",
+      sortByOnline: "Ordenar por atividade recente",
+      onlineRecently: "on-line recentemente",
+      noContacts: "Sem contatos ainda",
+      noContactsHint: "Adicione o primeiro contato pelo identificador.",
+      noResults: "Sem resultados",
+      newContact: "Novo contato",
+      identifier: "Identificador",
+      identifierPlaceholder: "O identificador da pessoa",
+      identifierHint: "Digite o identificador exato (sem @) para adicionar.",
+      create: "Criar contato",
+      creating: "Adicionando…",
+      contactAdded: "Contato adicionado",
+      contactAlreadyExists: "Esta pessoa já está nos seus contatos",
+      userNotFound: "Nenhum usuário encontrado com esse identificador",
+      cannotAddSelf: "Você não pode se adicionar",
+      addContactError: "Não foi possível adicionar o contato",
+      cancel: "Cancelar",
+      inviteLinkCopied: "Link de convite copiado",
+      addFromContacts: "Adicionar dos meus contatos",
+      contactsInGroup: "Meus contatos",
+      selectContacts: "Selecione os contatos a adicionar",
     },
     home: {
       selectConversation: 'Selecione uma conversa',
-      loadingShop: 'Carregando loja…',
     },
     groupNames: {
       'Discussion générale': 'Discussão geral',
@@ -903,7 +1071,7 @@ export const i18n: Record<AppLang, Dict> = {
   },
 
   de: {
-    tabs: { groups: 'Gruppen', messages: 'Nachrichten', profile: 'Profil', shop: 'Shop', settings: 'Einstellungen' },
+    tabs: { groups: 'Gruppen', messages: 'Nachrichten', profile: 'Profil', contacts: 'Kontakte', settings: 'Einstellungen' },
     settings: {
       title: 'Einstellungen',
       account: 'Konto',
@@ -1038,10 +1206,38 @@ export const i18n: Record<AppLang, Dict> = {
       saved: 'Gespeichert!',
       sendMessage: 'Nachricht senden',
       opening: 'Öffnen…',
+      copyUsername: "Benutzernamen kopieren",
+      usernameCopied: "Benutzername kopiert",
+    },
+    contacts: {
+      title: "Kontakte",
+      searchPlaceholder: "Kontakte suchen",
+      inviteFriends: "Freunde einladen",
+      inviteMessage: "Hey, komm zu mir auf The Legends Online:",
+      sortByOnline: "Nach letzter Aktivität sortieren",
+      onlineRecently: "kürzlich online",
+      noContacts: "Noch keine Kontakte",
+      noContactsHint: "Füge deinen ersten Kontakt per Benutzername hinzu.",
+      noResults: "Keine Ergebnisse",
+      newContact: "Neuer Kontakt",
+      identifier: "Benutzername",
+      identifierPlaceholder: "Benutzername der Person",
+      identifierHint: "Gib den genauen Benutzernamen (ohne @) ein.",
+      create: "Kontakt erstellen",
+      creating: "Wird hinzugefügt…",
+      contactAdded: "Kontakt hinzugefügt",
+      contactAlreadyExists: "Diese Person ist bereits in deinen Kontakten",
+      userNotFound: "Kein Benutzer mit diesem Benutzernamen gefunden",
+      cannotAddSelf: "Du kannst dich nicht selbst hinzufügen",
+      addContactError: "Kontakt konnte nicht hinzugefügt werden",
+      cancel: "Abbrechen",
+      inviteLinkCopied: "Einladungslink kopiert",
+      addFromContacts: "Aus meinen Kontakten hinzufügen",
+      contactsInGroup: "Meine Kontakte",
+      selectContacts: "Kontakte zum Hinzufügen auswählen",
     },
     home: {
       selectConversation: 'Gespräch auswählen',
-      loadingShop: 'Shop wird geladen…',
     },
     groupNames: {
       'Discussion générale': 'Allgemeine Diskussion',

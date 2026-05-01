@@ -155,6 +155,10 @@ export interface UploadResponse {
   url: string;
 }
 
+export interface AddContactBody {
+  username: string;
+}
+
 export type SearchUsersParams = {
   q: string;
 };

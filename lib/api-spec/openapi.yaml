@@ -21,6 +21,8 @@ tags:
     description: Message reaction operations
   - name: uploads
     description: File upload operations
+  - name: contacts
+    description: User contacts operations
 paths:
   /healthz:
     get:
@@ -415,6 +417,75 @@ paths:
               schema:
                 $ref: "#/components/schemas/UploadResponse"
 
+  /contacts:
+    get:
+      operationId: listContacts
+      tags: [contacts]
+      summary: List current user's contacts
+      responses:
+        "200":
+          description: Contacts list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: addContact
+      tags: [contacts]
+      summary: Add a contact by username
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddContactBody"
+      responses:
+        "200":
+          description: Contact already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "201":
+          description: Contact added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /contacts/{userId}:
+    delete:
+      operationId: removeContact
+      tags: [contacts]
+      summary: Remove a contact
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Contact removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -680,3 +751,11 @@ components:
           type: string
       required:
         - url
+
+    AddContactBody:
+      type: object
+      properties:
+        username:
+          type: string
+      required:
+        - username

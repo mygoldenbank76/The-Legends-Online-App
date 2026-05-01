@@ -8,9 +8,10 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useQueryClient } from '@tanstack/react-query';
 import { getListConversationsQueryKey } from '@workspace/api-client-react';
 import { AnimatedBackground } from '@/components/animated-background';
-import { Users, MessageSquare, ShoppingBag, Settings, Zap, LogOut, Globe, Languages, ChevronDown, Shield, X, ChevronRight, Download, Smartphone, CheckCircle2, Share, Bell, BellOff, User } from 'lucide-react';
+import { Users, MessageSquare, Settings, Zap, LogOut, Globe, Languages, ChevronDown, Shield, X, ChevronRight, Download, Smartphone, CheckCircle2, Share, Bell, BellOff, User, Contact } from 'lucide-react';
 import { AdminPanel } from '@/components/admin/admin-panel';
 import { ProfilePage } from '@/components/profile/profile-page';
+import { ContactsPage } from '@/components/contacts/contacts-page';
 import { CallBanner } from '@/components/chat/call-modal';
 import { usePreferences } from '@/lib/preferences-context';
 import { SUPPORTED_APP_LANGUAGES, SUPPORTED_TRANSLATE_LANGUAGES } from '@/lib/i18n';
@@ -27,17 +28,17 @@ window.addEventListener('beforeinstallprompt', (e: any) => {
   _pwaPromptListeners = [];
 });
 
-type Tab = 'groups' | 'messages' | 'profile' | 'shop' | 'settings';
+type Tab = 'groups' | 'messages' | 'profile' | 'contacts' | 'settings';
 
 const NAV_ICONS: Record<Tab, typeof Users> = {
   groups: Users,
   messages: MessageSquare,
   profile: User,
-  shop: ShoppingBag,
+  contacts: Contact,
   settings: Settings,
 };
 
-const TAB_ORDER: Tab[] = ['groups', 'messages', 'profile', 'shop', 'settings'];
+const TAB_ORDER: Tab[] = ['groups', 'messages', 'profile', 'contacts', 'settings'];
 
 export default function Home() {
   const { user, logout, refetchUser } = useAuth();
@@ -469,8 +470,8 @@ function TabContent({
   if (tab === 'profile') {
     return <ProfilePage user={user} onSaved={onRefetchUser} />;
   }
-  if (tab === 'shop') {
-    return <ShopPlaceholder />;
+  if (tab === 'contacts') {
+    return <ContactsPage user={user} onSelectConv={onSelectConv} />;
   }
   if (tab === 'settings') {
     return <SettingsPage user={user} onLogout={onLogout} onRefetchUser={onRefetchUser} />;
@@ -478,74 +479,6 @@ function TabContent({
   return null;
 }
 
-/* ── Shop — iframe via proxy serveur (évite X-Frame-Options) ── */
-function ShopPlaceholder() {
-  const { t } = usePreferences();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-  const SHOP_URL = 'https://www.goldenvibeofficiel.com';
-  const PROXY_URL = '/api/shop-proxy?path=/';
-
-  return (
-    <div className="flex flex-col h-full w-full overflow-hidden">
-      {/* Zone iframe */}
-      <div className="relative flex-1 min-h-0 w-full overflow-hidden">
-        {/* Spinner de chargement */}
-        {loading && !error && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background">
-            <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <ShoppingBag className="w-6 h-6 text-primary animate-pulse" />
-            </div>
-            <div className="flex flex-col items-center gap-1">
-              <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-              <span className="text-xs text-muted-foreground mt-1">{t.home.loadingShop}</span>
-            </div>
-          </div>
-        )}
-
-        {/* Message d'erreur si l'iframe est bloqué */}
-        {error && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 p-8 text-center bg-background">
-            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <ShoppingBag className="w-7 h-7 text-primary" />
-            </div>
-            <div>
-              <h3 className="font-bold text-base mb-1">Golden Vibe Shop</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Le shop ne peut pas s'afficher ici directement.
-              </p>
-              <a
-                href={SHOP_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                Visiter le shop
-              </a>
-            </div>
-          </div>
-        )}
-
-        {/* Iframe via proxy — contourne X-Frame-Options */}
-        {!error && (
-          <iframe
-            src={PROXY_URL}
-            title="Golden Vibe Shop"
-            className="w-full h-full border-0"
-            style={{ display: loading ? 'none' : 'block' }}
-            onLoad={() => setLoading(false)}
-            onError={() => { setLoading(false); setError(true); }}
-            allow="fullscreen"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation-by-user-activation"
-          />
-        )}
-      </div>
-    </div>
-  );
-}
 
 /* ── Settings page ── */
 function SettingsPage({

@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Camera, User, AtSign, FileText, Save, Trash2, Loader2, Check } from 'lucide-react';
+import { Camera, User, AtSign, FileText, Save, Trash2, Loader2, Check, Copy } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { usePreferences } from '@/lib/preferences-context';
@@ -176,9 +176,25 @@ export function ProfilePage({ user, onSaved }: Props) {
             </button>
           </motion.div>
 
-          <div className="flex flex-col items-center text-center gap-0.5">
+          <div className="flex flex-col items-center text-center gap-1.5">
             <p className="text-lg font-bold leading-tight">{user.displayName}</p>
-            <p className="text-sm text-muted-foreground">@{user.username}</p>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(user.username);
+                  toast({ title: p.usernameCopied, duration: 1600 });
+                } catch {
+                  toast({ variant: 'destructive', title: 'Erreur', description: 'Copie impossible' });
+                }
+              }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 active:scale-95 transition-all"
+              aria-label={p.copyUsername}
+              data-testid="button-copy-username"
+            >
+              <span className="text-sm text-muted-foreground">@{user.username}</span>
+              <Copy className="w-3.5 h-3.5 text-primary" />
+            </button>
           </div>
 
           {avatar && (

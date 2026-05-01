@@ -476,3 +476,49 @@ export const UploadImageBody = zod.object({
 export const UploadImageResponse = zod.object({
   url: zod.string(),
 });
+
+/**
+ * @summary List current user's contacts
+ */
+export const ListContactsResponseItem = zod.object({
+  id: zod.number(),
+  username: zod.string(),
+  displayName: zod.string(),
+  avatar: zod.string().nullish(),
+  isOnline: zod.boolean(),
+  isAdmin: zod.boolean().optional(),
+  isBanned: zod.boolean().optional(),
+  lastSeen: zod.string().nullish(),
+  createdAt: zod.string(),
+});
+export const ListContactsResponse = zod.array(ListContactsResponseItem);
+
+/**
+ * @summary Add a contact by username
+ */
+export const AddContactBody = zod.object({
+  username: zod.string(),
+});
+
+export const AddContactResponse = zod.object({
+  id: zod.number(),
+  username: zod.string(),
+  displayName: zod.string(),
+  avatar: zod.string().nullish(),
+  isOnline: zod.boolean(),
+  isAdmin: zod.boolean().optional(),
+  isBanned: zod.boolean().optional(),
+  lastSeen: zod.string().nullish(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Remove a contact
+ */
+export const RemoveContactParams = zod.object({
+  userId: zod.coerce.number(),
+});
+
+export const RemoveContactResponse = zod.object({
+  success: zod.boolean(),
+});
