@@ -106,7 +106,8 @@ type Dict = {
     searchPlaceholder: string;
     searchPeoplePlaceholder: string;
     membersInGroup: string;
-    membersOnline: string;
+    userOnline: string;
+    usersOnline: string;
     add: string;
     membersAdded: string;
     addMembersError: string;
@@ -291,7 +292,8 @@ export const i18n: Record<AppLang, Dict> = {
       searchPlaceholder: 'Rechercher',
       searchPeoplePlaceholder: 'Rechercher des personnes…',
       membersInGroup: 'Membres du groupe',
-      membersOnline: '{count} en ligne',
+      userOnline: '{count} utilisateur en ligne',
+      usersOnline: '{count} utilisateurs en ligne',
       add: 'Ajouter',
       membersAdded: 'Membres ajoutés au groupe',
       addMembersError: 'Impossible d\'ajouter les membres',
@@ -475,7 +477,8 @@ export const i18n: Record<AppLang, Dict> = {
       searchPlaceholder: 'Search',
       searchPeoplePlaceholder: 'Search people…',
       membersInGroup: 'Group members',
-      membersOnline: '{count} online',
+      userOnline: '{count} user online',
+      usersOnline: '{count} users online',
       add: 'Add',
       membersAdded: 'Members added to the group',
       addMembersError: 'Could not add members',
@@ -662,7 +665,8 @@ export const i18n: Record<AppLang, Dict> = {
       searchPlaceholder: 'Buscar',
       searchPeoplePlaceholder: 'Buscar personas…',
       membersInGroup: 'Miembros del grupo',
-      membersOnline: '{count} en línea',
+      userOnline: '{count} usuario en línea',
+      usersOnline: '{count} usuarios en línea',
       add: 'Añadir',
       membersAdded: 'Miembros añadidos al grupo',
       addMembersError: 'No se pudieron añadir los miembros',
@@ -849,7 +853,8 @@ export const i18n: Record<AppLang, Dict> = {
       searchPlaceholder: 'بحث',
       searchPeoplePlaceholder: 'البحث عن أشخاص…',
       membersInGroup: 'أعضاء المجموعة',
-      membersOnline: '{count} متصل',
+      userOnline: '{count} مستخدم متصل',
+      usersOnline: '{count} مستخدمون متصلون',
       add: 'إضافة',
       membersAdded: 'تمت إضافة الأعضاء إلى المجموعة',
       addMembersError: 'تعذر إضافة الأعضاء',
@@ -1036,7 +1041,8 @@ export const i18n: Record<AppLang, Dict> = {
       searchPlaceholder: 'Procurar',
       searchPeoplePlaceholder: 'Procurar pessoas…',
       membersInGroup: 'Membros do grupo',
-      membersOnline: '{count} online',
+      userOnline: '{count} utilizador online',
+      usersOnline: '{count} utilizadores online',
       add: 'Adicionar',
       membersAdded: 'Membros adicionados ao grupo',
       addMembersError: 'Não foi possível adicionar os membros',
@@ -1223,7 +1229,8 @@ export const i18n: Record<AppLang, Dict> = {
       searchPlaceholder: 'Suchen',
       searchPeoplePlaceholder: 'Personen suchen…',
       membersInGroup: 'Gruppenmitglieder',
-      membersOnline: '{count} online',
+      userOnline: '{count} Benutzer online',
+      usersOnline: '{count} Benutzer online',
       add: 'Hinzufügen',
       membersAdded: 'Mitglieder zur Gruppe hinzugefügt',
       addMembersError: 'Mitglieder konnten nicht hinzugefügt werden',

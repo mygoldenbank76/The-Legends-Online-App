@@ -1546,7 +1546,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                 <span className="font-semibold text-sm leading-tight text-foreground truncate">{title}</span>
                 <span className={`text-xs leading-tight ${(!isGroup && isOnline) || (isGroup && onlineMemberCount > 0) ? 'text-green-400' : 'text-muted-foreground'}`}>
                   {isGroup
-                    ? uiT.groupInfo.membersOnline.replace('{count}', String(onlineMemberCount))
+                    ? (onlineMemberCount === 1 ? uiT.groupInfo.userOnline : uiT.groupInfo.usersOnline).replace('{count}', String(onlineMemberCount))
                     : (isOnline ? uiT.chat.online : lastSeen)}
                 </span>
               </div>
