@@ -504,17 +504,36 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     setMutedOverride(null);
   }, [conversationId]);
 
-  // Close header menu on outside click
+  // Close ANY open transient overlay (emoji panel, GIF picker, header
+  // 3-dot menu) on outside tap. Elements that should NOT count as
+  // "outside" are marked with `data-overlay-region` (the overlay
+  // content itself and its trigger button). Mark `transientClosedAt`
+  // so a subsequent click on a message bubble — which is the very same
+  // tap that dismissed the overlay — doesn't also open the message
+  // context menu (the user only wanted to close the overlay).
   useEffect(() => {
-    if (!headerMenuOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (headerMenuRef.current && !headerMenuRef.current.contains(e.target as Node)) {
-        setHeaderMenuOpen(false);
-      }
+    if (!emojiOpen && !gifOpen && !headerMenuOpen) return;
+    // Use the CLICK event in CAPTURE phase. This way the same physical
+    // tap that closes the overlay also reaches `openCtxMenu` immediately
+    // afterwards (capture → bubble) with `transientClosedAt` freshly
+    // updated, so its guard reliably fires. Using mousedown caused a
+    // layout shift before `click`, which sometimes pushed the message
+    // bubble off the click target and exceeded the timestamp window.
+    const handler = (e: Event) => {
+      const target = e.target as Element | null;
+      if (target && target.closest && target.closest('[data-overlay-region]')) return;
+      setEmojiOpen(false);
+      setGifOpen(false);
+      setHeaderMenuOpen(false);
+      transientClosedAt.current = Date.now();
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [headerMenuOpen]);
+    document.addEventListener('click', handler, true);
+    document.addEventListener('touchstart', handler, true);
+    return () => {
+      document.removeEventListener('click', handler, true);
+      document.removeEventListener('touchstart', handler, true);
+    };
+  }, [emojiOpen, gifOpen, headerMenuOpen]);
 
   // Focus search input when opened (without autoFocus to avoid keyboard layout shift)
   useEffect(() => {
@@ -1269,12 +1288,39 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     } catch (err) { console.error(err); }
   }, [authFetch, appLanguage]);
 
+  // ── Transient overlays coordination ──────────────────────
+  // The emoji panel, GIF panel and header 3-dot menu are mutually
+  // exclusive: opening one closes the others, and tapping anywhere
+  // else (e.g. on a message) just closes them — it must NOT also
+  // trigger the underlying tap (e.g. open the message menu).
+  const closeTransientOverlays = () => {
+    setEmojiOpen(false);
+    setGifOpen(false);
+    setHeaderMenuOpen(false);
+  };
+  const anyTransientOpen = emojiOpen || gifOpen || headerMenuOpen;
+  // Set whenever a transient overlay was just dismissed by an outside
+  // tap. Our document-level `click` (capture) listener stamps this and
+  // then closes the overlays via setState; React's bubble-phase onClick
+  // on the message bubble runs immediately after with the closure of
+  // the previous render (overlays still showing as open) — but to make
+  // the guard work even when state has moved on, openCtxMenu also
+  // checks this timestamp.
+  const transientClosedAt = useRef(0);
+
   // ── Context menu ──────────────────────────────────────────
   const openCtxMenu = (e: React.MouseEvent | { clientX: number; clientY: number }, msg: Msg) => {
     if ('preventDefault' in e) (e as React.MouseEvent).preventDefault();
     // Ignore any context-menu/long-press events that arrive within 900ms of opening
     // the conversation — they are ghost events from the navigation tap.
     if (Date.now() - conversationOpenedAt.current < 900) return;
+    // If a transient overlay (emoji/GIF/header menu) is open OR was
+    // just dismissed by this same tap, swallow the event instead of
+    // opening the message menu.
+    if (anyTransientOpen || Date.now() - transientClosedAt.current < 350) {
+      closeTransientOverlays();
+      return;
+    }
     setCtxMenu({ msgId: msg.id });
     setDeleteConfirm(null);
   };
@@ -1578,9 +1624,13 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             )}
 
             {/* ⋮ menu contextuel */}
-            <div className="relative flex-shrink-0" ref={headerMenuRef}>
+            <div className="relative flex-shrink-0" ref={headerMenuRef} data-overlay-region="header-menu">
               <button
-                onClick={() => setHeaderMenuOpen(v => !v)}
+                onClick={() => setHeaderMenuOpen(v => {
+                  const next = !v;
+                  if (next) { setEmojiOpen(false); setGifOpen(false); }
+                  return next;
+                })}
                 className="text-muted-foreground hover:text-foreground transition-colors p-1"
               >
                 <MoreVertical className="w-5 h-5" />
@@ -2241,6 +2291,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           {emojiOpen && (
             <motion.div
               key="emoji-panel"
+              data-overlay-region="emoji"
               className="absolute bottom-full left-0 right-0 mb-1 z-50"
               initial={{ opacity: 0, y: 10, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -2466,11 +2517,16 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     /* GIF button */
                     <motion.button
                       key="gif"
+                      data-overlay-region="gif"
                       initial={{ opacity: 0, x: -8 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -8 }}
                       transition={{ duration: 0.13 }}
-                      onClick={() => setGifOpen(v => !v)}
+                      onClick={() => setGifOpen(v => {
+                        const next = !v;
+                        if (next) { setEmojiOpen(false); setHeaderMenuOpen(false); }
+                        return next;
+                      })}
                       className={`flex-shrink-0 ml-3 mr-3 self-end mb-2 h-6 w-[38px] flex items-center justify-center rounded-full text-xs font-bold border transition-all
                         ${gifOpen
                           ? 'gradient-primary-soft border-primary text-primary glow-primary-sm'
@@ -2483,11 +2539,16 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     /* Emoji button */
                     <motion.button
                       key="emoji"
+                      data-overlay-region="emoji"
                       initial={{ opacity: 0, x: -8 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -8 }}
                       transition={{ duration: 0.13 }}
-                      onClick={() => setEmojiOpen(v => !v)}
+                      onClick={() => setEmojiOpen(v => {
+                        const next = !v;
+                        if (next) { setGifOpen(false); setHeaderMenuOpen(false); }
+                        return next;
+                      })}
                       className={`flex-shrink-0 ml-3 mr-3 self-end mb-2 h-6 w-[38px] flex items-center justify-center rounded-full border transition-all
                         ${emojiOpen
                           ? 'gradient-primary-soft border-primary text-primary glow-primary-sm'
@@ -2520,7 +2581,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                 {/* Right icons inside field: + attachment, then Mic/Send (Telegram-like) */}
                 {!editState && (
                   <button
-                    onClick={() => setAttachmentSheetOpen(true)}
+                    onClick={() => { closeTransientOverlays(); setAttachmentSheetOpen(true); }}
                     disabled={uploadingImg}
                     className="flex-shrink-0 w-10 h-10 mb-0 self-end flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
                   >

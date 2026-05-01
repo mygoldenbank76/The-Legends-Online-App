@@ -100,6 +100,7 @@ export function GifPicker({ open, onClose, onSelect }: Props) {
           transition={{ duration: 0.16, ease: 'easeOut' }}
         >
           <div
+            data-overlay-region="gif"
             className="popover-floating rounded-2xl overflow-hidden mx-3 flex flex-col"
             style={{ maxHeight: maxPickerHeight }}
           >
