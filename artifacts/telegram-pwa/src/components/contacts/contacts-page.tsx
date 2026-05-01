@@ -93,7 +93,7 @@ export function ContactsPage({ user, onSelectConv }: Props) {
             <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
               <Share2 className="w-5 h-5 text-primary" />
             </div>
-            <span className="text-base font-medium text-foreground">{c.inviteFriends}</span>
+            <span className="text-base font-medium text-foreground">{c.addOrInviteFriends}</span>
           </button>
         </div>
 
@@ -291,7 +291,7 @@ function ContactsHubSheet({
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h1 className="text-lg font-bold text-foreground">{c.inviteFriends}</h1>
+            <h1 className="text-lg font-bold text-foreground">{c.addOrInviteFriends}</h1>
           </div>
 
           {/* Body */}

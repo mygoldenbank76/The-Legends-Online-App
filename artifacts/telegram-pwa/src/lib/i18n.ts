@@ -181,6 +181,7 @@ type Dict = {
     title: string;
     searchPlaceholder: string;
     inviteFriends: string;
+    addOrInviteFriends: string;
     inviteMessage: string;
     sortByOnline: string;
     onlineRecently: string;
@@ -367,6 +368,7 @@ export const i18n: Record<AppLang, Dict> = {
       title: "Contacts",
       searchPlaceholder: "Rechercher des contacts",
       inviteFriends: "Inviter des amis",
+      addOrInviteFriends: "Ajouter ou inviter des amis",
       inviteMessage: "Salut, je t'invite à me rejoindre sur The Legends Online :",
       sortByOnline: "Trier par heure de connexion",
       onlineRecently: "en ligne récemment",
@@ -552,6 +554,7 @@ export const i18n: Record<AppLang, Dict> = {
       title: "Contacts",
       searchPlaceholder: "Search contacts",
       inviteFriends: "Invite friends",
+      addOrInviteFriends: "Add or invite friends",
       inviteMessage: "Hey, I'd like you to join me on The Legends Online:",
       sortByOnline: "Sort by recent activity",
       onlineRecently: "online recently",
@@ -740,6 +743,7 @@ export const i18n: Record<AppLang, Dict> = {
       title: "Contactos",
       searchPlaceholder: "Buscar contactos",
       inviteFriends: "Invitar amigos",
+      addOrInviteFriends: "Añadir o invitar amigos",
       inviteMessage: "Hola, te invito a unirte a The Legends Online:",
       sortByOnline: "Ordenar por actividad reciente",
       onlineRecently: "en línea recientemente",
@@ -928,6 +932,7 @@ export const i18n: Record<AppLang, Dict> = {
       title: "جهات الاتصال",
       searchPlaceholder: "ابحث عن جهات الاتصال",
       inviteFriends: "دعوة الأصدقاء",
+      addOrInviteFriends: "إضافة أصدقاء أو دعوتهم",
       inviteMessage: "مرحبًا، أدعوك للانضمام إلى The Legends Online:",
       sortByOnline: "الترتيب حسب النشاط الأخير",
       onlineRecently: "متصل مؤخرًا",
@@ -1116,6 +1121,7 @@ export const i18n: Record<AppLang, Dict> = {
       title: "Contatos",
       searchPlaceholder: "Pesquisar contatos",
       inviteFriends: "Convidar amigos",
+      addOrInviteFriends: "Adicionar ou convidar amigos",
       inviteMessage: "Olá, te convido para o The Legends Online:",
       sortByOnline: "Ordenar por atividade recente",
       onlineRecently: "on-line recentemente",
@@ -1304,6 +1310,7 @@ export const i18n: Record<AppLang, Dict> = {
       title: "Kontakte",
       searchPlaceholder: "Kontakte suchen",
       inviteFriends: "Freunde einladen",
+      addOrInviteFriends: "Freunde hinzufügen oder einladen",
       inviteMessage: "Hey, komm zu mir auf The Legends Online:",
       sortByOnline: "Nach letzter Aktivität sortieren",
       onlineRecently: "kürzlich online",
