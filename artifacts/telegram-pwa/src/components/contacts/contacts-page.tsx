@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, UserPlus, Share2, ArrowLeft, Loader2, Check } from 'lucide-react';
+import { Search, UserPlus, Share2, ArrowLeft, Loader2, Check, X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListContacts,
@@ -26,6 +26,9 @@ type ContactUser = {
 type Props = {
   user: { id: number; username: string; displayName: string };
   onSelectConv: (id: number) => void;
+  /** Notifies the parent when the contacts search becomes active so the
+   *  bottom navigation (and other chrome) can be hidden, Telegram-style. */
+  onSearchActiveChange?: (active: boolean) => void;
 };
 
 function Avatar({ user, size = 44 }: { user: { displayName: string; avatar?: string | null }; size?: number }) {
@@ -44,63 +47,140 @@ function Avatar({ user, size = 44 }: { user: { displayName: string; avatar?: str
   );
 }
 
-export function ContactsPage({ user, onSelectConv }: Props) {
+export function ContactsPage({ user, onSelectConv, onSearchActiveChange }: Props) {
   const { t } = usePreferences();
   const c = t.contacts;
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const [showHub, setShowHub] = useState(false);
   const [profileUser, setProfileUser] = useState<ContactUser | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const { data: contacts = [], isLoading } = useListContacts();
   const list = (contacts ?? []) as ContactUser[];
 
+  const trimmedSearch = search.trim();
+  // Telegram-style: search mode is active when the input is focused or has
+  // any text. While active, the page hides extra chrome (invite card, sort
+  // header, bottom nav) so results have maximum room above the keyboard.
+  const searchActive = searchFocused || trimmedSearch.length > 0;
+
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = trimmedSearch.toLowerCase();
     if (!q) return list;
     return list.filter(
       (u) => u.displayName.toLowerCase().includes(q) || u.username.toLowerCase().includes(q),
     );
-  }, [list, search]);
+  }, [list, trimmedSearch]);
+
+  // Notify parent whenever search-active state changes, and clean up when the
+  // page unmounts (e.g. user switches tab) so the bottom nav reappears.
+  useEffect(() => {
+    onSearchActiveChange?.(searchActive);
+  }, [searchActive, onSearchActiveChange]);
+  useEffect(() => {
+    return () => onSearchActiveChange?.(false);
+  }, [onSearchActiveChange]);
+
+  function exitSearch() {
+    setSearch('');
+    setSearchFocused(false);
+    searchInputRef.current?.blur();
+  }
 
   return (
     <div
       className="h-full overflow-y-auto overscroll-contain relative"
-      style={{ paddingBottom: 'calc(7rem + env(safe-area-inset-bottom, 0px))' }}
+      style={{
+        paddingBottom: searchActive
+          ? 'calc(1.5rem + env(safe-area-inset-bottom, 0px))'
+          : 'calc(7rem + env(safe-area-inset-bottom, 0px))',
+      }}
     >
       <div className="flex flex-col gap-4 px-4 pt-6">
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={c.searchPlaceholder}
-            className="bg-white/5 border-white/10 pl-10 h-11 rounded-2xl"
-            data-testid="input-search-contacts"
-          />
+        {/* Search bar (with optional clear button when text is present) */}
+        <div className="relative flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <Input
+              ref={searchInputRef}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+              placeholder={c.searchPlaceholder}
+              className="bg-white/5 border-white/10 pl-10 pr-10 h-11 rounded-2xl"
+              data-testid="input-search-contacts"
+            />
+            {search.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch('');
+                  searchInputRef.current?.focus();
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors"
+                aria-label={c.clearSearch}
+                data-testid="button-clear-contacts-search"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <AnimatePresence initial={false}>
+            {searchActive && (
+              <motion.button
+                key="cancel-search"
+                type="button"
+                onClick={exitSearch}
+                initial={{ opacity: 0, width: 0, marginLeft: 0 }}
+                animate={{ opacity: 1, width: 'auto', marginLeft: 0 }}
+                exit={{ opacity: 0, width: 0, marginLeft: 0 }}
+                transition={{ duration: 0.15 }}
+                className="text-sm font-medium text-primary px-1 whitespace-nowrap overflow-hidden"
+                data-testid="button-cancel-contacts-search"
+              >
+                {c.cancel}
+              </motion.button>
+            )}
+          </AnimatePresence>
         </div>
 
-        {/* Action card: Invite friends (now opens the 2-in-1 hub) */}
-        <div className="glass rounded-2xl overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setShowHub(true)}
-            className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 active:bg-white/10 transition-colors"
-            data-testid="button-invite-friends"
-          >
-            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-              <Share2 className="w-5 h-5 text-primary" />
-            </div>
-            <span className="text-base font-medium text-foreground">{c.addOrInviteFriends}</span>
-          </button>
-        </div>
+        {/* Action card + section header: hidden in search mode (Telegram-style) */}
+        <AnimatePresence initial={false}>
+          {!searchActive && (
+            <motion.div
+              key="contacts-chrome"
+              initial={{ opacity: 0, height: 0, marginTop: 0 }}
+              animate={{ opacity: 1, height: 'auto', marginTop: 0 }}
+              exit={{ opacity: 0, height: 0, marginTop: 0 }}
+              transition={{ duration: 0.18 }}
+              className="overflow-hidden flex flex-col gap-4"
+            >
+              {/* Action card: opens the 2-in-1 hub */}
+              <div className="glass rounded-2xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowHub(true)}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 active:bg-white/10 transition-colors"
+                  data-testid="button-invite-friends"
+                >
+                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                    <Share2 className="w-5 h-5 text-primary" />
+                  </div>
+                  <span className="text-base font-medium text-foreground">{c.addOrInviteFriends}</span>
+                </button>
+              </div>
 
-        {/* List header */}
-        <div className="text-xs font-semibold text-primary uppercase tracking-wider px-1 mt-1">
-          {c.sortByOnline}
-        </div>
+              {/* List section header */}
+              <div className="text-xs font-semibold text-primary uppercase tracking-wider px-1 mt-1">
+                {c.sortByOnline}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Contacts list */}
         <div className="flex flex-col">

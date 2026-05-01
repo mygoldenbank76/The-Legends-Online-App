@@ -48,6 +48,8 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>('groups');
   const [activeConvId, setActiveConvId] = useState<number | undefined>();
   const [swipeDir, setSwipeDir] = useState<1 | -1>(1);
+  // Hidden when the contacts search is active (Telegram-style focus mode).
+  const [contactsSearchActive, setContactsSearchActive] = useState(false);
 
   // ── Open conversation from push notification ──────────────────────────────
   const openConversation = useCallback((convId: number, isGroupConv: boolean) => {
@@ -135,6 +137,8 @@ export default function Home() {
   const handleTabChange = (tab: Tab) => {
     setActiveTab(tab);
     if (isMobile) setActiveConvId(undefined);
+    // Switching tabs always exits the contacts search-focus mode.
+    if (tab !== 'contacts') setContactsSearchActive(false);
   };
 
   const slideVariants = {
@@ -203,6 +207,7 @@ export default function Home() {
                       onRefetchUser={refetchUser}
                       user={user}
                       onNavigateTab={handleTabChange}
+                      onContactsSearchActiveChange={setContactsSearchActive}
                     />
                   </motion.div>
                 </AnimatePresence>
@@ -222,16 +227,29 @@ export default function Home() {
                 />
               </div>
 
-              <MobileBottomNav
-                activeTab={activeTab}
-                onSelect={(t) => {
-                  const cur = TAB_ORDER.indexOf(activeTab);
-                  const nxt = TAB_ORDER.indexOf(t);
-                  setSwipeDir(nxt >= cur ? 1 : -1);
-                  handleTabChange(t);
-                }}
-                floating
-              />
+              <AnimatePresence initial={false}>
+                {!contactsSearchActive && (
+                  <motion.div
+                    key="mobile-bottom-nav"
+                    initial={{ y: '110%', opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: '110%', opacity: 0 }}
+                    transition={{ type: 'tween', duration: 0.18, ease: 'easeOut' }}
+                    className="absolute left-0 right-0 bottom-0 z-30"
+                  >
+                    <MobileBottomNav
+                      activeTab={activeTab}
+                      onSelect={(t) => {
+                        const cur = TAB_ORDER.indexOf(activeTab);
+                        const nxt = TAB_ORDER.indexOf(t);
+                        setSwipeDir(nxt >= cur ? 1 : -1);
+                        handleTabChange(t);
+                      }}
+                      floating
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
           {showChat && activeConvId && (
@@ -440,6 +458,7 @@ function MobileBottomNav({
 /* ── Tab content switcher ── */
 function TabContent({
   tab, activeConvId, onSelectConv, isMobile, onLogout, onRefetchUser, user, onNavigateTab,
+  onContactsSearchActiveChange,
 }: {
   tab: Tab;
   activeConvId?: number;
@@ -449,6 +468,7 @@ function TabContent({
   onRefetchUser: () => void;
   user: { id: number; displayName: string; username: string; avatar?: string | null; bio?: string | null };
   onNavigateTab?: (tab: Tab) => void;
+  onContactsSearchActiveChange?: (active: boolean) => void;
 }) {
   if (tab === 'groups') {
     return (
@@ -474,7 +494,13 @@ function TabContent({
     return <ProfilePage user={user} onSaved={onRefetchUser} onNavigateTab={onNavigateTab} />;
   }
   if (tab === 'contacts') {
-    return <ContactsPage user={user} onSelectConv={onSelectConv} />;
+    return (
+      <ContactsPage
+        user={user}
+        onSelectConv={onSelectConv}
+        onSearchActiveChange={onContactsSearchActiveChange}
+      />
+    );
   }
   if (tab === 'settings') {
     return <SettingsPage user={user} onLogout={onLogout} onRefetchUser={onRefetchUser} />;
