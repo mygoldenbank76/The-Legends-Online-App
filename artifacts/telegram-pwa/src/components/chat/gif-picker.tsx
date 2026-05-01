@@ -117,7 +117,7 @@ export function GifPicker({ open, onClose, onSelect }: Props) {
                     <button
                       key={gif.id}
                       onClick={() => { onSelect(gif); onClose(); }}
-                      className="relative rounded-xl overflow-hidden gradient-primary-soft ring-1 ring-white/5 hover:ring-2 hover:ring-primary hover:glow-primary-sm active:scale-95 transition-all aspect-video"
+                      className="relative rounded-xl overflow-hidden bg-foreground/5 hover:ring-2 hover:ring-primary hover:glow-primary-sm active:scale-95 transition-all aspect-video"
                     >
                       <img
                         src={gif.preview}
