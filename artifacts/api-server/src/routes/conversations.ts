@@ -305,5 +305,91 @@ router.patch("/:id/mute", requireAuth, async (req, res): Promise<void> => {
   res.json({ success: true, muted });
 });
 
+// POST /conversations/:conversationId/participants — add one or more users to a group
+// Requires the caller to already be a participant of the group.
+router.post("/conversations/:conversationId/participants", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as typeof req & { userId: number }).userId;
+  const rawId = req.params.conversationId;
+  const conversationId = parseInt(typeof rawId === "string" ? rawId : "", 10);
+  if (isNaN(conversationId)) {
+    res.status(400).json({ error: "Invalid conversation id" });
+    return;
+  }
+
+  const rawIds = (req.body?.userIds ?? []) as unknown;
+  if (!Array.isArray(rawIds) || rawIds.length === 0) {
+    res.status(400).json({ error: "userIds (non-empty number[]) required" });
+    return;
+  }
+  const userIds = rawIds
+    .map((v) => (typeof v === "number" ? v : parseInt(String(v), 10)))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  if (userIds.length === 0) {
+    res.status(400).json({ error: "userIds must contain valid positive numbers" });
+    return;
+  }
+
+  // Conversation must exist and be a group
+  const [conv] = await db.select().from(conversationsTable).where(eq(conversationsTable.id, conversationId));
+  if (!conv) {
+    res.status(404).json({ error: "Conversation not found" });
+    return;
+  }
+  if (conv.type !== "group") {
+    res.status(400).json({ error: "Cannot add participants to a non-group conversation" });
+    return;
+  }
+
+  // Caller must already be a participant
+  const myMembership = await db
+    .select()
+    .from(conversationParticipantsTable)
+    .where(
+      and(
+        eq(conversationParticipantsTable.conversationId, conversationId),
+        eq(conversationParticipantsTable.userId, userId),
+      ),
+    )
+    .limit(1);
+  if (myMembership.length === 0) {
+    res.status(403).json({ error: "Not a participant" });
+    return;
+  }
+
+  // Filter out users who are already participants
+  const existing = await db
+    .select({ userId: conversationParticipantsTable.userId })
+    .from(conversationParticipantsTable)
+    .where(
+      and(
+        eq(conversationParticipantsTable.conversationId, conversationId),
+        inArray(conversationParticipantsTable.userId, userIds),
+      ),
+    );
+  const existingSet = new Set(existing.map((r) => r.userId));
+  const toAdd = userIds.filter((id) => !existingSet.has(id));
+
+  // Verify the new users actually exist
+  let validNewIds: number[] = [];
+  if (toAdd.length > 0) {
+    const validUsers = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(inArray(usersTable.id, toAdd));
+    validNewIds = validUsers.map((u) => u.id);
+
+    if (validNewIds.length > 0) {
+      await db
+        .insert(conversationParticipantsTable)
+        .values(validNewIds.map((uid) => ({ conversationId, userId: uid })));
+    }
+  }
+
+  res.json({
+    added: validNewIds,
+    skipped: userIds.filter((id) => existingSet.has(id)),
+  });
+});
+
 export default router;
 export { getMessagesWithDetails };

@@ -101,6 +101,16 @@ type Dict = {
     noVoice: string;
     noGifs: string;
     voiceMessage: string;
+    searchMembers: string;
+    addMembers: string;
+    searchPlaceholder: string;
+    searchPeoplePlaceholder: string;
+    membersInGroup: string;
+    add: string;
+    membersAdded: string;
+    addMembersError: string;
+    noMembersFound: string;
+    noPeopleFound: string;
   };
   attachments: {
     camera: string;
@@ -236,6 +246,16 @@ export const i18n: Record<AppLang, Dict> = {
       noVoice: 'Aucun message vocal',
       noGifs: 'Aucun GIF partagé',
       voiceMessage: 'Message vocal',
+      searchMembers: 'Rechercher des membres',
+      addMembers: 'Ajouter des membres',
+      searchPlaceholder: 'Rechercher',
+      searchPeoplePlaceholder: 'Rechercher des personnes…',
+      membersInGroup: 'Membres du groupe',
+      add: 'Ajouter',
+      membersAdded: 'Membres ajoutés au groupe',
+      addMembersError: 'Impossible d\'ajouter les membres',
+      noMembersFound: 'Aucun membre trouvé',
+      noPeopleFound: 'Aucun utilisateur trouvé',
     },
     attachments: {
       camera: 'Caméra',
@@ -370,6 +390,16 @@ export const i18n: Record<AppLang, Dict> = {
       noVoice: 'No voice messages',
       noGifs: 'No GIFs shared',
       voiceMessage: 'Voice message',
+      searchMembers: 'Search members',
+      addMembers: 'Add members',
+      searchPlaceholder: 'Search',
+      searchPeoplePlaceholder: 'Search people…',
+      membersInGroup: 'Group members',
+      add: 'Add',
+      membersAdded: 'Members added to the group',
+      addMembersError: 'Could not add members',
+      noMembersFound: 'No members found',
+      noPeopleFound: 'No users found',
     },
     attachments: {
       camera: 'Camera',
@@ -507,6 +537,16 @@ export const i18n: Record<AppLang, Dict> = {
       noVoice: 'No hay mensajes de voz',
       noGifs: 'No hay GIFs compartidos',
       voiceMessage: 'Mensaje de voz',
+      searchMembers: 'Buscar miembros',
+      addMembers: 'Añadir miembros',
+      searchPlaceholder: 'Buscar',
+      searchPeoplePlaceholder: 'Buscar personas…',
+      membersInGroup: 'Miembros del grupo',
+      add: 'Añadir',
+      membersAdded: 'Miembros añadidos al grupo',
+      addMembersError: 'No se pudieron añadir los miembros',
+      noMembersFound: 'No se encontraron miembros',
+      noPeopleFound: 'No se encontraron usuarios',
     },
     attachments: {
       camera: 'Cámara',
@@ -644,6 +684,16 @@ export const i18n: Record<AppLang, Dict> = {
       noVoice: 'لا توجد رسائل صوتية',
       noGifs: 'لا توجد صور متحركة مشتركة',
       voiceMessage: 'رسالة صوتية',
+      searchMembers: 'البحث عن أعضاء',
+      addMembers: 'إضافة أعضاء',
+      searchPlaceholder: 'بحث',
+      searchPeoplePlaceholder: 'البحث عن أشخاص…',
+      membersInGroup: 'أعضاء المجموعة',
+      add: 'إضافة',
+      membersAdded: 'تمت إضافة الأعضاء إلى المجموعة',
+      addMembersError: 'تعذر إضافة الأعضاء',
+      noMembersFound: 'لم يتم العثور على أعضاء',
+      noPeopleFound: 'لم يتم العثور على مستخدمين',
     },
     attachments: {
       camera: 'الكاميرا',
@@ -781,6 +831,16 @@ export const i18n: Record<AppLang, Dict> = {
       noVoice: 'Nenhuma mensagem de voz',
       noGifs: 'Nenhum GIF compartilhado',
       voiceMessage: 'Mensagem de voz',
+      searchMembers: 'Procurar membros',
+      addMembers: 'Adicionar membros',
+      searchPlaceholder: 'Procurar',
+      searchPeoplePlaceholder: 'Procurar pessoas…',
+      membersInGroup: 'Membros do grupo',
+      add: 'Adicionar',
+      membersAdded: 'Membros adicionados ao grupo',
+      addMembersError: 'Não foi possível adicionar os membros',
+      noMembersFound: 'Nenhum membro encontrado',
+      noPeopleFound: 'Nenhum usuário encontrado',
     },
     attachments: {
       camera: 'Câmera',
@@ -918,6 +978,16 @@ export const i18n: Record<AppLang, Dict> = {
       noVoice: 'Keine Sprachnachrichten',
       noGifs: 'Keine geteilten GIFs',
       voiceMessage: 'Sprachnachricht',
+      searchMembers: 'Mitglieder suchen',
+      addMembers: 'Mitglieder hinzufügen',
+      searchPlaceholder: 'Suchen',
+      searchPeoplePlaceholder: 'Personen suchen…',
+      membersInGroup: 'Gruppenmitglieder',
+      add: 'Hinzufügen',
+      membersAdded: 'Mitglieder zur Gruppe hinzugefügt',
+      addMembersError: 'Mitglieder konnten nicht hinzugefügt werden',
+      noMembersFound: 'Keine Mitglieder gefunden',
+      noPeopleFound: 'Keine Benutzer gefunden',
     },
     attachments: {
       camera: 'Kamera',

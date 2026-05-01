@@ -1,9 +1,29 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, Link2, Image as ImageIcon, FileText, Mic, Play, ExternalLink, Film } from 'lucide-react';
+import {
+  ArrowLeft,
+  Link2,
+  Image as ImageIcon,
+  FileText,
+  Mic,
+  Play,
+  ExternalLink,
+  Film,
+  MoreVertical,
+  Search,
+  UserPlus,
+  Check,
+  Loader2,
+} from 'lucide-react';
 import { usePreferences } from '@/lib/preferences-context';
 import { translateGroupName } from '@/lib/i18n';
 import { useToast } from '@/hooks/use-toast';
+import { useSearchUsers, getGetConversationQueryKey } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useDebounce } from '@/hooks/use-debounce';
+import { getAuthHeaders } from '@/lib/auth-fetch';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { MediaViewer } from './media-viewer';
 
 type Participant = {
@@ -40,6 +60,8 @@ type Props = {
   messages: Msg[];
 };
 
+type View = 'main' | 'searchMembers' | 'addMembers';
+
 function isVideo(url: string) {
   return /\.(mp4|webm|mov|avi|mkv)$/i.test(url);
 }
@@ -47,11 +69,22 @@ function isVideo(url: string) {
 export function GroupInfoSheet({ open, onClose, conversation, messages }: Props) {
   const { t, appLanguage } = usePreferences();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [mediaViewer, setMediaViewer] = useState<{ urls: string[]; index: number } | null>(null);
   const isGroup = conversation?.type === 'group';
 
   type Tab = 'media' | 'files' | 'links' | 'voice' | 'gifs';
   const [tab, setTab] = useState<Tab>('media');
+  const [view, setView] = useState<View>('main');
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Reset internal state every time the sheet is closed so it reopens fresh.
+  useEffect(() => {
+    if (!open) {
+      setView('main');
+      setMenuOpen(false);
+    }
+  }, [open]);
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'media', label: t.groupInfo.media },
@@ -109,221 +142,81 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
             exit={{ y: '-100%', opacity: 0 }}
             transition={{ type: 'spring', damping: 30, stiffness: 320 }}
           >
-            <div className="flex flex-col h-full overflow-y-auto">
-              {/* Top bar with back arrow */}
-              <div className="sticky top-0 z-10 flex items-center justify-between px-3 pt-3 pb-2 bg-background/80 backdrop-blur-md gradient-hairline-bottom">
-                <button
-                  onClick={onClose}
-                  className="w-10 h-10 rounded-full glass flex items-center justify-center text-foreground hover:text-primary transition-colors"
-                  aria-label="Retour"
-                >
-                  <ArrowLeft className="w-5 h-5" />
-                </button>
-                <div className="w-10 h-10" />
-              </div>
+            {view === 'main' && (
+              <MainView
+                onBack={onClose}
+                isGroup={isGroup}
+                title={title}
+                initial={initial}
+                memberCount={memberCount}
+                groupLink={groupLink}
+                onCopyLink={async () => {
+                  try {
+                    if (navigator.clipboard?.writeText) {
+                      await navigator.clipboard.writeText(groupLink);
+                    } else {
+                      const ta = document.createElement('textarea');
+                      ta.value = groupLink;
+                      ta.style.position = 'fixed';
+                      ta.style.opacity = '0';
+                      document.body.appendChild(ta);
+                      ta.select();
+                      document.execCommand('copy');
+                      document.body.removeChild(ta);
+                    }
+                    toast({ title: t.groupInfo.linkCopied, duration: 2000 });
+                  } catch {
+                    // Silent fail — clipboard may be blocked by the browser
+                  }
+                }}
+                tabs={tabs}
+                tab={tab}
+                setTab={setTab}
+                allMediaUrls={allMediaUrls}
+                linkPreviews={linkPreviews}
+                voiceMessages={voiceMessages}
+                gifUrls={gifUrls}
+                onOpenMedia={(urls, index) => setMediaViewer({ urls, index })}
+                menuOpen={menuOpen}
+                setMenuOpen={setMenuOpen}
+                onSearchMembers={() => {
+                  setMenuOpen(false);
+                  setView('searchMembers');
+                }}
+                onAddMembers={() => {
+                  setMenuOpen(false);
+                  setView('addMembers');
+                }}
+                t={t}
+              />
+            )}
 
-              {/* Avatar + name */}
-              <div className="flex flex-col items-center pb-4 px-4 pt-2">
-                  <div className="w-20 h-20 rounded-2xl gradient-primary glow-primary-sm flex items-center justify-center mb-3">
-                    <span className="text-3xl font-bold text-white">{initial}</span>
-                  </div>
-                  <h2 className="text-lg font-bold text-foreground">{title}</h2>
-                  <p className="text-sm text-muted-foreground">{memberCount} {t.groupInfo.members}</p>
-                </div>
+            {view === 'searchMembers' && (
+              <SearchMembersView
+                onBack={() => setView('main')}
+                participants={conversation.participants ?? []}
+                t={t}
+              />
+            )}
 
-                {/* Group link — only shown for groups, not for private 1-on-1 chats */}
-                {isGroup && (
-                  <div className="mx-4 mb-4 glass rounded-2xl px-4 py-3 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full gradient-primary-soft border border-primary/30 flex items-center justify-center flex-shrink-0">
-                      <Link2 className="w-4 h-4 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] text-muted-foreground">{t.groupInfo.groupLink}</p>
-                      <p className="text-xs text-foreground truncate font-mono">{groupLink.substring(0, 35)}...</p>
-                    </div>
-                    <button
-                      onClick={async () => {
-                        try {
-                          if (navigator.clipboard?.writeText) {
-                            await navigator.clipboard.writeText(groupLink);
-                          } else {
-                            // Fallback for older / insecure contexts
-                            const ta = document.createElement('textarea');
-                            ta.value = groupLink;
-                            ta.style.position = 'fixed';
-                            ta.style.opacity = '0';
-                            document.body.appendChild(ta);
-                            ta.select();
-                            document.execCommand('copy');
-                            document.body.removeChild(ta);
-                          }
-                          toast({ title: t.groupInfo.linkCopied, duration: 2000 });
-                        } catch {
-                          // Silent fail — clipboard may be blocked by the browser
-                        }
-                      }}
-                      className="text-muted-foreground hover:text-primary transition-colors p-1 flex-shrink-0"
-                      aria-label={t.groupInfo.groupLink}
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" strokeWidth="2" />
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" strokeWidth="2" />
-                      </svg>
-                    </button>
-                  </div>
-                )}
-
-                {/* Tabs */}
-                <div className="mx-4 gradient-hairline-bottom pb-2">
-                  <div className="glass relative grid grid-cols-5 gap-0.5 rounded-2xl p-1 overflow-hidden">
-                    {tabs.map(tabItem => {
-                      const active = tab === tabItem.key;
-                      return (
-                        <button
-                          key={tabItem.key}
-                          onClick={() => setTab(tabItem.key)}
-                          className={`relative py-2 rounded-xl text-[11px] font-medium transition-colors ${
-                            active ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-                          }`}
-                        >
-                          {active && (
-                            <motion.span
-                              layoutId="activeGroupInfoTabPill"
-                              className="absolute inset-0 rounded-xl gradient-primary-soft border border-primary/35"
-                              style={{ boxShadow: '0 4px 14px -6px hsl(263 90% 65% / 0.45), inset 0 1px 0 rgba(255,255,255,0.06)' }}
-                              transition={{ type: 'spring', damping: 26, stiffness: 320 }}
-                            />
-                          )}
-                          <span className="relative z-10">{tabItem.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Tab content */}
-                <div className="flex-1 p-4 min-h-[160px]">
-                  {tab === 'media' && (
-                    allMediaUrls.length > 0 ? (
-                      <div className="grid grid-cols-3 gap-1">
-                        {allMediaUrls.map((url, i) => (
-                          <button
-                            key={i}
-                            className="aspect-square rounded-lg overflow-hidden relative group focus:outline-none active:opacity-75 transition-opacity"
-                            onClick={() => setMediaViewer({ urls: allMediaUrls, index: i })}
-                          >
-                            {isVideo(url) ? (
-                              <>
-                                <video
-                                  src={url}
-                                  className="w-full h-full object-cover"
-                                  muted
-                                  playsInline
-                                  preload="metadata"
-                                />
-                                <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                                  <div className="w-8 h-8 rounded-full bg-black/60 flex items-center justify-center">
-                                    <Play className="w-4 h-4 text-white fill-white ml-0.5" />
-                                  </div>
-                                </div>
-                              </>
-                            ) : (
-                              <img
-                                src={url}
-                                alt=""
-                                className="w-full h-full object-cover"
-                                loading="lazy"
-                                onError={(e) => {
-                                  (e.currentTarget as HTMLImageElement).style.display = 'none';
-                                }}
-                              />
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <EmptyState icon={<ImageIcon className="w-8 h-8" />} label={t.groupInfo.noMedia} />
-                    )
-                  )}
-                  {tab === 'files' && (
-                    <EmptyState icon={<FileText className="w-8 h-8" />} label={t.groupInfo.noFiles} />
-                  )}
-                  {tab === 'links' && (
-                    linkPreviews.length > 0 ? (
-                      <div className="space-y-2">
-                        {linkPreviews.map((lp, i) => (
-                          <a
-                            key={i}
-                            href={lp.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="glass rounded-xl px-3 py-2 flex items-center gap-3 hover:bg-foreground/5 transition-colors"
-                          >
-                            {lp.image ? (
-                              <img
-                                src={lp.image}
-                                alt=""
-                                className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
-                                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                              />
-                            ) : (
-                              <div className="w-10 h-10 rounded-lg gradient-primary-soft border border-primary/30 flex items-center justify-center flex-shrink-0">
-                                <ExternalLink className="w-4 h-4 text-primary" />
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium text-foreground truncate">
-                                {lp.title || lp.siteName || lp.url}
-                              </p>
-                              <p className="text-[10px] text-muted-foreground truncate">{lp.url}</p>
-                            </div>
-                          </a>
-                        ))}
-                      </div>
-                    ) : (
-                      <EmptyState icon={<ExternalLink className="w-8 h-8" />} label={t.groupInfo.noLinks} />
-                    )
-                  )}
-                  {tab === 'voice' && (
-                    voiceMessages.length > 0 ? (
-                      <div className="space-y-2">
-                        {voiceMessages.map((m, i) => (
-                          <div key={i} className="glass rounded-xl px-3 py-2 flex items-center gap-2">
-                            <Mic className="w-4 h-4 text-primary flex-shrink-0" />
-                            <span className="text-xs text-muted-foreground">{t.groupInfo.voiceMessage} {i + 1}</span>
-                            <audio controls src={m.audioUrl!} className="flex-1 h-6" />
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <EmptyState icon={<Mic className="w-8 h-8" />} label={t.groupInfo.noVoice} />
-                    )
-                  )}
-                  {tab === 'gifs' && (
-                    gifUrls.length > 0 ? (
-                      <div className="grid grid-cols-3 gap-1">
-                        {gifUrls.map((url, i) => (
-                          <button
-                            key={i}
-                            className="aspect-square rounded-lg overflow-hidden relative focus:outline-none active:opacity-75 transition-opacity"
-                            onClick={() => setMediaViewer({ urls: gifUrls, index: i })}
-                          >
-                            <img
-                              src={url}
-                              alt=""
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                            />
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <EmptyState icon={<Film className="w-8 h-8" />} label={t.groupInfo.noGifs} />
-                    )
-                  )}
-                </div>
-            </div>
+            {view === 'addMembers' && (
+              <AddMembersView
+                onBack={() => setView('main')}
+                conversationId={conversation.id}
+                existingIds={(conversation.participants ?? []).map((p) => p.id)}
+                onAdded={(count) => {
+                  toast({ title: t.groupInfo.membersAdded, duration: 2000 });
+                  queryClient.invalidateQueries({
+                    queryKey: getGetConversationQueryKey(conversation.id),
+                  });
+                  if (count > 0) setView('main');
+                }}
+                onError={() => {
+                  toast({ title: t.groupInfo.addMembersError, variant: 'destructive', duration: 2500 });
+                }}
+                t={t}
+              />
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -337,6 +230,534 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
         />
       )}
     </>
+  );
+}
+
+// --- Sub-views -------------------------------------------------------------
+
+type MainViewProps = {
+  onBack: () => void;
+  isGroup: boolean;
+  title: string;
+  initial: string;
+  memberCount: number;
+  groupLink: string;
+  onCopyLink: () => void;
+  tabs: { key: 'media' | 'files' | 'links' | 'voice' | 'gifs'; label: string }[];
+  tab: 'media' | 'files' | 'links' | 'voice' | 'gifs';
+  setTab: (t: 'media' | 'files' | 'links' | 'voice' | 'gifs') => void;
+  allMediaUrls: string[];
+  linkPreviews: NonNullable<Msg['linkPreview']>[];
+  voiceMessages: Msg[];
+  gifUrls: string[];
+  onOpenMedia: (urls: string[], index: number) => void;
+  menuOpen: boolean;
+  setMenuOpen: (b: boolean) => void;
+  onSearchMembers: () => void;
+  onAddMembers: () => void;
+  t: ReturnType<typeof usePreferences>['t'];
+};
+
+function MainView(p: MainViewProps) {
+  return (
+    <div className="flex flex-col h-full overflow-y-auto">
+      {/* Top bar with back arrow and (group only) 3-dot menu */}
+      <div className="sticky top-0 z-10 flex items-center justify-between px-3 pt-3 pb-2 bg-background/80 backdrop-blur-md gradient-hairline-bottom">
+        <button
+          onClick={p.onBack}
+          className="w-10 h-10 rounded-full glass flex items-center justify-center text-foreground hover:text-primary transition-colors"
+          aria-label="Retour"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+
+        {p.isGroup ? (
+          <Popover open={p.menuOpen} onOpenChange={p.setMenuOpen}>
+            <PopoverTrigger asChild>
+              <button
+                className="w-10 h-10 rounded-full glass flex items-center justify-center text-foreground hover:text-primary transition-colors"
+                aria-label="Menu"
+              >
+                <MoreVertical className="w-5 h-5" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              sideOffset={8}
+              className="w-60 p-1 glass border-border/40 rounded-2xl"
+            >
+              <button
+                onClick={p.onSearchMembers}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-sm text-foreground hover:bg-foreground/5 transition-colors"
+              >
+                <Search className="w-4 h-4 text-primary" />
+                <span>{p.t.groupInfo.searchMembers}</span>
+              </button>
+              <button
+                onClick={p.onAddMembers}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-sm text-foreground hover:bg-foreground/5 transition-colors"
+              >
+                <UserPlus className="w-4 h-4 text-primary" />
+                <span>{p.t.groupInfo.addMembers}</span>
+              </button>
+            </PopoverContent>
+          </Popover>
+        ) : (
+          <div className="w-10 h-10" />
+        )}
+      </div>
+
+      {/* Avatar + name */}
+      <div className="flex flex-col items-center pb-4 px-4 pt-2">
+        <div className="w-20 h-20 rounded-2xl gradient-primary glow-primary-sm flex items-center justify-center mb-3">
+          <span className="text-3xl font-bold text-white">{p.initial}</span>
+        </div>
+        <h2 className="text-lg font-bold text-foreground">{p.title}</h2>
+        <p className="text-sm text-muted-foreground">{p.memberCount} {p.t.groupInfo.members}</p>
+      </div>
+
+      {/* Group link — only shown for groups, not for private 1-on-1 chats */}
+      {p.isGroup && (
+        <div className="mx-4 mb-4 glass rounded-2xl px-4 py-3 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full gradient-primary-soft border border-primary/30 flex items-center justify-center flex-shrink-0">
+            <Link2 className="w-4 h-4 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] text-muted-foreground">{p.t.groupInfo.groupLink}</p>
+            <p className="text-xs text-foreground truncate font-mono">{p.groupLink.substring(0, 35)}...</p>
+          </div>
+          <button
+            onClick={p.onCopyLink}
+            className="text-muted-foreground hover:text-primary transition-colors p-1 flex-shrink-0"
+            aria-label={p.t.groupInfo.groupLink}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" strokeWidth="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" strokeWidth="2" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="mx-4 gradient-hairline-bottom pb-2">
+        <div className="glass relative grid grid-cols-5 gap-0.5 rounded-2xl p-1 overflow-hidden">
+          {p.tabs.map(tabItem => {
+            const active = p.tab === tabItem.key;
+            return (
+              <button
+                key={tabItem.key}
+                onClick={() => p.setTab(tabItem.key)}
+                className={`relative py-2 rounded-xl text-[11px] font-medium transition-colors ${
+                  active ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {active && (
+                  <motion.span
+                    layoutId="activeGroupInfoTabPill"
+                    className="absolute inset-0 rounded-xl gradient-primary-soft border border-primary/35"
+                    style={{ boxShadow: '0 4px 14px -6px hsl(263 90% 65% / 0.45), inset 0 1px 0 rgba(255,255,255,0.06)' }}
+                    transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+                  />
+                )}
+                <span className="relative z-10">{tabItem.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Tab content */}
+      <div className="flex-1 p-4 min-h-[160px]">
+        {p.tab === 'media' && (
+          p.allMediaUrls.length > 0 ? (
+            <div className="grid grid-cols-3 gap-1">
+              {p.allMediaUrls.map((url, i) => (
+                <button
+                  key={i}
+                  className="aspect-square rounded-lg overflow-hidden relative group focus:outline-none active:opacity-75 transition-opacity"
+                  onClick={() => p.onOpenMedia(p.allMediaUrls, i)}
+                >
+                  {isVideo(url) ? (
+                    <>
+                      <video
+                        src={url}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                        preload="metadata"
+                      />
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-full bg-black/60 flex items-center justify-center">
+                          <Play className="w-4 h-4 text-white fill-white ml-0.5" />
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <img
+                      src={url}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  )}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <EmptyState icon={<ImageIcon className="w-8 h-8" />} label={p.t.groupInfo.noMedia} />
+          )
+        )}
+        {p.tab === 'files' && (
+          <EmptyState icon={<FileText className="w-8 h-8" />} label={p.t.groupInfo.noFiles} />
+        )}
+        {p.tab === 'links' && (
+          p.linkPreviews.length > 0 ? (
+            <div className="space-y-2">
+              {p.linkPreviews.map((lp, i) => (
+                <a
+                  key={i}
+                  href={lp.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="glass rounded-xl px-3 py-2 flex items-center gap-3 hover:bg-foreground/5 transition-colors"
+                >
+                  {lp.image ? (
+                    <img
+                      src={lp.image}
+                      alt=""
+                      className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg gradient-primary-soft border border-primary/30 flex items-center justify-center flex-shrink-0">
+                      <ExternalLink className="w-4 h-4 text-primary" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-foreground truncate">
+                      {lp.title || lp.siteName || lp.url}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground truncate">{lp.url}</p>
+                  </div>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <EmptyState icon={<ExternalLink className="w-8 h-8" />} label={p.t.groupInfo.noLinks} />
+          )
+        )}
+        {p.tab === 'voice' && (
+          p.voiceMessages.length > 0 ? (
+            <div className="space-y-2">
+              {p.voiceMessages.map((m, i) => (
+                <div key={i} className="glass rounded-xl px-3 py-2 flex items-center gap-2">
+                  <Mic className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-xs text-muted-foreground">{p.t.groupInfo.voiceMessage} {i + 1}</span>
+                  <audio controls src={m.audioUrl!} className="flex-1 h-6" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState icon={<Mic className="w-8 h-8" />} label={p.t.groupInfo.noVoice} />
+          )
+        )}
+        {p.tab === 'gifs' && (
+          p.gifUrls.length > 0 ? (
+            <div className="grid grid-cols-3 gap-1">
+              {p.gifUrls.map((url, i) => (
+                <button
+                  key={i}
+                  className="aspect-square rounded-lg overflow-hidden relative focus:outline-none active:opacity-75 transition-opacity"
+                  onClick={() => p.onOpenMedia(p.gifUrls, i)}
+                >
+                  <img
+                    src={url}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                  />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <EmptyState icon={<Film className="w-8 h-8" />} label={p.t.groupInfo.noGifs} />
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
+// --- Search current members ------------------------------------------------
+
+function SearchMembersView({
+  onBack,
+  participants,
+  t,
+}: {
+  onBack: () => void;
+  participants: Participant[];
+  t: ReturnType<typeof usePreferences>['t'];
+}) {
+  const [query, setQuery] = useState('');
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return participants;
+    return participants.filter((p) => p.displayName.toLowerCase().includes(q));
+  }, [participants, query]);
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header with back + search input */}
+      <div className="sticky top-0 z-10 flex items-center gap-2 px-3 pt-3 pb-3 bg-background/80 backdrop-blur-md gradient-hairline-bottom">
+        <button
+          onClick={onBack}
+          className="w-10 h-10 rounded-full glass flex items-center justify-center text-foreground hover:text-primary transition-colors flex-shrink-0"
+          aria-label="Retour"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t.groupInfo.searchPlaceholder}
+            className="w-full h-10 pl-9 pr-3 rounded-full glass border border-border/40 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
+          />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-2 py-2">
+        <p className="px-3 pt-1 pb-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+          {t.groupInfo.membersInGroup}
+        </p>
+        {filtered.length === 0 ? (
+          <EmptyState icon={<Search className="w-8 h-8" />} label={t.groupInfo.noMembersFound} />
+        ) : (
+          <ul className="space-y-1">
+            {filtered.map((m) => (
+              <li
+                key={m.id}
+                className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-foreground/5 transition-colors"
+              >
+                <Avatar className="w-10 h-10">
+                  <AvatarImage src={m.avatar ?? undefined} />
+                  <AvatarFallback className="gradient-primary text-white text-sm">
+                    {m.displayName.substring(0, 1).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-foreground truncate">{m.displayName}</p>
+                  {m.isOnline && (
+                    <p className="text-[11px] text-primary">en ligne</p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// --- Add new members -------------------------------------------------------
+
+type SearchedUser = {
+  id: number;
+  displayName: string;
+  avatar?: string | null;
+};
+
+function AddMembersView({
+  onBack,
+  conversationId,
+  existingIds,
+  onAdded,
+  onError,
+  t,
+}: {
+  onBack: () => void;
+  conversationId: number;
+  existingIds: number[];
+  onAdded: (addedCount: number) => void;
+  onError: () => void;
+  t: ReturnType<typeof usePreferences>['t'];
+}) {
+  const [query, setQuery] = useState('');
+  const debouncedQuery = useDebounce(query, 300);
+  const [selected, setSelected] = useState<Map<number, SearchedUser>>(new Map());
+  const [submitting, setSubmitting] = useState(false);
+
+  // Use the codegen hook for searching users (mirrors /users/search?q=)
+  const { data: searchResults, isLoading, error: searchError } = useSearchUsers(
+    { q: debouncedQuery },
+    { query: { enabled: debouncedQuery.trim().length > 0 } },
+  );
+
+  const existingSet = useMemo(() => new Set(existingIds), [existingIds]);
+
+  // eslint-disable-next-line no-console
+  console.log('[AddMembers]', {
+    debouncedQuery,
+    isLoading,
+    searchError,
+    searchResults,
+    existingIds,
+  });
+
+  const candidates: SearchedUser[] = useMemo(() => {
+    const base = (searchResults ?? []) as SearchedUser[];
+    // Hide users that are already members; they cannot be added again.
+    return base.filter((u) => !existingSet.has(u.id));
+  }, [searchResults, existingSet]);
+
+  const toggle = (u: SearchedUser) => {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      if (next.has(u.id)) next.delete(u.id);
+      else next.set(u.id, u);
+      return next;
+    });
+  };
+
+  const submit = async () => {
+    if (selected.size === 0 || submitting) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/conversations/${conversationId}/participants`, {
+        method: 'POST',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userIds: Array.from(selected.keys()) }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data: { added: number[] } = await res.json();
+      onAdded(Array.isArray(data.added) ? data.added.length : 0);
+    } catch {
+      onError();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const selectedList = Array.from(selected.values());
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header: back + title + Add button */}
+      <div className="sticky top-0 z-10 flex items-center gap-3 px-3 pt-3 pb-2 bg-background/80 backdrop-blur-md gradient-hairline-bottom">
+        <button
+          onClick={onBack}
+          className="w-10 h-10 rounded-full glass flex items-center justify-center text-foreground hover:text-primary transition-colors flex-shrink-0"
+          aria-label="Retour"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <h2 className="flex-1 text-base font-semibold text-foreground truncate">
+          {t.groupInfo.addMembers}
+        </h2>
+        <button
+          onClick={submit}
+          disabled={selected.size === 0 || submitting}
+          className="px-4 h-9 rounded-full text-xs font-semibold gradient-primary text-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 transition-opacity"
+        >
+          {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+          {t.groupInfo.add}
+          {selected.size > 0 && !submitting && (
+            <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-white/25 text-[10px]">
+              {selected.size}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Selected chips */}
+      {selectedList.length > 0 && (
+        <div className="px-3 pt-2 pb-1 flex flex-wrap gap-2 gradient-hairline-bottom">
+          {selectedList.map((u) => (
+            <button
+              key={u.id}
+              onClick={() => toggle(u)}
+              className="flex items-center gap-2 pr-3 pl-1 py-1 rounded-full glass border border-primary/40 text-xs text-foreground hover:bg-foreground/5 transition-colors"
+            >
+              <Avatar className="w-6 h-6">
+                <AvatarImage src={u.avatar ?? undefined} />
+                <AvatarFallback className="gradient-primary text-white text-[10px]">
+                  {u.displayName.substring(0, 1).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <span className="truncate max-w-[120px]">{u.displayName}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Search input */}
+      <div className="px-3 pt-3 pb-2">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t.groupInfo.searchPeoplePlaceholder}
+            className="w-full h-10 pl-9 pr-3 rounded-full glass border border-border/40 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
+          />
+        </div>
+      </div>
+
+      {/* Results */}
+      <div className="flex-1 overflow-y-auto px-2 py-1">
+        {debouncedQuery.trim().length === 0 ? (
+          <EmptyState
+            icon={<UserPlus className="w-8 h-8" />}
+            label={t.groupInfo.searchPeoplePlaceholder}
+          />
+        ) : isLoading ? (
+          <div className="flex justify-center py-6">
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : candidates.length === 0 ? (
+          <EmptyState icon={<Search className="w-8 h-8" />} label={t.groupInfo.noPeopleFound} />
+        ) : (
+          <ul className="space-y-1">
+            {candidates.map((u) => {
+              const isSelected = selected.has(u.id);
+              return (
+                <li key={u.id}>
+                  <button
+                    onClick={() => toggle(u)}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left hover:bg-foreground/5 transition-colors"
+                  >
+                    <div className="relative">
+                      <Avatar className="w-10 h-10">
+                        <AvatarImage src={u.avatar ?? undefined} />
+                        <AvatarFallback className="gradient-primary text-white text-sm">
+                          {u.displayName.substring(0, 1).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      {isSelected && (
+                        <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full gradient-primary border-2 border-background flex items-center justify-center">
+                          <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />
+                        </span>
+                      )}
+                    </div>
+                    <span className="flex-1 text-sm text-foreground truncate">{u.displayName}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
   );
 }
 
