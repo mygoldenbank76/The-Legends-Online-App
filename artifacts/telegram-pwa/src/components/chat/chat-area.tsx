@@ -119,6 +119,14 @@ type PendingUpload = {
   uploadedUrl?: string;   // server URL once the XHR completes
   width?: number;         // intrinsic media width (px), computed before upload
   height?: number;        // intrinsic media height (px), computed before upload
+  // For video uploads only: the JPEG first-frame Blob captured locally
+  // BEFORE upload starts. Drives two things:
+  //  • the placeholder bubble shows the real first frame instead of a
+  //    grey rectangle (so the upload UI matches the final loaded UI).
+  //  • the same Blob is then uploaded as the server thumbnail in step 3
+  //    — captured once, used twice.
+  posterBlob?: Blob;
+  posterUrl?: string;     // object URL for posterBlob; revoked on cleanup
 };
 type TranslateEntry = { msgId: number; text: string };
 
@@ -1301,6 +1309,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       for (const p of pendingUploadsRef.current) {
         p.abort.abort();
         URL.revokeObjectURL(p.previewUrl);
+        if (p.posterUrl) URL.revokeObjectURL(p.posterUrl);
       }
     };
   }, []);
@@ -1314,7 +1323,11 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     if (uploadConvIdRef.current !== conversationId) {
       const stale = pendingUploadsRef.current;
       if (stale.length > 0) {
-        stale.forEach(p => { p.abort.abort(); URL.revokeObjectURL(p.previewUrl); });
+        stale.forEach(p => {
+          p.abort.abort();
+          URL.revokeObjectURL(p.previewUrl);
+          if (p.posterUrl) URL.revokeObjectURL(p.posterUrl);
+        });
         setPendingUploads([]);
       }
       uploadConvIdRef.current = conversationId;
@@ -1338,36 +1351,54 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     const replyId = replyTo?.id;
     setReplyTo(null);
 
-    // 1. Compute intrinsic dimensions FIRST so the optimistic bubble has
-    //    the correct shape on the very first paint — no small-then-big
-    //    pop, no landscape-then-portrait flash. Reading metadata from a
-    //    local File is near-instant (the browser only decodes the header)
-    //    and the helper has a 4 s hard timeout for any pathological case,
-    //    so this never makes "Send" feel laggy.
-    const dimsResults = await Promise.all(
-      files.map(f => getMediaDimensions(f).catch(() => null)),
+    // 1. Compute intrinsic dimensions AND, for videos, capture the first
+    //    frame in parallel BEFORE we paint the optimistic bubble. This
+    //    way the placeholder lands at the correct aspect ratio AND with
+    //    the real video poster on the very first paint — visually
+    //    identical to the final loaded bubble, so the swap is invisible
+    //    and there's no "uploading shows grey rectangle, loaded shows
+    //    real thumbnail" jump the user reported.
+    //
+    //    Both helpers have hard timeouts so this never makes "Send" feel
+    //    laggy: getMediaDimensions caps at 4 s, captureVideoFirstFrame
+    //    at 6 s. In practice both finish in under 300 ms on real videos.
+    const prepResults = await Promise.all(
+      files.map(async (f) => {
+        const isVideo = f.type.startsWith('video/');
+        const [dims, posterBlob] = await Promise.all([
+          getMediaDimensions(f).catch(() => null),
+          isVideo ? captureVideoFirstFrame(f).catch(() => null) : Promise.resolve(null),
+        ]);
+        return { dims, posterBlob };
+      }),
     );
 
     // 2. Build optimistic entries (blob URLs → instant preview) carrying
-    //    the dimensions from the start.
+    //    both the dimensions and the captured first-frame poster from
+    //    the start.
     const startedAt = Date.now();
-    const entries: PendingUpload[] = files.map((file, idx) => ({
-      id: `${groupId}-${idx}`,
-      groupId,
-      conversationId: targetConvId,
-      file,
-      previewUrl: URL.createObjectURL(file),
-      isVideo: file.type.startsWith('video/'),
-      loaded: 0,
-      total: file.size,
-      abort: new AbortController(),
-      caption: idx === 0 ? caption : undefined,
-      replyToId: replyId,
-      startedAt,
-      status: 'uploading',
-      width: dimsResults[idx]?.width,
-      height: dimsResults[idx]?.height,
-    }));
+    const entries: PendingUpload[] = files.map((file, idx) => {
+      const posterBlob = prepResults[idx].posterBlob ?? undefined;
+      return {
+        id: `${groupId}-${idx}`,
+        groupId,
+        conversationId: targetConvId,
+        file,
+        previewUrl: URL.createObjectURL(file),
+        isVideo: file.type.startsWith('video/'),
+        loaded: 0,
+        total: file.size,
+        abort: new AbortController(),
+        caption: idx === 0 ? caption : undefined,
+        replyToId: replyId,
+        startedAt,
+        status: 'uploading',
+        width: prepResults[idx].dims?.width,
+        height: prepResults[idx].dims?.height,
+        posterBlob,
+        posterUrl: posterBlob ? URL.createObjectURL(posterBlob) : undefined,
+      };
+    });
 
     setPendingUploads(prev => [...prev, ...entries]);
     forceScrollRef.current = true;
@@ -1410,28 +1441,28 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   },
                 },
               ),
-              entry.isVideo
-                ? captureVideoFirstFrame(entry.file)
-                    .then(async (blob) => {
-                      if (!blob || entry.abort.signal.aborted) return null;
-                      try {
-                        const thumbFile = new File(
-                          [blob],
-                          `thumbnail-${entry.id}.jpg`,
-                          { type: 'image/jpeg' },
-                        );
-                        const r = await uploadFileWithProgress<{ url: string }>(
-                          '/api/uploads/image',
-                          thumbFile,
-                          'file',
-                          { signal: entry.abort.signal },
-                        );
-                        return r.url;
-                      } catch {
-                        return null; // best-effort
-                      }
-                    })
-                    .catch(() => null)
+              entry.isVideo && entry.posterBlob
+                ? (async () => {
+                    // Reuse the Blob already captured in step 1 (used to
+                    // paint the placeholder poster) — never recapture.
+                    if (entry.abort.signal.aborted) return null;
+                    try {
+                      const thumbFile = new File(
+                        [entry.posterBlob!],
+                        `thumbnail-${entry.id}.jpg`,
+                        { type: 'image/jpeg' },
+                      );
+                      const r = await uploadFileWithProgress<{ url: string }>(
+                        '/api/uploads/image',
+                        thumbFile,
+                        'file',
+                        { signal: entry.abort.signal },
+                      );
+                      return r.url;
+                    } catch {
+                      return null; // best-effort
+                    }
+                  })()
                 : Promise.resolve(null as string | null),
             ]);
             return { url: mainResult.url, thumbUrl, idx };
@@ -1454,7 +1485,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     // 3a. If aborted or any upload failed, remove the placeholders now and
     //     stop — no message will be posted.
     if (aborted || urls.length !== entries.length) {
-      entries.forEach(p => URL.revokeObjectURL(p.previewUrl));
+      entries.forEach(p => {
+        URL.revokeObjectURL(p.previewUrl);
+        if (p.posterUrl) URL.revokeObjectURL(p.posterUrl);
+      });
       setPendingUploads(prev => prev.filter(p => !entries.some(e => e.id === p.id)));
       return;
     }
@@ -1463,7 +1497,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     //     while uploads were running, drop the result instead of posting it
     //     to a different (now-active) conversation.
     if (uploadConvIdRef.current !== targetConvId) {
-      entries.forEach(p => URL.revokeObjectURL(p.previewUrl));
+      entries.forEach(p => {
+        URL.revokeObjectURL(p.previewUrl);
+        if (p.posterUrl) URL.revokeObjectURL(p.posterUrl);
+      });
       setPendingUploads(prev => prev.filter(p => !entries.some(e => e.id === p.id)));
       return;
     }
@@ -1514,7 +1551,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       console.error('Send message error:', err);
       // Send failed → remove the (now stuck) placeholders so the user isn't
       // left looking at frozen "sent" bubbles forever.
-      entries.forEach(p => URL.revokeObjectURL(p.previewUrl));
+      entries.forEach(p => {
+        URL.revokeObjectURL(p.previewUrl);
+        if (p.posterUrl) URL.revokeObjectURL(p.posterUrl);
+      });
       setPendingUploads(prev => prev.filter(p => !entries.some(e => e.id === p.id)));
     }
   }, [conversationId, replyTo, sendMsg, invalidate, scrollBottom]);
@@ -2631,19 +2671,58 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                               ? `${items[0].width} / ${items[0].height}`
                               : undefined;
                             if (items[0].isVideo) {
-                              // Mirror VideoPlayer exactly: aspect-ratio +
-                              // 70vh cap + object-contain. Same shape, same
-                              // size, same fit → when the real server
-                              // message replaces this placeholder, the
-                              // bubble doesn't shift a pixel.
+                              // EXACT same sizing strategy as the
+                              // VideoThumbnail used for the final loaded
+                              // bubble: minWidth 240 px (so the bubble
+                              // shrinks to that natural width instead of
+                              // expanding to 80% of the chat) + the same
+                              // aspect-ratio + 70vh cap. The visible
+                              // content is the locally-captured first
+                              // frame as an in-flow <img> (so the parent
+                              // gets intrinsic content for layout). The
+                              // raw <video> is gone here — playback only
+                              // happens in the full-screen MediaViewer
+                              // anyway, so a still poster matches the
+                              // final UX exactly. Result: zero pixel
+                              // shift when the server message arrives
+                              // and replaces this placeholder, AND the
+                              // user sees the real first frame instead
+                              // of a grey box during upload.
+                              const ratioNum = hasDims
+                                ? items[0].width! / items[0].height!
+                                : 9 / 16;
                               return (
-                                <video
-                                  src={items[0].previewUrl}
-                                  className={`w-full rounded-[10px] ${hasDims ? 'object-contain' : 'max-h-64 object-cover'}`}
-                                  style={hasDims ? { aspectRatio: ar, maxHeight: '70vh' } : undefined}
-                                  muted
-                                  playsInline
-                                />
+                                <div
+                                  className="relative overflow-hidden rounded-[10px]"
+                                  style={{
+                                    aspectRatio: hasDims ? ar : '9 / 16',
+                                    maxHeight: '70vh',
+                                    minWidth: '240px',
+                                    background:
+                                      'linear-gradient(135deg, rgba(140,120,255,0.14), rgba(60,40,120,0.22))',
+                                  }}
+                                >
+                                  {items[0].posterUrl ? (
+                                    <img
+                                      src={items[0].posterUrl}
+                                      alt=""
+                                      className="block w-full h-full object-contain"
+                                      draggable={false}
+                                      decoding="async"
+                                    />
+                                  ) : (
+                                    // Transparent SVG sizer so the
+                                    // bubble has intrinsic flow content
+                                    // even when the capture failed —
+                                    // matches VideoThumbnail's fallback.
+                                    <svg
+                                      width={240}
+                                      height={Math.max(1, Math.round(240 / ratioNum))}
+                                      className="block w-full h-full"
+                                      aria-hidden
+                                    />
+                                  )}
+                                </div>
                               );
                             }
                             // Image: keep the legacy max-h-64 cap so the
