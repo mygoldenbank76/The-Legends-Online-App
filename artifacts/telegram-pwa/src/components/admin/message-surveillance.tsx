@@ -1,7 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, RefreshCw, MessageSquare, Image, Mic, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import { Search, RefreshCw, MessageSquare, Image, Mic, ChevronLeft, ChevronRight, Eye, Languages, Loader2, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { usePreferences } from '@/lib/preferences-context';
+
+async function translateText(text: string, targetLang: string): Promise<string> {
+  const r = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=autodetect|${targetLang}`);
+  const d = await r.json();
+  const translated = d.responseData?.translatedText;
+  if (!translated || translated === text || d.responseStatus !== 200) {
+    throw new Error('Traduction indisponible');
+  }
+  return translated;
+}
 
 const API_BASE = '/api';
 function getToken() { return localStorage.getItem('telechat_token'); }
@@ -43,12 +54,36 @@ type Props = {
 
 export function MessageSurveillance({ onViewConversation }: Props) {
   const { toast } = useToast();
+  const { translateLanguage } = usePreferences();
   const [data, setData] = useState<Response | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(1);
   const [selectedMsg, setSelectedMsg] = useState<SurveillanceMessage | null>(null);
+  const [translations, setTranslations] = useState<Record<number, string>>({});
+  const [translatingId, setTranslatingId] = useState<number | null>(null);
+
+  async function handleTranslate(msg: SurveillanceMessage) {
+    if (!msg.content) return;
+    setTranslatingId(msg.id);
+    try {
+      const text = await translateText(msg.content, translateLanguage);
+      setTranslations(p => ({ ...p, [msg.id]: text }));
+    } catch {
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Traduction indisponible' });
+    } finally {
+      setTranslatingId(null);
+    }
+  }
+
+  function closeTranslation(msgId: number) {
+    setTranslations(p => {
+      const next = { ...p };
+      delete next[msgId];
+      return next;
+    });
+  }
 
   const fetchMessages = useCallback(async (p: number, q: string) => {
     setLoading(true);
@@ -191,19 +226,52 @@ export function MessageSurveillance({ onViewConversation }: Props) {
                         {msg.content}
                       </div>
                     )}
+                    {/* Translation */}
+                    {translations[msg.id] && (
+                      <div className="relative text-xs bg-primary/10 border border-primary/25 rounded-xl px-3 py-2.5 pr-9 break-words">
+                        <div className="flex items-center gap-1 text-[10px] text-primary/80 mb-1">
+                          <Languages className="w-3 h-3" />
+                          <span className="font-semibold uppercase tracking-wider">Traduction</span>
+                        </div>
+                        <div className="text-foreground/90">{translations[msg.id]}</div>
+                        <button
+                          onClick={() => closeTranslation(msg.id)}
+                          className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors"
+                          aria-label="Fermer la traduction"
+                        >
+                          <X className="w-3.5 h-3.5 text-muted-foreground" />
+                        </button>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-[10px] text-muted-foreground">
                         Conv #{msg.conversationId} · {new Date(msg.createdAt).toLocaleString('fr-FR')}
                       </span>
-                      {onViewConversation && (
-                        <button
-                          onClick={() => onViewConversation(msg.conversationId)}
-                          className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 transition-colors ml-auto"
-                        >
-                          <Eye className="w-3 h-3" />
-                          Voir la conversation
-                        </button>
-                      )}
+                      <div className="flex items-center gap-3 ml-auto">
+                        {msg.content && !translations[msg.id] && (
+                          <button
+                            onClick={() => handleTranslate(msg)}
+                            disabled={translatingId === msg.id}
+                            className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 transition-colors disabled:opacity-60"
+                          >
+                            {translatingId === msg.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Languages className="w-3 h-3" />
+                            )}
+                            Traduire
+                          </button>
+                        )}
+                        {onViewConversation && (
+                          <button
+                            onClick={() => onViewConversation(msg.conversationId)}
+                            className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 transition-colors"
+                          >
+                            <Eye className="w-3 h-3" />
+                            Voir la conversation
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
