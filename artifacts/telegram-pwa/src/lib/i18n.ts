@@ -166,6 +166,10 @@ type Dict = {
     setPhoto: string;
     editInfo: string;
     noBio: string;
+    message: string;
+    call: string;
+    addToContacts: string;
+    addedToContacts: string;
   };
   contacts: {
     title: string;
@@ -342,6 +346,10 @@ export const i18n: Record<AppLang, Dict> = {
       setPhoto: "Définir",
       editInfo: "Modifier",
       noBio: "Ajoute une biographie",
+      message: "Message",
+      call: "Appeler",
+      addToContacts: "Ajouter aux contacts",
+      addedToContacts: "Ajouté aux contacts",
     },
     contacts: {
       title: "Contacts",
@@ -517,6 +525,10 @@ export const i18n: Record<AppLang, Dict> = {
       setPhoto: "Set",
       editInfo: "Edit",
       noBio: "Add a bio",
+      message: "Message",
+      call: "Call",
+      addToContacts: "Add to contacts",
+      addedToContacts: "Added to contacts",
     },
     contacts: {
       title: "Contacts",
@@ -695,6 +707,10 @@ export const i18n: Record<AppLang, Dict> = {
       setPhoto: "Definir",
       editInfo: "Editar",
       noBio: "Añade una biografía",
+      message: "Mensaje",
+      call: "Llamar",
+      addToContacts: "Añadir a contactos",
+      addedToContacts: "Añadido a contactos",
     },
     contacts: {
       title: "Contactos",
@@ -873,6 +889,10 @@ export const i18n: Record<AppLang, Dict> = {
       setPhoto: "تعيين",
       editInfo: "تعديل",
       noBio: "أضف نبذة",
+      message: "رسالة",
+      call: "اتصال",
+      addToContacts: "إضافة إلى جهات الاتصال",
+      addedToContacts: "تمت الإضافة إلى جهات الاتصال",
     },
     contacts: {
       title: "جهات الاتصال",
@@ -1051,6 +1071,10 @@ export const i18n: Record<AppLang, Dict> = {
       setPhoto: "Definir",
       editInfo: "Editar",
       noBio: "Adicione uma biografia",
+      message: "Mensagem",
+      call: "Ligar",
+      addToContacts: "Adicionar aos contatos",
+      addedToContacts: "Adicionado aos contatos",
     },
     contacts: {
       title: "Contatos",
@@ -1229,6 +1253,10 @@ export const i18n: Record<AppLang, Dict> = {
       setPhoto: "Festlegen",
       editInfo: "Bearbeiten",
       noBio: "Biografie hinzufügen",
+      message: "Nachricht",
+      call: "Anrufen",
+      addToContacts: "Zu Kontakten hinzufügen",
+      addedToContacts: "Zu Kontakten hinzugefügt",
     },
     contacts: {
       title: "Kontakte",

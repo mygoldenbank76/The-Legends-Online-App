@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MessageSquare, Loader2 } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ArrowLeft, MessageSquare, Phone, AtSign, FileText, UserPlus, Loader2, Check } from 'lucide-react';
 import { getAuthHeaders } from '@/lib/auth-fetch';
 import { usePreferences } from '@/lib/preferences-context';
+import { useToast } from '@/hooks/use-toast';
+import { useCall } from '@/lib/call-context';
 
 type UserInfo = {
   id: number;
@@ -51,140 +53,317 @@ async function translateBio(bio: string, targetLang: string): Promise<string | n
   return null;
 }
 
+async function getOrCreateConversation(userId: number): Promise<number | null> {
+  try {
+    const res = await fetch('/api/conversations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() } as Record<string, string>,
+      body: JSON.stringify({ userId }),
+    });
+    if (!res.ok) return null;
+    const conv = await res.json();
+    return conv.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function UserProfileSheet({ user, currentUserId, onClose, onOpenConversation }: Props) {
-  const [loading, setLoading] = useState(false);
   const { t, appLanguage } = usePreferences();
+  const p = t.profile;
+  const { toast } = useToast();
+  const { initiateCall } = useCall();
+
   const [translatedBio, setTranslatedBio] = useState<string | null>(null);
   const [bioLoading, setBioLoading] = useState(false);
+  const [messageLoading, setMessageLoading] = useState(false);
+  const [callLoading, setCallLoading] = useState(false);
+  const [addLoading, setAddLoading] = useState(false);
+  const [addedFlag, setAddedFlag] = useState(false);
+
+  const isSelf = user.id === currentUserId;
 
   useEffect(() => {
-    if (!user.bio) { setTranslatedBio(null); return; }
+    setTranslatedBio(null);
+    if (!user.bio) {
+      setBioLoading(false);
+      return;
+    }
+    let cancelled = false;
     setBioLoading(true);
     translateBio(user.bio, appLanguage)
-      .then(result => setTranslatedBio(result))
-      .catch(() => setTranslatedBio(null))
-      .finally(() => setBioLoading(false));
+      .then((result) => { if (!cancelled) setTranslatedBio(result); })
+      .catch(() => { if (!cancelled) setTranslatedBio(null); })
+      .finally(() => { if (!cancelled) setBioLoading(false); });
+    return () => { cancelled = true; };
   }, [user.bio, appLanguage]);
 
-  const handleSendMessage = async () => {
-    if (user.id === currentUserId) return;
-    setLoading(true);
-    try {
-      const res = await fetch('/api/conversations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() } as Record<string, string>,
-        body: JSON.stringify({ userId: user.id }),
-      });
-      if (!res.ok) throw new Error('Failed');
-      const conv = await res.json();
-      onClose();
-      onOpenConversation(conv.id);
-    } catch {
-      // silently ignore
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const initials = user.displayName.substring(0, 2).toUpperCase();
-  const displayedBio = translatedBio ?? user.bio;
+  const initials = user.displayName.substring(0, 2).toUpperCase() || '??';
+  const displayedBio = translatedBio ?? user.bio ?? '';
   const isTranslated = !!translatedBio && translatedBio !== user.bio;
 
-  return (
-    <AnimatePresence>
-      <>
-        <motion.div
-          key="backdrop"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-          onClick={onClose}
-        />
-        <motion.div
-          key="sheet"
-          initial={{ y: '100%', opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: '100%', opacity: 0 }}
-          transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-          className="fixed inset-x-0 bottom-0 z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4"
-          onClick={onClose}
-        >
-        <div className="glass-strong rounded-t-3xl sm:rounded-3xl pb-10 overflow-hidden w-full sm:max-w-sm sm:mx-auto" onClick={e => e.stopPropagation()}>
-          {/* Handle */}
-          <div className="flex justify-center pt-3 pb-4">
-            <div className="w-10 h-1 rounded-full bg-white/20" />
-          </div>
+  const handleSendMessage = useCallback(async () => {
+    if (isSelf || messageLoading) return;
+    setMessageLoading(true);
+    const convId = await getOrCreateConversation(user.id);
+    setMessageLoading(false);
+    if (convId == null) {
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible d\'ouvrir la conversation' });
+      return;
+    }
+    onClose();
+    onOpenConversation(convId);
+  }, [isSelf, messageLoading, onClose, onOpenConversation, toast, user.id]);
 
-          {/* Close button */}
+  const handleCall = useCallback(async () => {
+    if (isSelf || callLoading) return;
+    setCallLoading(true);
+    const convId = await getOrCreateConversation(user.id);
+    if (convId == null) {
+      setCallLoading(false);
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de démarrer l\'appel' });
+      return;
+    }
+    try {
+      await initiateCall({
+        peerId: user.id,
+        peerName: user.displayName,
+        peerAvatar: user.avatar || undefined,
+        conversationId: convId,
+        isVideo: false,
+      });
+      onClose();
+    } catch {
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de démarrer l\'appel' });
+    } finally {
+      setCallLoading(false);
+    }
+  }, [callLoading, initiateCall, isSelf, onClose, toast, user.avatar, user.displayName, user.id]);
+
+  const handleCopyUsername = useCallback(async () => {
+    if (!user.username) return;
+    try {
+      await navigator.clipboard.writeText(user.username);
+      toast({ title: p.usernameCopied, duration: 1600 });
+    } catch {
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Copie impossible' });
+    }
+  }, [p.usernameCopied, toast, user.username]);
+
+  const handleAddContact = useCallback(async () => {
+    if (isSelf || addLoading || !user.username) return;
+    setAddLoading(true);
+    try {
+      const res = await fetch('/api/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() } as Record<string, string>,
+        body: JSON.stringify({ username: user.username }),
+      });
+      if (res.status === 404) {
+        toast({ variant: 'destructive', title: t.contacts.userNotFound });
+        return;
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast({ variant: 'destructive', title: t.contacts.addContactError, description: err?.error });
+        return;
+      }
+      const msg = res.status === 200 ? t.contacts.contactAlreadyExists : t.contacts.contactAdded;
+      toast({ title: msg, duration: 1800 });
+      setAddedFlag(true);
+    } catch {
+      toast({ variant: 'destructive', title: t.contacts.addContactError });
+    } finally {
+      setAddLoading(false);
+    }
+  }, [addLoading, isSelf, t.contacts.addContactError, t.contacts.contactAdded, t.contacts.contactAlreadyExists, t.contacts.userNotFound, toast, user.username]);
+
+  return createPortal(
+    <AnimatePresence>
+      <motion.div
+        key="user-profile-page"
+        initial={{ x: '100%', opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        exit={{ x: '100%', opacity: 0 }}
+        transition={{ type: 'spring', damping: 32, stiffness: 320 }}
+        className="fixed inset-0 z-[450] bg-background flex flex-col"
+      >
+        {/* Header */}
+        <div
+          className="flex items-center justify-between px-3 py-3 border-b border-white/10 flex-shrink-0"
+          style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}
+        >
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+            className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+            data-testid="button-back-user-profile"
+            aria-label={t.chat.back}
           >
-            <X className="w-4 h-4 text-foreground" />
+            <ArrowLeft className="w-5 h-5" />
           </button>
+          <div className="text-sm font-semibold text-muted-foreground">{p.publicInfo}</div>
+          <div className="w-9 h-9" />
+        </div>
 
-          {/* Profile content */}
-          <div className="flex flex-col items-center px-6 gap-4">
-            {/* Avatar with online indicator */}
-            <div className="relative">
-              <div className="avatar-ring-unread">
-                <Avatar className="w-20 h-20 ring-2 ring-background">
-                  <AvatarImage src={user.avatar || ''} />
-                  <AvatarFallback className="gradient-primary-soft text-primary text-2xl font-bold">
-                    {initials}
-                  </AvatarFallback>
-                </Avatar>
-              </div>
-              {user.isOnline && (
-                <span className="absolute bottom-0.5 right-0.5 w-4 h-4 bg-green-500 border-2 border-background rounded-full" />
-              )}
-            </div>
+        {/* Scrollable body */}
+        <div
+          className="flex-1 overflow-y-auto overscroll-contain"
+          style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
+        >
+          <div className="flex flex-col gap-5 px-4 pt-8">
+            {/* Hero: avatar + name + status */}
+            <div className="flex flex-col items-center gap-4">
+              <motion.div
+                initial={{ scale: 0.92, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: 'spring', damping: 22, stiffness: 240 }}
+                className="relative mb-2"
+              >
+                <span aria-hidden className="absolute -inset-1 rounded-[1.75rem] profile-hero-ring pointer-events-none" />
+                <div className="relative w-28 h-28 rounded-3xl bg-primary/20 overflow-hidden glow-primary-sm">
+                  {user.avatar ? (
+                    <img src={user.avatar} alt={user.displayName} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <span className="text-5xl font-bold text-primary">{initials}</span>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
 
-            {/* Name & username & status */}
-            <div className="text-center">
-              <p className="text-lg font-bold leading-tight">{user.displayName}</p>
-              <p className="text-sm text-muted-foreground">@{user.username}</p>
-              {user.id !== currentUserId && (
-                <p className={`text-xs mt-0.5 ${user.isOnline ? 'text-green-400' : 'text-muted-foreground'}`}>
-                  {user.isOnline ? t.chat.online : t.chat.offline}
+              <div className="flex flex-col items-center text-center gap-1">
+                <p className="text-2xl font-bold leading-tight" data-testid="text-user-display-name">{user.displayName}</p>
+                <p className={`text-sm ${user.isOnline ? 'text-primary' : 'text-muted-foreground'}`}>
+                  {user.isOnline ? t.chat.online : t.contacts.onlineRecently}
                 </p>
-              )}
+              </div>
             </div>
 
-            {/* Bio */}
-            {user.bio && (
-              <div className="glass rounded-xl px-4 py-3 w-full text-center relative">
-                <p className="text-sm text-muted-foreground/90 italic">"{displayedBio}"</p>
-                {isTranslated && (
-                  <p className="text-[10px] text-muted-foreground/50 mt-1">{user.bio}</p>
-                )}
-                {bioLoading && (
-                  <Loader2 className="w-3 h-3 animate-spin absolute top-2 right-2 text-muted-foreground/40" />
-                )}
+            {/* Action buttons row: Message + Appeler */}
+            {!isSelf && (
+              <div className="grid grid-cols-2 gap-2.5">
+                <ActionTile
+                  icon={messageLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <MessageSquare className="w-5 h-5" />}
+                  label={p.message}
+                  onClick={handleSendMessage}
+                  disabled={messageLoading}
+                  testId="button-message-user"
+                />
+                <ActionTile
+                  icon={callLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Phone className="w-5 h-5" />}
+                  label={p.call}
+                  onClick={handleCall}
+                  disabled={callLoading}
+                  testId="button-call-user"
+                />
               </div>
             )}
 
-            {/* Send message button (only if not yourself) */}
-            {user.id !== currentUserId && (
+            {/* Info card: bio + @username */}
+            <div className="glass rounded-2xl overflow-hidden">
+              <div className="flex items-start gap-3 px-4 py-3.5">
+                <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
+                  <FileText className="w-4 h-4 text-primary" />
+                </div>
+                <div className="flex flex-col min-w-0 flex-1">
+                  {user.bio && user.bio.trim().length > 0 ? (
+                    <>
+                      <span className="text-sm font-medium whitespace-pre-wrap break-words" data-testid="text-user-bio">
+                        {displayedBio}
+                      </span>
+                      {isTranslated && (
+                        <span className="text-[11px] text-muted-foreground/60 mt-1 italic break-words">
+                          {user.bio}
+                        </span>
+                      )}
+                      {bioLoading && (
+                        <span className="flex items-center gap-1 text-[11px] text-muted-foreground/60 mt-1">
+                          <Loader2 className="w-3 h-3 animate-spin" /> …
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-sm text-muted-foreground italic">{p.noBio}</span>
+                  )}
+                  <span className="text-xs text-muted-foreground mt-0.5">{p.bio}</span>
+                </div>
+              </div>
+
+              {user.username && (
+                <>
+                  <div className="h-px bg-white/8 mx-4" />
+                  <button
+                    type="button"
+                    onClick={handleCopyUsername}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/5 active:bg-white/10 transition-colors"
+                    data-testid="button-copy-user-username"
+                  >
+                    <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
+                      <AtSign className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <span className="text-sm font-medium truncate">@{user.username}</span>
+                      <span className="text-xs text-muted-foreground">{p.username}</span>
+                    </div>
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Add to contacts */}
+            {!isSelf && user.username && (
               <button
-                onClick={handleSendMessage}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2.5 py-3 px-5 rounded-2xl gradient-primary glow-primary-sm text-white font-semibold text-sm hover:opacity-95 active:scale-[0.97] transition-all disabled:opacity-60 disabled:cursor-not-allowed mt-1"
+                type="button"
+                onClick={handleAddContact}
+                disabled={addLoading || addedFlag}
+                className="glass rounded-2xl flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/5 active:bg-white/10 transition-colors disabled:opacity-60"
+                data-testid="button-add-to-contacts"
               >
-                {loading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <MessageSquare className="w-4 h-4" />
-                )}
-                {loading ? t.profile.opening : t.profile.sendMessage}
+                <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
+                  {addLoading ? (
+                    <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                  ) : addedFlag ? (
+                    <Check className="w-4 h-4 text-primary" />
+                  ) : (
+                    <UserPlus className="w-4 h-4 text-primary" />
+                  )}
+                </div>
+                <span className="text-sm font-medium">
+                  {addedFlag ? p.addedToContacts : p.addToContacts}
+                </span>
               </button>
             )}
           </div>
         </div>
-        </motion.div>
-      </>
-    </AnimatePresence>
+      </motion.div>
+    </AnimatePresence>,
+    document.body,
+  );
+}
+
+function ActionTile({
+  icon,
+  label,
+  onClick,
+  disabled,
+  testId,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  testId?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      data-testid={testId}
+      className="glass rounded-2xl px-3 py-3 flex flex-col items-center gap-1.5 hover:bg-white/10 active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100 transition-all"
+    >
+      <span className="text-primary">{icon}</span>
+      <span className="text-xs font-medium leading-tight text-center whitespace-nowrap truncate max-w-full">{label}</span>
+    </button>
   );
 }
