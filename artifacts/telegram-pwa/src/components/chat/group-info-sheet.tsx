@@ -358,7 +358,7 @@ function MainView(p: MainViewProps) {
               align="end"
               sideOffset={8}
               data-overlay-region="group-info-menu"
-              className="w-60 p-1 glass border-border/40 rounded-2xl z-[460]"
+              className="w-60 p-1 glass-strong border-border/40 rounded-2xl z-[460] shadow-2xl"
             >
               <button
                 onClick={p.onSearchMembers}
