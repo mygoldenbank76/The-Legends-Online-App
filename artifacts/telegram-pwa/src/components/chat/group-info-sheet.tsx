@@ -24,7 +24,7 @@ import { getAuthHeaders } from '@/lib/auth-fetch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { MediaViewer } from './media-viewer';
-import { UserProfileSheet } from './user-profile-sheet';
+import { UserProfileSheet, UserProfileBody } from './user-profile-sheet';
 import { useAuth } from '@/lib/auth-context';
 
 type Participant = {
@@ -107,6 +107,17 @@ export function GroupInfoSheet({ open, onClose, conversation, messages, onOpenCo
   const memberCount = conversation?.participants?.length ?? 0;
   const groupLink = `https://thelegendsonline.social/join/${conversation.id}`;
 
+  // For direct (1-on-1) conversations, pick the OTHER participant — their
+  // profile is shown above the media tabs in place of the conversation
+  // header.
+  const otherUser: Participant | null = useMemo(() => {
+    if (isGroup) return null;
+    const me = currentUser?.id;
+    const list = conversation?.participants ?? [];
+    if (me == null) return list[0] ?? null;
+    return list.find((pp) => pp.id !== me) ?? list[0] ?? null;
+  }, [isGroup, conversation?.participants, currentUser?.id]);
+
   // Collect ALL media URLs in order (albums expanded + single images/videos)
   const isGifUrl = (url: string) =>
     /\.gif(\?|$)/i.test(url) || /(?:^|\/\/|\.)tenor\.com\//i.test(url) || /media\.tenor\./i.test(url);
@@ -157,6 +168,10 @@ export function GroupInfoSheet({ open, onClose, conversation, messages, onOpenCo
                 initial={initial}
                 memberCount={memberCount}
                 groupLink={groupLink}
+                otherUser={otherUser}
+                currentUserId={currentUser?.id ?? 0}
+                onCloseSheet={onClose}
+                onOpenConversation={onOpenConversation}
                 onCopyLink={async () => {
                   try {
                     if (navigator.clipboard?.writeText) {
@@ -264,6 +279,10 @@ type MainViewProps = {
   initial: string;
   memberCount: number;
   groupLink: string;
+  otherUser: Participant | null;
+  currentUserId: number;
+  onCloseSheet: () => void;
+  onOpenConversation?: (convId: number) => void;
   onCopyLink: () => void;
   tabs: { key: 'media' | 'files' | 'links' | 'voice' | 'gifs'; label: string }[];
   tab: 'media' | 'files' | 'links' | 'voice' | 'gifs';
@@ -329,14 +348,28 @@ function MainView(p: MainViewProps) {
         )}
       </div>
 
-      {/* Avatar + name */}
-      <div className="flex flex-col items-center pb-4 px-4 pt-2">
-        <div className="w-20 h-20 rounded-2xl gradient-primary glow-primary-sm flex items-center justify-center mb-3">
-          <span className="text-3xl font-bold text-white">{p.initial}</span>
+      {/* Header section: for direct (1-on-1) chats we show the full user
+          profile (avatar, name, online status, action tiles, bio,
+          @username, add/remove contact) — same as the user details page.
+          For groups we keep the simple avatar + group name + member count. */}
+      {!p.isGroup && p.otherUser ? (
+        <div className="pb-4">
+          <UserProfileBody
+            user={p.otherUser}
+            currentUserId={p.currentUserId}
+            onClose={p.onCloseSheet}
+            onOpenConversation={(convId) => p.onOpenConversation?.(convId)}
+          />
         </div>
-        <h2 className="text-lg font-bold text-foreground">{p.title}</h2>
-        <p className="text-sm text-muted-foreground">{p.memberCount} {p.t.groupInfo.members}</p>
-      </div>
+      ) : (
+        <div className="flex flex-col items-center pb-4 px-4 pt-2">
+          <div className="w-20 h-20 rounded-2xl gradient-primary glow-primary-sm flex items-center justify-center mb-3">
+            <span className="text-3xl font-bold text-white">{p.initial}</span>
+          </div>
+          <h2 className="text-lg font-bold text-foreground">{p.title}</h2>
+          <p className="text-sm text-muted-foreground">{p.memberCount} {p.t.groupInfo.members}</p>
+        </div>
+      )}
 
       {/* Group link — only shown for groups, not for private 1-on-1 chats */}
       {p.isGroup && (

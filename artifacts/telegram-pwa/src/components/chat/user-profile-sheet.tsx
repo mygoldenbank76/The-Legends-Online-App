@@ -71,6 +71,61 @@ async function getOrCreateConversation(userId: number): Promise<number | null> {
 }
 
 export function UserProfileSheet({ user, currentUserId, onClose, onOpenConversation }: Props) {
+  const { t } = usePreferences();
+  const p = t.profile;
+
+  return createPortal(
+    <AnimatePresence>
+      <motion.div
+        key="user-profile-page"
+        initial={{ x: '100%', opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        exit={{ x: '100%', opacity: 0 }}
+        transition={{ type: 'spring', damping: 32, stiffness: 320 }}
+        className="fixed inset-0 z-[450] bg-background flex flex-col"
+      >
+        {/* Header */}
+        <div
+          className="flex items-center justify-between px-3 py-3 border-b border-white/10 flex-shrink-0"
+          style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}
+        >
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+            data-testid="button-back-user-profile"
+            aria-label={t.chat.back}
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="text-sm font-semibold text-muted-foreground">{p.userDetails}</div>
+          <div className="w-9 h-9" />
+        </div>
+
+        {/* Scrollable body */}
+        <div
+          className="flex-1 overflow-y-auto overscroll-contain"
+          style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
+        >
+          <UserProfileBody
+            user={user}
+            currentUserId={currentUserId}
+            onClose={onClose}
+            onOpenConversation={onOpenConversation}
+          />
+        </div>
+      </motion.div>
+    </AnimatePresence>,
+    document.body,
+  );
+}
+
+/**
+ * Inner content of the user profile (hero avatar, name, status, action tiles,
+ * bio + username card, add/remove contact). Exported so it can be embedded by
+ * other sheets (e.g. GroupInfoSheet for direct conversations) above their own
+ * extra content.
+ */
+export function UserProfileBody({ user, currentUserId, onClose, onOpenConversation }: Props) {
   const { t, appLanguage } = usePreferences();
   const p = t.profile;
   const { toast } = useToast();
@@ -200,166 +255,131 @@ export function UserProfileSheet({ user, currentUserId, onClose, onOpenConversat
     }
   }, [contactLoading, isContact, isSelf, p.removedFromContacts, queryClient, t.contacts.addContactError, t.contacts.contactAdded, t.contacts.contactAlreadyExists, t.contacts.userNotFound, toast, user.id, user.username]);
 
-  return createPortal(
-    <AnimatePresence>
-      <motion.div
-        key="user-profile-page"
-        initial={{ x: '100%', opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        exit={{ x: '100%', opacity: 0 }}
-        transition={{ type: 'spring', damping: 32, stiffness: 320 }}
-        className="fixed inset-0 z-[450] bg-background flex flex-col"
-      >
-        {/* Header */}
-        <div
-          className="flex items-center justify-between px-3 py-3 border-b border-white/10 flex-shrink-0"
-          style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}
+  return (
+    <div className="flex flex-col gap-5 px-4 pt-8">
+      {/* Hero: avatar + name + status */}
+      <div className="flex flex-col items-center gap-4">
+        <motion.div
+          initial={{ scale: 0.92, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: 'spring', damping: 22, stiffness: 240 }}
+          className="relative mb-2"
         >
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
-            data-testid="button-back-user-profile"
-            aria-label={t.chat.back}
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div className="text-sm font-semibold text-muted-foreground">{p.userDetails}</div>
-          <div className="w-9 h-9" />
-        </div>
-
-        {/* Scrollable body */}
-        <div
-          className="flex-1 overflow-y-auto overscroll-contain"
-          style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
-        >
-          <div className="flex flex-col gap-5 px-4 pt-8">
-            {/* Hero: avatar + name + status */}
-            <div className="flex flex-col items-center gap-4">
-              <motion.div
-                initial={{ scale: 0.92, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ type: 'spring', damping: 22, stiffness: 240 }}
-                className="relative mb-2"
-              >
-                <span aria-hidden className="absolute -inset-1 rounded-[1.75rem] profile-hero-ring pointer-events-none" />
-                <div className="relative w-28 h-28 rounded-3xl bg-primary/20 overflow-hidden glow-primary-sm">
-                  {user.avatar ? (
-                    <img src={user.avatar} alt={user.displayName} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <span className="text-5xl font-bold text-primary">{initials}</span>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-
-              <div className="flex flex-col items-center text-center gap-1">
-                <p className="text-2xl font-bold leading-tight" data-testid="text-user-display-name">{user.displayName}</p>
-                <p className={`text-sm ${user.isOnline ? 'text-primary' : 'text-muted-foreground'}`}>
-                  {user.isOnline ? t.chat.online : t.contacts.onlineRecently}
-                </p>
+          <span aria-hidden className="absolute -inset-1 rounded-[1.75rem] profile-hero-ring pointer-events-none" />
+          <div className="relative w-28 h-28 rounded-3xl bg-primary/20 overflow-hidden glow-primary-sm">
+            {user.avatar ? (
+              <img src={user.avatar} alt={user.displayName} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <span className="text-5xl font-bold text-primary">{initials}</span>
               </div>
-            </div>
-
-            {/* Action buttons row: Message + Appeler */}
-            {!isSelf && (
-              <div className="grid grid-cols-2 gap-2.5">
-                <ActionTile
-                  icon={messageLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <MessageSquare className="w-5 h-5" />}
-                  label={p.message}
-                  onClick={handleSendMessage}
-                  disabled={messageLoading}
-                  testId="button-message-user"
-                />
-                <ActionTile
-                  icon={callLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Phone className="w-5 h-5" />}
-                  label={p.call}
-                  onClick={handleCall}
-                  disabled={callLoading}
-                  testId="button-call-user"
-                />
-              </div>
-            )}
-
-            {/* Info card: bio + @username */}
-            <div className="glass rounded-2xl overflow-hidden">
-              <div className="flex items-start gap-3 px-4 py-3.5">
-                <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
-                  <FileText className="w-4 h-4 text-primary" />
-                </div>
-                <div className="flex flex-col min-w-0 flex-1">
-                  {user.bio && user.bio.trim().length > 0 ? (
-                    <>
-                      <span className="text-sm font-medium whitespace-pre-wrap break-words" data-testid="text-user-bio">
-                        {displayedBio}
-                      </span>
-                      {isTranslated && (
-                        <span className="text-[11px] text-muted-foreground/60 mt-1 italic break-words">
-                          {user.bio}
-                        </span>
-                      )}
-                      {bioLoading && (
-                        <span className="flex items-center gap-1 text-[11px] text-muted-foreground/60 mt-1">
-                          <Loader2 className="w-3 h-3 animate-spin" /> …
-                        </span>
-                      )}
-                    </>
-                  ) : (
-                    <span className="text-sm text-muted-foreground italic">{p.noBioOther}</span>
-                  )}
-                  <span className="text-xs text-muted-foreground mt-0.5">{p.bio}</span>
-                </div>
-              </div>
-
-              {user.username && (
-                <>
-                  <div className="h-px bg-white/8 mx-4" />
-                  <button
-                    type="button"
-                    onClick={handleCopyUsername}
-                    className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/5 active:bg-white/10 transition-colors"
-                    data-testid="button-copy-user-username"
-                  >
-                    <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
-                      <AtSign className="w-4 h-4 text-primary" />
-                    </div>
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <span className="text-sm font-medium truncate">@{user.username}</span>
-                      <span className="text-xs text-muted-foreground">{p.username}</span>
-                    </div>
-                  </button>
-                </>
-              )}
-            </div>
-
-            {/* Add to / Remove from contacts */}
-            {!isSelf && user.username && (
-              <button
-                type="button"
-                onClick={handleToggleContact}
-                disabled={contactLoading}
-                className="glass rounded-2xl flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/5 active:bg-white/10 transition-colors disabled:opacity-60"
-                data-testid={isContact ? 'button-remove-from-contacts' : 'button-add-to-contacts'}
-              >
-                <div className={`w-9 h-9 rounded-full ${isContact ? 'bg-destructive/15' : 'bg-primary/15'} flex items-center justify-center flex-shrink-0`}>
-                  {contactLoading ? (
-                    <Loader2 className={`w-4 h-4 ${isContact ? 'text-destructive' : 'text-primary'} animate-spin`} />
-                  ) : isContact ? (
-                    <UserMinus className="w-4 h-4 text-destructive" />
-                  ) : (
-                    <UserPlus className="w-4 h-4 text-primary" />
-                  )}
-                </div>
-                <span className={`text-sm font-medium ${isContact ? 'text-destructive' : ''}`}>
-                  {isContact ? p.removeFromContacts : p.addToContacts}
-                </span>
-              </button>
             )}
           </div>
+        </motion.div>
+
+        <div className="flex flex-col items-center text-center gap-1">
+          <p className="text-2xl font-bold leading-tight" data-testid="text-user-display-name">{user.displayName}</p>
+          <p className={`text-sm ${user.isOnline ? 'text-primary' : 'text-muted-foreground'}`}>
+            {user.isOnline ? t.chat.online : t.contacts.onlineRecently}
+          </p>
         </div>
-      </motion.div>
-    </AnimatePresence>,
-    document.body,
+      </div>
+
+      {/* Action buttons row: Message + Appeler */}
+      {!isSelf && (
+        <div className="grid grid-cols-2 gap-2.5">
+          <ActionTile
+            icon={messageLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <MessageSquare className="w-5 h-5" />}
+            label={p.message}
+            onClick={handleSendMessage}
+            disabled={messageLoading}
+            testId="button-message-user"
+          />
+          <ActionTile
+            icon={callLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Phone className="w-5 h-5" />}
+            label={p.call}
+            onClick={handleCall}
+            disabled={callLoading}
+            testId="button-call-user"
+          />
+        </div>
+      )}
+
+      {/* Info card: bio + @username */}
+      <div className="glass rounded-2xl overflow-hidden">
+        <div className="flex items-start gap-3 px-4 py-3.5">
+          <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
+            <FileText className="w-4 h-4 text-primary" />
+          </div>
+          <div className="flex flex-col min-w-0 flex-1">
+            {user.bio && user.bio.trim().length > 0 ? (
+              <>
+                <span className="text-sm font-medium whitespace-pre-wrap break-words" data-testid="text-user-bio">
+                  {displayedBio}
+                </span>
+                {isTranslated && (
+                  <span className="text-[11px] text-muted-foreground/60 mt-1 italic break-words">
+                    {user.bio}
+                  </span>
+                )}
+                {bioLoading && (
+                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground/60 mt-1">
+                    <Loader2 className="w-3 h-3 animate-spin" /> …
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="text-sm text-muted-foreground italic">{p.noBioOther}</span>
+            )}
+            <span className="text-xs text-muted-foreground mt-0.5">{p.bio}</span>
+          </div>
+        </div>
+
+        {user.username && (
+          <>
+            <div className="h-px bg-white/8 mx-4" />
+            <button
+              type="button"
+              onClick={handleCopyUsername}
+              className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/5 active:bg-white/10 transition-colors"
+              data-testid="button-copy-user-username"
+            >
+              <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
+                <AtSign className="w-4 h-4 text-primary" />
+              </div>
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="text-sm font-medium truncate">@{user.username}</span>
+                <span className="text-xs text-muted-foreground">{p.username}</span>
+              </div>
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Add to / Remove from contacts */}
+      {!isSelf && user.username && (
+        <button
+          type="button"
+          onClick={handleToggleContact}
+          disabled={contactLoading}
+          className="glass rounded-2xl flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/5 active:bg-white/10 transition-colors disabled:opacity-60"
+          data-testid={isContact ? 'button-remove-from-contacts' : 'button-add-to-contacts'}
+        >
+          <div className={`w-9 h-9 rounded-full ${isContact ? 'bg-destructive/15' : 'bg-primary/15'} flex items-center justify-center flex-shrink-0`}>
+            {contactLoading ? (
+              <Loader2 className={`w-4 h-4 ${isContact ? 'text-destructive' : 'text-primary'} animate-spin`} />
+            ) : isContact ? (
+              <UserMinus className="w-4 h-4 text-destructive" />
+            ) : (
+              <UserPlus className="w-4 h-4 text-primary" />
+            )}
+          </div>
+          <span className={`text-sm font-medium ${isContact ? 'text-destructive' : ''}`}>
+            {isContact ? p.removeFromContacts : p.addToContacts}
+          </span>
+        </button>
+      )}
+    </div>
   );
 }
 
