@@ -311,7 +311,7 @@ function MainView(p: MainViewProps) {
       {/* Top bar with back arrow and (group only) 3-dot menu */}
       <div className="sticky top-0 z-10 flex items-center justify-between px-3 pt-3 pb-2 bg-background/80 backdrop-blur-md gradient-hairline-bottom">
         <button
-          onClick={p.onBack}
+          onClick={() => { p.setMenuOpen(false); p.onBack(); }}
           className="w-10 h-10 rounded-full glass flex items-center justify-center text-foreground hover:text-primary transition-colors"
           aria-label="Retour"
         >
