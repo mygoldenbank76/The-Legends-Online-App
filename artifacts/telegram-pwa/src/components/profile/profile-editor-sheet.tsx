@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Camera, User, AtSign, FileText, Save, Trash2, Loader2, Check } from 'lucide-react';
+import { X, Camera, User, AtSign, FileText, Save, Loader2, Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { usePreferences } from '@/lib/preferences-context';
@@ -84,11 +84,6 @@ export function ProfileEditorSheet({ user, onClose, onSaved }: Props) {
     // Reset input so same file can be picked again
     e.target.value = '';
   }, [toast]);
-
-  function removeAvatar() {
-    setAvatar(null);
-    setAvatarChanged(true);
-  }
 
   async function save() {
     const trimmedName = displayName.trim();
@@ -212,15 +207,6 @@ export function ProfileEditorSheet({ user, onClose, onSaved }: Props) {
                   >
                     {avatar ? p.changePhoto : p.addPhoto}
                   </button>
-                  {avatar && (
-                    <button
-                      onClick={removeAvatar}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-white/10 text-muted-foreground hover:bg-red-500/15 hover:text-red-400 transition-colors flex items-center gap-1"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                      {p.removePhoto}
-                    </button>
-                  )}
                 </div>
 
                 <input
