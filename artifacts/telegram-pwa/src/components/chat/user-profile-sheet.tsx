@@ -8,6 +8,7 @@ import { getAuthHeaders } from '@/lib/auth-fetch';
 import { usePreferences } from '@/lib/preferences-context';
 import { useToast } from '@/hooks/use-toast';
 import { useCall } from '@/lib/call-context';
+import { CachedImg } from './cached-img';
 
 type UserInfo = {
   id: number;
@@ -278,7 +279,7 @@ export function UserProfileBody({
           <span aria-hidden className="absolute -inset-1 rounded-[1.75rem] profile-hero-ring pointer-events-none" />
           <div className="relative w-28 h-28 rounded-3xl bg-primary/20 overflow-hidden glow-primary-sm">
             {user.avatar ? (
-              <img src={user.avatar} alt={user.displayName} className="w-full h-full object-cover" />
+              <CachedImg src={user.avatar} alt={user.displayName} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <span className="text-5xl font-bold text-primary">{initials}</span>

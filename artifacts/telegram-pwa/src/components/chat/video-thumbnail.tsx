@@ -110,6 +110,19 @@ function setCachedPoster(url: string, dataUrl: string): void {
 }
 
 /**
+ * Read-only access to the local poster cache for a video URL.
+ *
+ * Returns the cached data URL string if any (memory or localStorage),
+ * otherwise null. Used by the small reply previews and the conversation
+ * details media tab so they can paint a real frame instantly when the
+ * user has previously viewed the video — instead of a black box, a grey
+ * `<video preload="metadata">` placeholder, or a network round-trip.
+ */
+export function getVideoPoster(videoUrl: string): string | null {
+  return getCachedPoster(videoUrl);
+}
+
+/**
  * Pre-populate the poster cache for a video URL from a Blob.
  *
  * Called by chat-area the moment an outgoing video upload completes,

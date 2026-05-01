@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   useListMessages, useGetConversation, useSendMessage,
@@ -41,12 +41,12 @@ import type { GifResult } from './gif-picker';
 import { MediaPickerModal } from './media-picker-modal';
 import type { MediaQuality } from './media-picker-modal';
 import { MediaViewer } from './media-viewer';
-import { CachedImg } from './cached-img';
+import { CachedImg, InstantImg } from './cached-img';
 import { UploadProgressOverlay } from './upload-progress-overlay';
 import { uploadFileWithProgress, UploadAbortError } from '@/lib/upload-with-progress';
 import { preloadMedia } from '@/lib/media-cache';
 import { prewarmIframe } from '@/lib/iframe-pool';
-import { VideoThumbnail, cacheVideoPosterBlob, cacheVideoAspect } from './video-thumbnail';
+import { VideoThumbnail, cacheVideoPosterBlob, cacheVideoAspect, getVideoPoster } from './video-thumbnail';
 import { useCall } from '@/lib/call-context';
 import { CallBanner } from './call-modal';
 
@@ -154,7 +154,18 @@ function MediaThumb({
       onClick={(e) => { e.stopPropagation(); onClick(); }}
     >
       {vid ? (
-        <video src={url} className="w-full h-full object-cover" style={{ background: '#000' }} muted playsInline preload="none" />
+        // Reuse the cached video poster (captured the first time the user
+        // saw the video bubble). When present, it paints the real first
+        // frame instantly with no decode round-trip — same UX as the
+        // chat bubble. Falls back to a parked <video> for cold caches.
+        (() => {
+          const poster = getVideoPoster(url);
+          return poster ? (
+            <InstantImg src={poster} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <video src={url} className="w-full h-full object-cover" style={{ background: '#000' }} muted playsInline preload="metadata" />
+          );
+        })()
       ) : (
         <CachedImg src={url} alt="" className="w-full h-full object-cover" />
       )}
@@ -558,6 +569,25 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
   const pendingUploadsRef = useRef<PendingUpload[]>([]);
   pendingUploadsRef.current = pendingUploads;
+  // Per-URL "sending started at" anchor — keyed by the server URL once it's
+  // known. Lets us pin a video message to the position where it was first
+  // queued for upload, so when the swap from optimistic placeholder → real
+  // server message happens, the bubble does NOT jump in front of any text
+  // messages the user typed during the upload (Telegram-style sticky
+  // position). The ref persists across renders for as long as the user
+  // stays in this conversation; it is cleared on conversation switch.
+  const mediaSendAnchorRef = useRef<Map<string, number>>(new Map());
+  useEffect(() => {
+    // Reset anchors when navigating between conversations.
+    mediaSendAnchorRef.current = new Map();
+  }, [conversationId]);
+  // Whenever an upload completes (uploadedUrl populated), record the
+  // anchor BEFORE the cleanup effect removes the pending entry.
+  useEffect(() => {
+    for (const p of pendingUploads) {
+      if (p.uploadedUrl) mediaSendAnchorRef.current.set(p.uploadedUrl, p.startedAt);
+    }
+  }, [pendingUploads]);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [ctxMenu, setCtxMenu] = useState<CtxMenu>(null);
   const [replyTo, setReplyTo] = useState<Msg | null>(null);
@@ -1595,9 +1625,279 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       p.status === 'sent' && p.uploadedUrl && sentUrls.has(p.uploadedUrl)
     );
     if (toRemove.length === 0) return;
-    toRemove.forEach(p => URL.revokeObjectURL(p.previewUrl));
+    toRemove.forEach(p => {
+      URL.revokeObjectURL(p.previewUrl);
+      // Also free the locally-captured first-frame poster, otherwise
+      // each completed video upload would leak its blob: poster URL.
+      if (p.posterUrl) URL.revokeObjectURL(p.posterUrl);
+    });
     setPendingUploads(prev => prev.filter(p => !toRemove.some(t => t.id === p.id)));
   }, [messages, pendingUploads]);
+
+  // Prune mediaSendAnchorRef: drop entries whose URL no longer appears in
+  // either real messages or active pending uploads. Without this, every
+  // uploaded video leaves a permanent entry in the map for as long as the
+  // user stays in this conversation, even after the message scrolls out
+  // of the active window or is deleted. This keeps the map bounded by
+  // the size of the currently-loaded message window.
+  useEffect(() => {
+    const live = new Set<string>();
+    for (const m of messages) {
+      if (m.imageUrl) live.add(m.imageUrl);
+      const album = (m as any).mediaAlbum;
+      if (Array.isArray(album)) for (const u of album) live.add(u);
+    }
+    for (const p of pendingUploads) {
+      if (p.uploadedUrl) live.add(p.uploadedUrl);
+    }
+    const map = mediaSendAnchorRef.current;
+    if (map.size === 0) return;
+    let mutated = false;
+    for (const url of Array.from(map.keys())) {
+      if (!live.has(url)) {
+        map.delete(url);
+        mutated = true;
+      }
+    }
+    // No state update — ref-only mutation, fine to leave silent.
+    void mutated;
+  }, [messages, pendingUploads]);
+
+  // ── Unified message timeline ──────────────────────────────────────────
+  // The chat-list rendering interleaves real server messages with
+  // optimistic upload placeholders (Telegram-style). This useMemo
+  // produces one ordered list, sorted by send-time, so:
+  //
+  //   • a pending video upload that started BEFORE a subsequent text
+  //     message stays ABOVE that text (the user's "Test" line never
+  //     jumps in front of the loading video again);
+  //
+  //   • once the upload completes and the real server message arrives,
+  //     the swap happens in the SAME slot the placeholder occupied —
+  //     no jump, no flash. The mediaSendAnchorRef anchors the new
+  //     server message's effective ts to the upload's startedAt, so
+  //     even after the placeholder is gone the message holds its
+  //     original position;
+  //
+  //   • the same isSameAuthor / mt-3 vs mt-0.5 spacing rule applies to
+  //     placeholders, so the gap between bubbles never collapses on
+  //     the swap (fixes the "vertical jump" the user reported).
+  type TimelineItem =
+    | { kind: 'msg'; ts: number; senderId: number; key: string; msg: Msg }
+    | {
+        kind: 'pending';
+        ts: number;
+        senderId: number;
+        key: string;
+        items: PendingUpload[];
+        caption?: string;
+      };
+
+  const timeline: TimelineItem[] = useMemo(() => {
+    const items: TimelineItem[] = [];
+    const sentUrlSet = new Set<string>();
+
+    for (const m of messages) {
+      let ts = new Date(m.createdAt).getTime();
+      if (m.imageUrl) {
+        sentUrlSet.add(m.imageUrl);
+        const anchor = mediaSendAnchorRef.current.get(m.imageUrl);
+        if (anchor != null) ts = anchor;
+      }
+      const album = (m as any).mediaAlbum;
+      if (Array.isArray(album)) {
+        for (const u of album) {
+          sentUrlSet.add(u);
+          const anchor = mediaSendAnchorRef.current.get(u);
+          if (anchor != null && anchor < ts) ts = anchor;
+        }
+      }
+      items.push({
+        kind: 'msg',
+        ts,
+        senderId: m.senderId,
+        key: `m-${m.id}`,
+        msg: m,
+      });
+    }
+
+    // Active placeholders: scoped to this conversation, and not yet
+    // replaced by a real server message.
+    const visiblePending = pendingUploads.filter(p =>
+      p.conversationId === conversationId &&
+      !(p.uploadedUrl && sentUrlSet.has(p.uploadedUrl))
+    );
+    // Group by groupId, preserving first-seen order.
+    const groupMap = new Map<string, PendingUpload[]>();
+    for (const p of visiblePending) {
+      const arr = groupMap.get(p.groupId);
+      if (arr) arr.push(p);
+      else groupMap.set(p.groupId, [p]);
+    }
+    for (const gItems of groupMap.values()) {
+      items.push({
+        kind: 'pending',
+        ts: gItems[0].startedAt,
+        senderId: user?.id ?? -1,
+        key: `p-${gItems[0].groupId}`,
+        items: gItems,
+        caption: gItems[0].caption,
+      });
+    }
+
+    // Stable sort by ts (Array.prototype.sort is stable in modern JS).
+    items.sort((a, b) => a.ts - b.ts);
+    return items;
+  }, [messages, pendingUploads, conversationId, user?.id]);
+
+  // Render a single optimistic upload bubble (one entry of the timeline
+  // with kind 'pending'). Lives as an inner helper so it can close over
+  // `cancelPendingUpload` without prop drilling. Uses the same spacing
+  // rule as a real outgoing bubble so the swap to the server message is
+  // visually identical.
+  const renderPendingBubble = (
+    item: Extract<TimelineItem, { kind: 'pending' }>,
+    isSameAuthor: boolean,
+  ) => {
+    const items = item.items;
+    const caption = item.caption;
+    const isAlbum = items.length > 1;
+    return (
+      <div
+        key={item.key}
+        className={`flex items-end gap-2 w-full justify-end ${isSameAuthor ? 'mt-0.5' : 'mt-3'}`}
+      >
+        <div className="max-w-[80%] relative">
+          <div className={`rounded-[14px] px-2.5 py-[6px] text-[14.5px] leading-[1.3] bubble-sent rounded-br-[4px] ${isSameAuthor ? 'rounded-tr-[4px]' : ''}`}>
+            {!isAlbum ? (
+              <div className="mb-1.5 -mx-1.5 -mt-0.5 overflow-hidden rounded-[10px] bg-foreground/5 relative">
+                {(() => {
+                  const hasDims = !!(items[0].width && items[0].height);
+                  const ar = hasDims
+                    ? `${items[0].width} / ${items[0].height}`
+                    : undefined;
+                  if (items[0].isVideo) {
+                    const ratioNum = hasDims
+                      ? items[0].width! / items[0].height!
+                      : 9 / 16;
+                    return (
+                      <div
+                        className="relative overflow-hidden rounded-[10px]"
+                        style={{
+                          aspectRatio: hasDims ? ar : '9 / 16',
+                          maxHeight: '70vh',
+                          minWidth: '240px',
+                          background:
+                            'linear-gradient(135deg, rgba(140,120,255,0.14), rgba(60,40,120,0.22))',
+                        }}
+                      >
+                        {items[0].posterUrl ? (
+                          <img
+                            src={items[0].posterUrl}
+                            alt=""
+                            className="block w-full h-full object-contain"
+                            draggable={false}
+                            decoding="async"
+                          />
+                        ) : (
+                          <svg
+                            width={240}
+                            height={Math.max(1, Math.round(240 / ratioNum))}
+                            className="block w-full h-full"
+                            aria-hidden
+                          />
+                        )}
+                      </div>
+                    );
+                  }
+                  return (
+                    <img
+                      src={items[0].previewUrl}
+                      alt=""
+                      className="w-full max-h-64 object-cover rounded-[10px]"
+                      style={hasDims ? { aspectRatio: ar } : undefined}
+                    />
+                  );
+                })()}
+                <UploadProgressOverlay
+                  loaded={items[0].loaded}
+                  total={items[0].total}
+                  onCancel={() => cancelPendingUpload(items[0].id)}
+                />
+                {!caption && (
+                  <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/55 backdrop-blur-sm text-white text-[11px] flex items-center gap-1 pointer-events-none">
+                    <Clock className="w-3 h-3" />
+                    <span>{format(new Date(items[0].startedAt), 'HH:mm')}</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div
+                className="mb-1.5 -mx-1.5 -mt-0.5 overflow-hidden rounded-[10px] grid gap-[2px] relative"
+                style={{
+                  gridTemplateColumns: items.length === 2 ? '1fr 1fr' : '1fr 1fr',
+                  gridAutoRows: items.length <= 2 ? '180px' : '120px',
+                }}
+              >
+                {items.slice(0, 6).map(it => (
+                  <div key={it.id} className="relative bg-foreground/5 overflow-hidden">
+                    {it.isVideo ? (
+                      it.posterUrl ? (
+                        <img
+                          src={it.posterUrl}
+                          alt=""
+                          className="w-full h-full object-cover"
+                          draggable={false}
+                        />
+                      ) : (
+                        <video
+                          src={it.previewUrl}
+                          className="w-full h-full object-cover"
+                          muted
+                          playsInline
+                        />
+                      )
+                    ) : (
+                      <img
+                        src={it.previewUrl}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                    <UploadProgressOverlay
+                      loaded={it.loaded}
+                      total={it.total}
+                      onCancel={() => cancelPendingUpload(it.id)}
+                    />
+                  </div>
+                ))}
+                {!caption && (
+                  <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/55 backdrop-blur-sm text-white text-[11px] flex items-center gap-1 pointer-events-none z-10">
+                    <Clock className="w-3 h-3" />
+                    <span>{format(new Date(items[0].startedAt), 'HH:mm')}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {caption && (
+              <>
+                <div className="whitespace-pre-wrap break-words leading-snug">
+                  <RichText text={caption} isMine={true} />
+                </div>
+                <div className="flex items-end justify-end mt-0.5 -mb-0.5">
+                  <div className="text-[11px] flex items-center gap-1 text-primary-foreground/60">
+                    <Clock className="w-3 h-3" />
+                    <span>{format(new Date(items[0].startedAt), 'HH:mm')}</span>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const handleDocumentChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -2144,13 +2444,21 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           <EmptyConversation title={uiT.chat.emptyTitle} subtitle={uiT.chat.emptySubtitle} />
         )}
         <div ref={msgsWrapRef} className="flex flex-col gap-0.5 pb-2">
-          {messages?.map((msg, index) => {
+          {timeline.map((item, index) => {
+            const prevItem = index > 0 ? timeline[index - 1] : undefined;
+            const nextItem = index < timeline.length - 1 ? timeline[index + 1] : undefined;
+            const isSameAuthor = !!prevItem && prevItem.senderId === item.senderId;
+            const isLastInGroup = !nextItem || nextItem.senderId !== item.senderId;
+
+            // Optimistic upload bubble — interleaved by send time so it
+            // never gets jumped over by a subsequent text message and
+            // keeps the same vertical spacing as a real outgoing bubble.
+            if (item.kind === 'pending') {
+              return renderPendingBubble(item, isSameAuthor);
+            }
+
+            const msg = item.msg;
             const isMine = msg.senderId === user?.id;
-            const prevMsg = messages[index - 1];
-            const nextMsg = messages[index + 1];
-            const isSameAuthor = prevMsg && prevMsg.senderId === msg.senderId;
-            // Last message of a same-author chain (no next msg, or next msg is from someone else)
-            const isLastInGroup = !nextMsg || nextMsg.senderId !== msg.senderId;
             const reactionCounts = msg.reactions.reduce((a: Record<string, number>, r) => {
               a[r.emoji] = (a[r.emoji] || 0) + 1; return a;
             }, {});
@@ -2170,7 +2478,11 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
             // Search highlight
             const isSearchMatch = searchOpen && searchQuery.trim().length > 0 && !!msg.content?.toLowerCase().includes(searchQuery.toLowerCase());
-            const isCurrentMatch = isSearchMatch && searchMatches[searchMatchIdx] === i;
+            // searchMatches indexes into the `messages` array, not the
+            // timeline (which interleaves pending uploads), so compare
+            // by id instead of position.
+            const isCurrentMatch =
+              isSearchMatch && messages[searchMatches[searchMatchIdx]]?.id === msg.id;
 
             // Call events render as centered system pills (WhatsApp/Telegram style)
             if (isCall) {
@@ -2382,13 +2694,39 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                         )}
                         {msg.replyTo.imageUrl && msg.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) && (
                           <div className="relative w-14 h-14 flex-shrink-0 overflow-hidden bg-black/30">
-                            <video
-                              src={msg.replyTo.imageUrl}
-                              preload="metadata"
-                              muted
-                              playsInline
-                              className="absolute inset-0 w-full h-full object-cover"
-                            />
+                            {(() => {
+                              // Prefer the server thumbnailUrl, then the
+                              // local poster cache (populated when the
+                              // user first viewed the original video
+                              // bubble). Falls back to a parked <video>
+                              // metadata frame only as a last resort —
+                              // anything but a black box.
+                              const thumb = (msg.replyTo as any).thumbnailUrl as string | null | undefined;
+                              const poster = thumb || getVideoPoster(msg.replyTo!.imageUrl!);
+                              return poster ? (
+                                thumb ? (
+                                  <CachedImg
+                                    src={thumb}
+                                    alt=""
+                                    className="absolute inset-0 w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <InstantImg
+                                    src={poster}
+                                    alt=""
+                                    className="absolute inset-0 w-full h-full object-cover"
+                                  />
+                                )
+                              ) : (
+                                <video
+                                  src={msg.replyTo!.imageUrl!}
+                                  preload="metadata"
+                                  muted
+                                  playsInline
+                                  className="absolute inset-0 w-full h-full object-cover"
+                                />
+                              );
+                            })()}
                             <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
                               <VideoIcon className="w-4 h-4 text-white" />
                             </div>
@@ -2643,199 +2981,11 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             );
           })}
 
-          {/* ── Optimistic upload bubbles (Telegram-style) ──
-              While files upload, show a fake outgoing bubble with the
-              local blob preview, a circular progress ring around an X
-              cancel button, and a "loaded / total" bytes badge.
-              Files sent together (same groupId) share one bubble.
-
-              We also filter out any 'sent' entry whose URL is already in
-              the messages list — this means the swap from optimistic
-              bubble to real message is seamless: the moment the real
-              one renders, the placeholder is hidden in the SAME render
-              cycle, with no double-bubble or vanish-then-reappear. */}
-          {(() => {
-            const sentUrlSet = new Set<string>();
-            for (const m of messages) {
-              if (m.imageUrl) sentUrlSet.add(m.imageUrl);
-              const album = (m as any).mediaAlbum;
-              if (Array.isArray(album)) for (const u of album) sentUrlSet.add(u);
-            }
-            const visible = pendingUploads.filter(p =>
-              p.conversationId === conversationId &&
-              !(p.uploadedUrl && sentUrlSet.has(p.uploadedUrl))
-            );
-            if (visible.length === 0) return null;
-            const groups: PendingUpload[][] = [];
-            const seen = new Set<string>();
-            for (const p of visible) {
-              if (seen.has(p.groupId)) continue;
-              seen.add(p.groupId);
-              groups.push(visible.filter(x => x.groupId === p.groupId));
-            }
-            return groups.map((items) => {
-              const caption = items[0]?.caption;
-              const isAlbum = items.length > 1;
-              return (
-                <div
-                  key={`pending-${items[0].groupId}`}
-                  className="flex items-end gap-2 w-full justify-end mt-3"
-                >
-                  <div className="max-w-[80%] relative">
-                    <div className="rounded-[14px] px-2.5 py-[6px] text-[14.5px] leading-[1.3] bubble-sent rounded-br-[4px]">
-                      {!isAlbum ? (
-                        <div className="mb-1.5 -mx-1.5 -mt-0.5 overflow-hidden rounded-[10px] bg-foreground/5 relative">
-                          {(() => {
-                            const hasDims = !!(items[0].width && items[0].height);
-                            const ar = hasDims
-                              ? `${items[0].width} / ${items[0].height}`
-                              : undefined;
-                            if (items[0].isVideo) {
-                              // EXACT same sizing strategy as the
-                              // VideoThumbnail used for the final loaded
-                              // bubble: minWidth 240 px (so the bubble
-                              // shrinks to that natural width instead of
-                              // expanding to 80% of the chat) + the same
-                              // aspect-ratio + 70vh cap. The visible
-                              // content is the locally-captured first
-                              // frame as an in-flow <img> (so the parent
-                              // gets intrinsic content for layout). The
-                              // raw <video> is gone here — playback only
-                              // happens in the full-screen MediaViewer
-                              // anyway, so a still poster matches the
-                              // final UX exactly. Result: zero pixel
-                              // shift when the server message arrives
-                              // and replaces this placeholder, AND the
-                              // user sees the real first frame instead
-                              // of a grey box during upload.
-                              const ratioNum = hasDims
-                                ? items[0].width! / items[0].height!
-                                : 9 / 16;
-                              return (
-                                <div
-                                  className="relative overflow-hidden rounded-[10px]"
-                                  style={{
-                                    aspectRatio: hasDims ? ar : '9 / 16',
-                                    maxHeight: '70vh',
-                                    minWidth: '240px',
-                                    background:
-                                      'linear-gradient(135deg, rgba(140,120,255,0.14), rgba(60,40,120,0.22))',
-                                  }}
-                                >
-                                  {items[0].posterUrl ? (
-                                    <img
-                                      src={items[0].posterUrl}
-                                      alt=""
-                                      className="block w-full h-full object-contain"
-                                      draggable={false}
-                                      decoding="async"
-                                    />
-                                  ) : (
-                                    // Transparent SVG sizer so the
-                                    // bubble has intrinsic flow content
-                                    // even when the capture failed —
-                                    // matches VideoThumbnail's fallback.
-                                    <svg
-                                      width={240}
-                                      height={Math.max(1, Math.round(240 / ratioNum))}
-                                      className="block w-full h-full"
-                                      aria-hidden
-                                    />
-                                  )}
-                                </div>
-                              );
-                            }
-                            // Image: keep the legacy max-h-64 cap so the
-                            // optimistic bubble matches the final rendered
-                            // <CachedImg> below; just add aspectRatio when
-                            // known so portrait photos no longer pop from
-                            // a flat default to their real shape.
-                            return (
-                              <img
-                                src={items[0].previewUrl}
-                                alt=""
-                                className="w-full max-h-64 object-cover rounded-[10px]"
-                                style={hasDims ? { aspectRatio: ar } : undefined}
-                              />
-                            );
-                          })()}
-                          <UploadProgressOverlay
-                            loaded={items[0].loaded}
-                            total={items[0].total}
-                            onCancel={() => cancelPendingUpload(items[0].id)}
-                          />
-                          {/* Time overlay (Telegram-style) — only when no caption.
-                              The clock icon indicates "not yet acknowledged"
-                              just like Telegram does for in-flight messages. */}
-                          {!caption && (
-                            <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/55 backdrop-blur-sm text-white text-[11px] flex items-center gap-1 pointer-events-none">
-                              <Clock className="w-3 h-3" />
-                              <span>{format(new Date(items[0].startedAt), 'HH:mm')}</span>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div
-                          className="mb-1.5 -mx-1.5 -mt-0.5 overflow-hidden rounded-[10px] grid gap-[2px] relative"
-                          style={{
-                            gridTemplateColumns: items.length === 2 ? '1fr 1fr' : '1fr 1fr',
-                            gridAutoRows: items.length <= 2 ? '180px' : '120px',
-                          }}
-                        >
-                          {items.slice(0, 6).map(item => (
-                            <div key={item.id} className="relative bg-foreground/5 overflow-hidden">
-                              {item.isVideo ? (
-                                <video
-                                  src={item.previewUrl}
-                                  className="w-full h-full object-cover"
-                                  muted
-                                  playsInline
-                                />
-                              ) : (
-                                <img
-                                  src={item.previewUrl}
-                                  alt=""
-                                  className="w-full h-full object-cover"
-                                />
-                              )}
-                              <UploadProgressOverlay
-                                loaded={item.loaded}
-                                total={item.total}
-                                onCancel={() => cancelPendingUpload(item.id)}
-                              />
-                            </div>
-                          ))}
-                          {/* Time overlay over the whole album grid (Telegram-style) */}
-                          {!caption && (
-                            <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/55 backdrop-blur-sm text-white text-[11px] flex items-center gap-1 pointer-events-none z-10">
-                              <Clock className="w-3 h-3" />
-                              <span>{format(new Date(items[0].startedAt), 'HH:mm')}</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {caption && (
-                        <>
-                          <div className="whitespace-pre-wrap break-words leading-snug">
-                            <RichText text={caption} isMine={true} />
-                          </div>
-                          {/* With caption, the time goes BELOW like a normal text
-                              message — Telegram does the same. */}
-                          <div className="flex items-end justify-end mt-0.5 -mb-0.5">
-                            <div className="text-[11px] flex items-center gap-1 text-primary-foreground/60">
-                              <Clock className="w-3 h-3" />
-                              <span>{format(new Date(items[0].startedAt), 'HH:mm')}</span>
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            });
-          })()}
+          {/* Optimistic upload placeholders are now rendered INLINE inside
+              the timeline.map above (sorted by send time alongside real
+              messages) so a placeholder never gets jumped over by a
+              subsequent text bubble. See `renderPendingBubble` and the
+              `timeline` useMemo. */}
         </div>
       </div>
       </div>{/* end flex-1 relative messages wrapper */}
@@ -3014,13 +3164,36 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       )}
                       {isVideo && (
                         <div className="relative w-8 h-8 rounded-[5px] overflow-hidden bg-black/40 flex-shrink-0">
-                          <video
-                            src={replyTo.imageUrl!}
-                            preload="metadata"
-                            muted
-                            playsInline
-                            className="absolute inset-0 w-full h-full object-cover"
-                          />
+                          {(() => {
+                            // Same instant-paint strategy as the in-bubble
+                            // reply preview: server thumbnail → local
+                            // poster cache → parked <video> as last resort.
+                            const thumb = (replyTo as any).thumbnailUrl as string | null | undefined;
+                            const poster = thumb || getVideoPoster(replyTo.imageUrl!);
+                            return poster ? (
+                              thumb ? (
+                                <CachedImg
+                                  src={thumb}
+                                  alt=""
+                                  className="absolute inset-0 w-full h-full object-cover"
+                                />
+                              ) : (
+                                <InstantImg
+                                  src={poster}
+                                  alt=""
+                                  className="absolute inset-0 w-full h-full object-cover"
+                                />
+                              )
+                            ) : (
+                              <video
+                                src={replyTo.imageUrl!}
+                                preload="metadata"
+                                muted
+                                playsInline
+                                className="absolute inset-0 w-full h-full object-cover"
+                              />
+                            );
+                          })()}
                           <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
                             <VideoIcon className="w-3 h-3 text-white" />
                           </div>
@@ -3102,11 +3275,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   >
                     <div className="flex items-center gap-2.5 pl-3 pr-2 pt-2 pb-1.5">
                       {linkPreview?.image ? (
-                        <img
+                        <CachedImg
                           src={linkPreview.image}
                           alt=""
                           className="w-9 h-9 rounded-md object-cover flex-shrink-0 border border-foreground/10"
-                          loading="lazy"
                         />
                       ) : (
                         <div className="w-9 h-9 rounded-md flex-shrink-0 flex items-center justify-center gradient-primary-soft border border-primary/30">

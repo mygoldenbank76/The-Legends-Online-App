@@ -54,3 +54,24 @@ export function CachedImg({ src, className, style, ...props }: CachedImgProps) {
     />
   );
 }
+
+/**
+ * Same instant-paint contract as <CachedImg> but optimised for the case
+ * where the source is a `data:` or `blob:` URL (cached video posters,
+ * locally-captured first frames, attached previews). For these the
+ * memory cache is irrelevant — the URL itself IS the data — so we skip
+ * the cache lookup, skip the fade-in, and just render the image
+ * synchronously. Use this anywhere we already have a fully-decoded
+ * dataURL and don't want a flash.
+ */
+export function InstantImg({ src, className, style, ...props }: CachedImgProps) {
+  return (
+    <img
+      src={src}
+      decoding="sync"
+      className={className}
+      style={style}
+      {...props}
+    />
+  );
+}

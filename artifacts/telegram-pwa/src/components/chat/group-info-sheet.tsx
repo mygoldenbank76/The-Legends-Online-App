@@ -27,6 +27,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { MediaViewer } from './media-viewer';
 import { UserProfileSheet, UserProfileBody } from './user-profile-sheet';
 import { useAuth } from '@/lib/auth-context';
+import { CachedImg, InstantImg } from './cached-img';
+import { getVideoPoster } from './video-thumbnail';
+import { preloadMedia } from '@/lib/media-cache';
 
 type Participant = {
   id: number;
@@ -93,6 +96,24 @@ export function GroupInfoSheet({ open, onClose, conversation, messages, onOpenCo
       setProfileUser(null);
     }
   }, [open]);
+
+  // Pre-warm the in-memory media cache the instant the sheet opens — so the
+  // Media / Links / GIFs tabs paint instantly even on the very first click,
+  // with no flash and no per-image network round-trip. We only schedule
+  // photo URLs (videos already have a separate poster cache populated when
+  // the user viewed them in the chat).
+  useEffect(() => {
+    if (!open) return;
+    for (const m of messages) {
+      if (m.imageUrl && !isVideo(m.imageUrl)) preloadMedia(m.imageUrl);
+      if (m.mediaAlbum) {
+        for (const u of m.mediaAlbum) {
+          if (!isVideo(u)) preloadMedia(u);
+        }
+      }
+      if (m.linkPreview?.image) preloadMedia(m.linkPreview.image);
+    }
+  }, [open, messages]);
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'media', label: t.groupInfo.media },
@@ -469,13 +490,28 @@ function MainView(p: MainViewProps) {
                 >
                   {isVideo(url) ? (
                     <>
-                      <video
-                        src={url}
-                        className="w-full h-full object-cover"
-                        muted
-                        playsInline
-                        preload="metadata"
-                      />
+                      {(() => {
+                        // Reuse the locally-cached first-frame poster
+                        // captured when the user first viewed this video
+                        // in the chat — paints the real frame instantly,
+                        // no network round-trip, no grey/black box.
+                        const poster = getVideoPoster(url);
+                        return poster ? (
+                          <InstantImg
+                            src={poster}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <video
+                            src={url}
+                            className="w-full h-full object-cover"
+                            muted
+                            playsInline
+                            preload="metadata"
+                          />
+                        );
+                      })()}
                       <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
                         <div className="w-8 h-8 rounded-full bg-black/60 flex items-center justify-center">
                           <Play className="w-4 h-4 text-white fill-white ml-0.5" />
@@ -483,14 +519,10 @@ function MainView(p: MainViewProps) {
                       </div>
                     </>
                   ) : (
-                    <img
+                    <CachedImg
                       src={url}
                       alt=""
                       className="w-full h-full object-cover"
-                      loading="lazy"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).style.display = 'none';
-                      }}
                     />
                   )}
                 </button>
@@ -515,11 +547,10 @@ function MainView(p: MainViewProps) {
                   className="glass rounded-xl px-3 py-2 flex items-center gap-3 hover:bg-foreground/5 transition-colors"
                 >
                   {lp.image ? (
-                    <img
+                    <CachedImg
                       src={lp.image}
                       alt=""
                       className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                     />
                   ) : (
                     <div className="w-10 h-10 rounded-lg gradient-primary-soft border border-primary/30 flex items-center justify-center flex-shrink-0">
@@ -563,12 +594,10 @@ function MainView(p: MainViewProps) {
                   className="aspect-square rounded-lg overflow-hidden relative focus:outline-none active:opacity-75 transition-opacity"
                   onClick={() => p.onOpenMedia(p.gifUrls, i)}
                 >
-                  <img
+                  <CachedImg
                     src={url}
                     alt=""
                     className="w-full h-full object-cover"
-                    loading="lazy"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                   />
                 </button>
               ))}
