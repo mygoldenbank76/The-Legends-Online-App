@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, UserPlus, Share2, X, Loader2, Check } from 'lucide-react';
@@ -6,12 +6,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   useListContacts,
   getListContactsQueryKey,
-  getListConversationsQueryKey,
 } from '@workspace/api-client-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { usePreferences } from '@/lib/preferences-context';
 import { getAuthHeaders } from '@/lib/auth-fetch';
+import { UserProfileSheet } from '@/components/chat/user-profile-sheet';
 
 type ContactUser = {
   id: number;
@@ -47,12 +47,12 @@ function Avatar({ user, size = 44 }: { user: { displayName: string; avatar?: str
 export function ContactsPage({ user, onSelectConv }: Props) {
   const { t } = usePreferences();
   const c = t.contacts;
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState('');
   const [showNewContact, setShowNewContact] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
+  const [profileUser, setProfileUser] = useState<ContactUser | null>(null);
 
   const { data: contacts = [], isLoading } = useListContacts();
   const list = (contacts ?? []) as ContactUser[];
@@ -64,26 +64,6 @@ export function ContactsPage({ user, onSelectConv }: Props) {
       (u) => u.displayName.toLowerCase().includes(q) || u.username.toLowerCase().includes(q),
     );
   }, [list, search]);
-
-  // Open or create a 1-on-1 DM with the contact
-  const openDirectConv = useCallback(
-    async (contactUserId: number) => {
-      try {
-        const res = await fetch('/api/conversations', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() } as Record<string, string>,
-          body: JSON.stringify({ type: 'direct', participantIds: [contactUserId] }),
-        });
-        if (!res.ok) throw new Error('open_failed');
-        const conv = await res.json();
-        queryClient.invalidateQueries({ queryKey: getListConversationsQueryKey() });
-        onSelectConv(conv.id);
-      } catch {
-        toast({ variant: 'destructive', title: 'Erreur', description: "Impossible d'ouvrir la conversation" });
-      }
-    },
-    [onSelectConv, queryClient, toast],
-  );
 
   return (
     <div
@@ -146,7 +126,7 @@ export function ContactsPage({ user, onSelectConv }: Props) {
               <button
                 key={u.id}
                 type="button"
-                onClick={() => openDirectConv(u.id)}
+                onClick={() => setProfileUser(u)}
                 className="flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-white/5 active:bg-white/10 transition-colors text-left"
                 data-testid={`contact-row-${u.username}`}
               >
@@ -188,6 +168,19 @@ export function ContactsPage({ user, onSelectConv }: Props) {
         )}
         {showInvite && <InviteFriendsSheet onClose={() => setShowInvite(false)} />}
       </AnimatePresence>
+
+      {/* User profile detail (opened by tapping a contact row) */}
+      {profileUser && (
+        <UserProfileSheet
+          user={profileUser}
+          currentUserId={user.id}
+          onClose={() => setProfileUser(null)}
+          onOpenConversation={(convId) => {
+            setProfileUser(null);
+            onSelectConv(convId);
+          }}
+        />
+      )}
     </div>
   );
 }
