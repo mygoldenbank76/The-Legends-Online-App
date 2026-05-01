@@ -504,6 +504,17 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     setMutedOverride(null);
   }, [conversationId]);
 
+  // Whenever the group info sheet is opened or closed, defensively
+  // close all chat-area transient overlays. This prevents the chat
+  // header 3-dot menu (or emoji/GIF panel) from being left in an
+  // "open" state behind the group info portal and reappearing once
+  // the user navigates back.
+  useEffect(() => {
+    setHeaderMenuOpen(false);
+    setEmojiOpen(false);
+    setGifOpen(false);
+  }, [groupInfoOpen]);
+
   // Close ANY open transient overlay (emoji panel, GIF picker, header
   // 3-dot menu) on outside tap. Elements that should NOT count as
   // "outside" are marked with `data-overlay-region` (the overlay
