@@ -16,7 +16,11 @@ export function UploadProgressOverlay({ loaded, total, onCancel }: Props) {
   const progress = total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
   const radius = 22;
   const circumference = 2 * Math.PI * radius;
-  const dashOffset = circumference - (progress / 100) * circumference;
+  // Always show a small visible arc (>= 12%) so the spinning ring is never
+  // invisible at 0% — Telegram does the same so the spinner is immediately
+  // perceived as "loading" before any bytes are confirmed by the server.
+  const visibleProgress = Math.max(progress, 12);
+  const dashOffset = circumference - (visibleProgress / 100) * circumference;
 
   return (
     <>
@@ -32,11 +36,13 @@ export function UploadProgressOverlay({ loaded, total, onCancel }: Props) {
           className="relative w-14 h-14 rounded-full bg-black/55 backdrop-blur-sm flex items-center justify-center pointer-events-auto active:scale-95 transition-transform"
           aria-label="Annuler l'envoi"
         >
+          {/* Static track circle */}
           <svg
-            className="absolute inset-0 -rotate-90"
+            className="absolute inset-0"
             width="56"
             height="56"
             viewBox="0 0 56 56"
+            aria-hidden
           >
             <circle
               cx="28"
@@ -46,6 +52,19 @@ export function UploadProgressOverlay({ loaded, total, onCancel }: Props) {
               strokeWidth="2"
               fill="none"
             />
+          </svg>
+
+          {/* Progress arc — continuously rotates while filling
+              (Telegram-style). The dasharray fills as upload progresses,
+              and the whole SVG spins so the arc rotates around the X. */}
+          <svg
+            className="absolute inset-0 animate-spin"
+            style={{ animationDuration: '1.4s' }}
+            width="56"
+            height="56"
+            viewBox="0 0 56 56"
+            aria-hidden
+          >
             <circle
               cx="28"
               cy="28"
@@ -59,7 +78,9 @@ export function UploadProgressOverlay({ loaded, total, onCancel }: Props) {
               style={{ transition: 'stroke-dashoffset 200ms ease-out' }}
             />
           </svg>
-          <X className="w-5 h-5 text-white" strokeWidth={2.5} />
+
+          {/* X icon stays still in the center while the ring spins */}
+          <X className="w-5 h-5 text-white relative" strokeWidth={2.5} />
         </button>
       </div>
 

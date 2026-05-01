@@ -21,7 +21,7 @@ import {
   Mic, Copy, Heart, CheckCheck, ChevronDown,
   Search, Bell, BellOff, ChevronUp,
   Phone, Video as VideoIcon,
-  Sparkles,
+  Sparkles, Clock,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { AttachmentSheet } from './attachment-sheet';
@@ -109,6 +109,9 @@ type PendingUpload = {
   abort: AbortController;
   caption?: string;       // only first item of a group carries the caption
   replyToId?: number;
+  startedAt: number;      // ms epoch — used to render the bubble's "sent at" time
+  status: 'uploading' | 'sent'; // 'sent' = server already has the message; placeholder kept until the real msg appears in the list
+  uploadedUrl?: string;   // server URL once the XHR completes
 };
 type TranslateEntry = { msgId: number; text: string };
 
@@ -1329,6 +1332,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     setReplyTo(null);
 
     // 1. Build optimistic entries (blob URLs → instant preview)
+    const startedAt = Date.now();
     const entries: PendingUpload[] = files.map((file, idx) => ({
       id: `${groupId}-${idx}`,
       groupId,
@@ -1341,6 +1345,8 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       abort: new AbortController(),
       caption: idx === 0 ? caption : undefined,
       replyToId: replyId,
+      startedAt,
+      status: 'uploading',
     }));
 
     setPendingUploads(prev => [...prev, ...entries]);
@@ -1390,23 +1396,35 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       }
     }
 
-    // 3. Cleanup placeholders (always — completion or abort)
-    entries.forEach(p => URL.revokeObjectURL(p.previewUrl));
-    setPendingUploads(prev => prev.filter(p => !entries.some(e => e.id === p.id)));
-
+    // 3a. If aborted or any upload failed, remove the placeholders now and
+    //     stop — no message will be posted.
     if (aborted || urls.length !== entries.length) {
-      // User cancelled (or one upload failed) → don't send the message
+      entries.forEach(p => URL.revokeObjectURL(p.previewUrl));
+      setPendingUploads(prev => prev.filter(p => !entries.some(e => e.id === p.id)));
       return;
     }
 
-    // 4. Stale-session guard: if user switched away from this conversation
-    //    while uploads were running, drop the result instead of posting it
-    //    to a different (now-active) conversation.
+    // 3b. Stale-session guard: if user switched away from this conversation
+    //     while uploads were running, drop the result instead of posting it
+    //     to a different (now-active) conversation.
     if (uploadConvIdRef.current !== targetConvId) {
+      entries.forEach(p => URL.revokeObjectURL(p.previewUrl));
+      setPendingUploads(prev => prev.filter(p => !entries.some(e => e.id === p.id)));
       return;
     }
 
-    // 5. Send the real message with the uploaded URL(s)
+    // 4. Mark each entry as 'sent' with its server URL. We DO NOT remove
+    //    the placeholders here — the cleanup effect below removes them
+    //    only once the matching real messages appear in the list. This
+    //    avoids the "vanish then reappear" flash the user reported.
+    setPendingUploads(prev => prev.map(p => {
+      const e = entries.find(x => x.id === p.id);
+      if (!e) return p;
+      const idx = entries.indexOf(e);
+      return { ...p, status: 'sent', uploadedUrl: urls[idx], loaded: p.total };
+    }));
+
+    // 5. Send the real message with the uploaded URL(s).
     try {
       forceScrollRef.current = true;
       if (urls.length === 1) {
@@ -1423,8 +1441,32 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       invalidate();
     } catch (err) {
       console.error('Send message error:', err);
+      // Send failed → remove the (now stuck) placeholders so the user isn't
+      // left looking at frozen "sent" bubbles forever.
+      entries.forEach(p => URL.revokeObjectURL(p.previewUrl));
+      setPendingUploads(prev => prev.filter(p => !entries.some(e => e.id === p.id)));
     }
   }, [conversationId, replyTo, sendMsg, invalidate, scrollBottom]);
+
+  // Once a real message arrives that has the same imageUrl (or contains
+  // it in mediaAlbum) as one of our 'sent' placeholders, remove that
+  // placeholder. The render below also filters those out at render time
+  // so the bubble swap is seamless (no flash, no duplicate).
+  useEffect(() => {
+    if (pendingUploads.length === 0) return;
+    const sentUrls = new Set<string>();
+    for (const m of messages) {
+      if (m.imageUrl) sentUrls.add(m.imageUrl);
+      const album = (m as any).mediaAlbum;
+      if (Array.isArray(album)) for (const u of album) sentUrls.add(u);
+    }
+    const toRemove = pendingUploads.filter(p =>
+      p.status === 'sent' && p.uploadedUrl && sentUrls.has(p.uploadedUrl)
+    );
+    if (toRemove.length === 0) return;
+    toRemove.forEach(p => URL.revokeObjectURL(p.previewUrl));
+    setPendingUploads(prev => prev.filter(p => !toRemove.some(t => t.id === p.id)));
+  }, [messages, pendingUploads]);
 
   const handleDocumentChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -2421,9 +2463,24 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
               While files upload, show a fake outgoing bubble with the
               local blob preview, a circular progress ring around an X
               cancel button, and a "loaded / total" bytes badge.
-              Files sent together (same groupId) share one bubble. */}
+              Files sent together (same groupId) share one bubble.
+
+              We also filter out any 'sent' entry whose URL is already in
+              the messages list — this means the swap from optimistic
+              bubble to real message is seamless: the moment the real
+              one renders, the placeholder is hidden in the SAME render
+              cycle, with no double-bubble or vanish-then-reappear. */}
           {(() => {
-            const visible = pendingUploads.filter(p => p.conversationId === conversationId);
+            const sentUrlSet = new Set<string>();
+            for (const m of messages) {
+              if (m.imageUrl) sentUrlSet.add(m.imageUrl);
+              const album = (m as any).mediaAlbum;
+              if (Array.isArray(album)) for (const u of album) sentUrlSet.add(u);
+            }
+            const visible = pendingUploads.filter(p =>
+              p.conversationId === conversationId &&
+              !(p.uploadedUrl && sentUrlSet.has(p.uploadedUrl))
+            );
             if (visible.length === 0) return null;
             const groups: PendingUpload[][] = [];
             const seen = new Set<string>();
@@ -2504,9 +2561,13 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                         </div>
                       )}
 
+                      {/* Time + small clock icon — Telegram shows the
+                          send time even while the message is uploading,
+                          with a clock icon to mark "not yet acknowledged". */}
                       <div className="flex items-end justify-end mt-0.5 -mb-0.5">
                         <div className="text-[11px] flex items-center gap-1 text-primary-foreground/60">
-                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <Clock className="w-3 h-3" />
+                          <span>{format(new Date(items[0].startedAt), 'HH:mm')}</span>
                         </div>
                       </div>
                     </div>
