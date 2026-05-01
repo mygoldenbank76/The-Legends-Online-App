@@ -104,6 +104,23 @@ function AppRouter() {
 }
 
 // ── Visual viewport fix (keyboard push-up on mobile) ─────────────────────────
+// Default behavior: #root tracks the visual viewport so the on-screen keyboard
+// pushes content up (e.g. chat input bar stays above the keyboard).
+//
+// Some pages (like the contacts search) want the OPPOSITE — let the keyboard
+// overlay the bottom of the layout so the bottom nav is naturally covered
+// instead of being pushed up. Those pages call `setRootViewportMode('fullscreen')`
+// while their input is focused, and revert to `'visual'` on blur.
+type ViewportMode = 'visual' | 'fullscreen';
+let _viewportMode: ViewportMode = 'visual';
+let _viewportListeners: Array<() => void> = [];
+
+export function setRootViewportMode(mode: ViewportMode) {
+  if (_viewportMode === mode) return;
+  _viewportMode = mode;
+  _viewportListeners.forEach((fn) => fn());
+}
+
 function useVisualViewport() {
   useEffect(() => {
     const vv = window.visualViewport;
@@ -112,8 +129,15 @@ function useVisualViewport() {
     const update = () => {
       const root = document.getElementById('root');
       if (!root) return;
-      root.style.height = `${vv.height}px`;
-      root.style.top    = `${vv.offsetTop}px`;
+      if (_viewportMode === 'fullscreen') {
+        // Pin #root to the layout viewport so the keyboard overlays content
+        // (covering the bottom nav) instead of shrinking the layout.
+        root.style.height = '100%';
+        root.style.top = '0px';
+      } else {
+        root.style.height = `${vv.height}px`;
+        root.style.top    = `${vv.offsetTop}px`;
+      }
     };
 
     const blockScroll = (e: Event) => {
@@ -122,11 +146,13 @@ function useVisualViewport() {
     };
 
     update();
+    _viewportListeners.push(update);
     vv.addEventListener('resize',  update);
     vv.addEventListener('scroll',  update);
     window.addEventListener('scroll', blockScroll, { passive: false });
 
     return () => {
+      _viewportListeners = _viewportListeners.filter((fn) => fn !== update);
       vv.removeEventListener('resize',  update);
       vv.removeEventListener('scroll',  update);
       window.removeEventListener('scroll', blockScroll);

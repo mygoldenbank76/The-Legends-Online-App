@@ -10,6 +10,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { usePreferences } from '@/lib/preferences-context';
+import { setRootViewportMode } from '@/App';
 import { getAuthHeaders } from '@/lib/auth-fetch';
 import { UserProfileSheet } from '@/components/chat/user-profile-sheet';
 
@@ -57,6 +58,20 @@ export function ContactsPage({ user, onSelectConv, onSearchActiveChange }: Props
   const [profileUser, setProfileUser] = useState<ContactUser | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
+  // While the search input is focused, switch the app shell into "fullscreen"
+  // mode so the on-screen keyboard overlays the bottom nav instead of
+  // squishing the layout (the chat-input behavior is preserved everywhere
+  // else by reverting to 'visual' on blur or unmount).
+  function handleSearchFocus() {
+    setRootViewportMode('fullscreen');
+  }
+  function handleSearchBlur() {
+    setRootViewportMode('visual');
+  }
+  useEffect(() => {
+    return () => setRootViewportMode('visual');
+  }, []);
+
   const { data: contacts = [], isLoading } = useListContacts();
   const list = (contacts ?? []) as ContactUser[];
 
@@ -100,6 +115,8 @@ export function ContactsPage({ user, onSelectConv, onSearchActiveChange }: Props
             ref={searchInputRef}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            onFocus={handleSearchFocus}
+            onBlur={handleSearchBlur}
             placeholder={c.searchPlaceholder}
             className="bg-white/5 border-white/10 pl-10 pr-10 h-11 rounded-2xl"
             data-testid="input-search-contacts"
