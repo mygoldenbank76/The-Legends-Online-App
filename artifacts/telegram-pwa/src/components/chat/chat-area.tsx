@@ -1338,7 +1338,18 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     const replyId = replyTo?.id;
     setReplyTo(null);
 
-    // 1. Build optimistic entries (blob URLs → instant preview)
+    // 1. Compute intrinsic dimensions FIRST so the optimistic bubble has
+    //    the correct shape on the very first paint — no small-then-big
+    //    pop, no landscape-then-portrait flash. Reading metadata from a
+    //    local File is near-instant (the browser only decodes the header)
+    //    and the helper has a 4 s hard timeout for any pathological case,
+    //    so this never makes "Send" feel laggy.
+    const dimsResults = await Promise.all(
+      files.map(f => getMediaDimensions(f).catch(() => null)),
+    );
+
+    // 2. Build optimistic entries (blob URLs → instant preview) carrying
+    //    the dimensions from the start.
     const startedAt = Date.now();
     const entries: PendingUpload[] = files.map((file, idx) => ({
       id: `${groupId}-${idx}`,
@@ -1354,6 +1365,8 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       replyToId: replyId,
       startedAt,
       status: 'uploading',
+      width: dimsResults[idx]?.width,
+      height: dimsResults[idx]?.height,
     }));
 
     setPendingUploads(prev => [...prev, ...entries]);
@@ -1361,29 +1374,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     // Defer scroll so the new bubbles are in the DOM before we measure
     requestAnimationFrame(() => scrollBottom(0));
 
-    // 1b. Compute intrinsic dimensions client-side IN PARALLEL with the
-    //     upload. The dimensions are attached to the pending entry as soon
-    //     as they're known (so the optimistic bubble already has the right
-    //     shape) AND the resulting promises are awaited just before posting
-    //     the real message — that way the URL and the width/height land on
-    //     the server together and every receiver sees the bubble at the
-    //     correct shape on the very first paint, no orientation flash.
-    const dimsPromises = entries.map(entry =>
-      getMediaDimensions(entry.file)
-        .then(dims => {
-          if (dims) {
-            entry.width = dims.width;
-            entry.height = dims.height;
-            setPendingUploads(prev => prev.map(p =>
-              p.id === entry.id ? { ...p, width: dims.width, height: dims.height } : p
-            ));
-          }
-          return dims;
-        })
-        .catch(() => null),
-    );
-
-    // 2. Upload all files in parallel with progress + cancellation.
+    // 3. Upload all files in parallel with progress + cancellation.
     //    If any single upload fails or is cancelled, abort the WHOLE group
     //    so we don't leave orphan in-flight uploads in the background.
     const abortGroup = () => entries.forEach(e => {
@@ -1453,15 +1444,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       return { ...p, status: 'sent', uploadedUrl: urls[idx], loaded: p.total };
     }));
 
-    // 5. Send the real message with the uploaded URL(s).
-    //    Wait for the parallel dimension extraction to settle FIRST — the
-    //    inner helper already has a 4 s hard timeout, so this can never
-    //    block the send indefinitely. Without this await we'd race: a
-    //    fast upload could fire `sendMsg` before metadata decode, posting
-    //    the message with NULL dimensions and re-triggering the very flash
-    //    this whole feature is meant to eliminate.
-    await Promise.all(dimsPromises);
-
+    // 5. Send the real message with the uploaded URL(s). Dimensions were
+    //    resolved up-front (step 1) so the URL and width/height always
+    //    land on the server together — no race possible.
     try {
       forceScrollRef.current = true;
       if (urls.length === 1) {
@@ -2597,28 +2582,37 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       {!isAlbum ? (
                         <div className="mb-1.5 -mx-1.5 -mt-0.5 overflow-hidden rounded-[10px] bg-foreground/5 relative">
                           {(() => {
-                            // Apply the precomputed aspect ratio to the
-                            // sender's optimistic bubble too, so it matches
-                            // the final size from the very first paint and
-                            // doesn't visibly shift when the real (server-
-                            // backed) message replaces it.
-                            const aspectStyle = items[0].width && items[0].height
-                              ? { aspectRatio: `${items[0].width} / ${items[0].height}` }
+                            const hasDims = !!(items[0].width && items[0].height);
+                            const ar = hasDims
+                              ? `${items[0].width} / ${items[0].height}`
                               : undefined;
-                            return items[0].isVideo ? (
-                              <video
-                                src={items[0].previewUrl}
-                                className="w-full max-h-64 object-cover rounded-[10px]"
-                                style={aspectStyle}
-                                muted
-                                playsInline
-                              />
-                            ) : (
+                            if (items[0].isVideo) {
+                              // Mirror VideoPlayer exactly: aspect-ratio +
+                              // 70vh cap + object-contain. Same shape, same
+                              // size, same fit → when the real server
+                              // message replaces this placeholder, the
+                              // bubble doesn't shift a pixel.
+                              return (
+                                <video
+                                  src={items[0].previewUrl}
+                                  className={`w-full rounded-[10px] ${hasDims ? 'object-contain' : 'max-h-64 object-cover'}`}
+                                  style={hasDims ? { aspectRatio: ar, maxHeight: '70vh' } : undefined}
+                                  muted
+                                  playsInline
+                                />
+                              );
+                            }
+                            // Image: keep the legacy max-h-64 cap so the
+                            // optimistic bubble matches the final rendered
+                            // <CachedImg> below; just add aspectRatio when
+                            // known so portrait photos no longer pop from
+                            // a flat default to their real shape.
+                            return (
                               <img
                                 src={items[0].previewUrl}
                                 alt=""
                                 className="w-full max-h-64 object-cover rounded-[10px]"
-                                style={aspectStyle}
+                                style={hasDims ? { aspectRatio: ar } : undefined}
                               />
                             );
                           })()}
