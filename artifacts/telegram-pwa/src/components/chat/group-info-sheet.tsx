@@ -331,7 +331,7 @@ function MainView(p: MainViewProps) {
             <PopoverContent
               align="end"
               sideOffset={8}
-              className="w-60 p-1 glass border-border/40 rounded-2xl"
+              className="w-60 p-1 glass border-border/40 rounded-2xl z-[460]"
             >
               <button
                 onClick={p.onSearchMembers}
