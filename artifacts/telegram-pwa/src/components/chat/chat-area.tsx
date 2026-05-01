@@ -513,12 +513,14 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // context menu (the user only wanted to close the overlay).
   useEffect(() => {
     if (!emojiOpen && !gifOpen && !headerMenuOpen) return;
-    // Use the CLICK event in CAPTURE phase. This way the same physical
-    // tap that closes the overlay also reaches `openCtxMenu` immediately
-    // afterwards (capture → bubble) with `transientClosedAt` freshly
-    // updated, so its guard reliably fires. Using mousedown caused a
-    // layout shift before `click`, which sometimes pushed the message
-    // bubble off the click target and exceeded the timestamp window.
+    // Document-level CAPTURE-phase listener: when a tap lands outside
+    // any `[data-overlay-region]`, close the open overlays AND stop
+    // propagation so the click never reaches the underlying element's
+    // onClick handler (e.g. a message bubble that would otherwise open
+    // its context menu). The intent of an outside-tap is purely to
+    // dismiss — not to trigger the underlying action. We also stamp a
+    // timestamp as a defensive fallback for any code path that still
+    // relies on it (`openCtxMenu`).
     const handler = (e: Event) => {
       const target = e.target as Element | null;
       if (target && target.closest && target.closest('[data-overlay-region]')) return;
@@ -526,6 +528,11 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       setGifOpen(false);
       setHeaderMenuOpen(false);
       transientClosedAt.current = Date.now();
+      // Block the underlying click/tap from reaching any other handler.
+      e.stopPropagation();
+      if (typeof (e as any).stopImmediatePropagation === 'function') {
+        (e as any).stopImmediatePropagation();
+      }
     };
     document.addEventListener('click', handler, true);
     document.addEventListener('touchstart', handler, true);
@@ -1317,7 +1324,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     // If a transient overlay (emoji/GIF/header menu) is open OR was
     // just dismissed by this same tap, swallow the event instead of
     // opening the message menu.
-    if (anyTransientOpen || Date.now() - transientClosedAt.current < 350) {
+    if (anyTransientOpen || Date.now() - transientClosedAt.current < 700) {
       closeTransientOverlays();
       return;
     }
