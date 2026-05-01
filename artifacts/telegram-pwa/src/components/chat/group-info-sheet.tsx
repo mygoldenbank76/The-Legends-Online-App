@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { X, Link2, Image as ImageIcon, FileText, Mic, Play } from 'lucide-react';
+import { ArrowLeft, Link2, Image as ImageIcon, FileText, Mic, Play } from 'lucide-react';
 import { usePreferences } from '@/lib/preferences-context';
 import { translateGroupName } from '@/lib/i18n';
 import { MediaViewer } from './media-viewer';
@@ -72,32 +72,27 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
       <AnimatePresence>
         {open && (
           <motion.div
-            className="fixed inset-0 z-[450] flex items-end sm:items-center justify-center sm:p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            onClick={onClose}
+            className="fixed inset-0 z-[450] bg-background flex flex-col"
+            initial={{ y: '-100%', opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: '-100%', opacity: 0 }}
+            transition={{ type: 'spring', damping: 30, stiffness: 320 }}
           >
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-            <motion.div
-              className="relative w-full max-w-lg sm:max-w-md"
-              initial={{ y: 100, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 100, opacity: 0 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="glass-strong rounded-t-3xl sm:rounded-3xl max-h-[80dvh] flex flex-col">
-                {/* Close button */}
-                <div className="flex justify-end p-3 pb-0">
-                  <button onClick={onClose} className="w-8 h-8 rounded-full glass flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
+            <div className="flex flex-col h-full overflow-y-auto">
+              {/* Top bar with back arrow */}
+              <div className="sticky top-0 z-10 flex items-center justify-between px-3 pt-3 pb-2 bg-background/80 backdrop-blur-md gradient-hairline-bottom">
+                <button
+                  onClick={onClose}
+                  className="w-10 h-10 rounded-full glass flex items-center justify-center text-foreground hover:text-primary transition-colors"
+                  aria-label="Retour"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <div className="w-10 h-10" />
+              </div>
 
-                {/* Avatar + name */}
-                <div className="flex flex-col items-center pb-4 px-4">
+              {/* Avatar + name */}
+              <div className="flex flex-col items-center pb-4 px-4 pt-2">
                   <div className="w-20 h-20 rounded-2xl gradient-primary glow-primary-sm flex items-center justify-center mb-3">
                     <span className="text-3xl font-bold text-white">{initial}</span>
                   </div>
@@ -154,7 +149,7 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
                 </div>
 
                 {/* Tab content */}
-                <div className="flex-1 overflow-y-auto p-4 min-h-[160px]">
+                <div className="flex-1 p-4 min-h-[160px]">
                   {tab === 'media' && (
                     allMediaUrls.length > 0 ? (
                       <div className="grid grid-cols-3 gap-1">
@@ -216,8 +211,7 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
                     )
                   )}
                 </div>
-              </div>
-            </motion.div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
