@@ -2268,19 +2268,28 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
                     {/* Media Album (multiple images/videos — Telegram grid style) */}
                     {(msg as any).mediaAlbum && Array.isArray((msg as any).mediaAlbum) && (msg as any).mediaAlbum.length > 0 && !isPoll && (
-                      <AlbumGrid
-                        urls={(msg as any).mediaAlbum}
-                        onItemClick={(i) => {
-                          if (Date.now() - conversationOpenedAt.current < 900) return;
-                          setMediaViewer({ urls: (msg as any).mediaAlbum, index: i });
-                        }}
-                      />
+                      <div className="relative">
+                        <AlbumGrid
+                          urls={(msg as any).mediaAlbum}
+                          onItemClick={(i) => {
+                            if (Date.now() - conversationOpenedAt.current < 900) return;
+                            setMediaViewer({ urls: (msg as any).mediaAlbum, index: i });
+                          }}
+                        />
+                        {/* Time overlay on the album when there's no caption (Telegram-style) */}
+                        {!msg.content && (
+                          <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/55 backdrop-blur-sm text-white text-[11px] flex items-center gap-1 pointer-events-none">
+                            {msg.editedAt && <span className="italic opacity-80">modifié</span>}
+                            <span>{msgTime}</span>
+                          </div>
+                        )}
+                      </div>
                     )}
 
                     {/* Single Image or Video */}
                     {msg.imageUrl && !(msg as any).mediaAlbum && !isPoll && (
                       <div
-                        className="mb-1.5 -mx-1.5 -mt-0.5 overflow-hidden rounded-[10px] bg-foreground/5"
+                        className="mb-1.5 -mx-1.5 -mt-0.5 overflow-hidden rounded-[10px] bg-foreground/5 relative"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {msg.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? (
@@ -2302,6 +2311,13 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                               setMediaViewer({ urls: [msg.imageUrl!], index: 0 });
                             }}
                           />
+                        )}
+                        {/* Time overlay on the media when there's no caption (Telegram-style) */}
+                        {!msg.content && (
+                          <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/55 backdrop-blur-sm text-white text-[11px] flex items-center gap-1 pointer-events-none">
+                            {msg.editedAt && <span className="italic opacity-80">modifié</span>}
+                            <span>{msgTime}</span>
+                          </div>
                         )}
                       </div>
                     )}
@@ -2416,7 +2432,16 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       <LinkPreviewCard preview={msg.linkPreview} isMine={isMine} />
                     )}
 
-                    {/* Bottom row: reactions (left) + time (right) — inside bubble like Base44 */}
+                    {/* Bottom row: reactions (left) + time (right) — inside bubble like Base44.
+                        When the message is media-only (image/video/album, no caption),
+                        the time is shown OVER the media (Telegram-style) instead, so
+                        we hide it here. The row is still rendered when reactions
+                        exist so they have a place to live. */}
+                    {(() => {
+                      const isMediaOnly = !msg.content && !isPoll && !isCall && !isAudio &&
+                        (!!msg.imageUrl || (Array.isArray((msg as any).mediaAlbum) && (msg as any).mediaAlbum.length > 0));
+                      if (isMediaOnly && !hasReactions) return null;
+                      return (
                     <div className={`flex items-end justify-between gap-2 ${isPoll ? 'mt-2' : 'mt-0.5 -mb-0.5'}`}>
                       {/* Reactions inside bubble — animated with Framer Motion */}
                       {hasReactions ? (
@@ -2447,12 +2472,17 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
                       {/* Time + edited — read-receipt indicators removed:
                           users can still see "vu par" via the message
-                          context menu (long-press) for any sent message. */}
+                          context menu (long-press) for any sent message.
+                          Hidden for media-only messages (overlaid on media). */}
+                      {!isMediaOnly && (
                       <div className={`text-[11px] flex items-center gap-1 flex-shrink-0 ${isMine ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>
                         {msg.editedAt && <span className="italic opacity-80">modifié</span>}
                         <span>{msgTime}</span>
                       </div>
+                      )}
                     </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -2520,10 +2550,19 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                             total={items[0].total}
                             onCancel={() => cancelPendingUpload(items[0].id)}
                           />
+                          {/* Time overlay (Telegram-style) — only when no caption.
+                              The clock icon indicates "not yet acknowledged"
+                              just like Telegram does for in-flight messages. */}
+                          {!caption && (
+                            <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/55 backdrop-blur-sm text-white text-[11px] flex items-center gap-1 pointer-events-none">
+                              <Clock className="w-3 h-3" />
+                              <span>{format(new Date(items[0].startedAt), 'HH:mm')}</span>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div
-                          className="mb-1.5 -mx-1.5 -mt-0.5 overflow-hidden rounded-[10px] grid gap-[2px]"
+                          className="mb-1.5 -mx-1.5 -mt-0.5 overflow-hidden rounded-[10px] grid gap-[2px] relative"
                           style={{
                             gridTemplateColumns: items.length === 2 ? '1fr 1fr' : '1fr 1fr',
                             gridAutoRows: items.length <= 2 ? '180px' : '120px',
@@ -2552,24 +2591,31 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                               />
                             </div>
                           ))}
+                          {/* Time overlay over the whole album grid (Telegram-style) */}
+                          {!caption && (
+                            <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/55 backdrop-blur-sm text-white text-[11px] flex items-center gap-1 pointer-events-none z-10">
+                              <Clock className="w-3 h-3" />
+                              <span>{format(new Date(items[0].startedAt), 'HH:mm')}</span>
+                            </div>
+                          )}
                         </div>
                       )}
 
                       {caption && (
-                        <div className="whitespace-pre-wrap break-words leading-snug">
-                          <RichText text={caption} isMine={true} />
-                        </div>
+                        <>
+                          <div className="whitespace-pre-wrap break-words leading-snug">
+                            <RichText text={caption} isMine={true} />
+                          </div>
+                          {/* With caption, the time goes BELOW like a normal text
+                              message — Telegram does the same. */}
+                          <div className="flex items-end justify-end mt-0.5 -mb-0.5">
+                            <div className="text-[11px] flex items-center gap-1 text-primary-foreground/60">
+                              <Clock className="w-3 h-3" />
+                              <span>{format(new Date(items[0].startedAt), 'HH:mm')}</span>
+                            </div>
+                          </div>
+                        </>
                       )}
-
-                      {/* Time + small clock icon — Telegram shows the
-                          send time even while the message is uploading,
-                          with a clock icon to mark "not yet acknowledged". */}
-                      <div className="flex items-end justify-end mt-0.5 -mb-0.5">
-                        <div className="text-[11px] flex items-center gap-1 text-primary-foreground/60">
-                          <Clock className="w-3 h-3" />
-                          <span>{format(new Date(items[0].startedAt), 'HH:mm')}</span>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </div>
