@@ -30,6 +30,12 @@ interface Props {
   className?: string;
   poster?: string;
   onExpand?: () => void;
+  /** Intrinsic pixel dimensions known up-front (e.g. captured server-side at
+   *  upload time and forwarded with the message). When provided, the bubble
+   *  is sized correctly on the very first paint with no flash, no metadata
+   *  fetch wait, and no loading placeholder. */
+  intrinsicWidth?: number;
+  intrinsicHeight?: number;
 }
 
 // ── Aspect-ratio cache (shared across all VideoPlayer instances) ────────────
@@ -79,7 +85,15 @@ function formatTime(s: number): string {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
-export function VideoPlayer({ src, className = '', poster, onExpand }: Props) {
+export function VideoPlayer({
+  src, className = '', poster, onExpand,
+  intrinsicWidth, intrinsicHeight,
+}: Props) {
+  // Server-provided dimensions take absolute priority — they are the most
+  // authoritative source and are available on the very first paint.
+  const intrinsicRatio = (intrinsicWidth && intrinsicHeight && intrinsicHeight > 0)
+    ? intrinsicWidth / intrinsicHeight
+    : null;
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -92,20 +106,28 @@ export function VideoPlayer({ src, className = '', poster, onExpand }: Props) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
-  // ── Aspect ratio: cached from previous loads → applied immediately ───────
-  // If we already know the ratio (cache hit), the bubble is correctly sized
-  // on the very first paint and the <video> can be shown right away with no
-  // risk of a wrong-orientation flash.
-  const [aspectRatio, setAspectRatio] = useState<number | null>(() => getCachedAspect(src));
-  const [metaLoaded, setMetaLoaded] = useState<boolean>(() => getCachedAspect(src) !== null);
+  // ── Aspect ratio: server props → URL cache → on-the-fly metadata ────────
+  // Priority order:
+  //   1) `intrinsicWidth/Height` props (captured at upload time, stored on
+  //      the message in the DB) — always correct, available on first paint.
+  //   2) localStorage URL cache (populated from a previous visit on this
+  //      device) — covers legacy messages that were inserted before the
+  //      schema columns existed.
+  //   3) <video> `loadedmetadata` event — last-resort fallback. While we
+  //      wait, the bubble is hidden behind a small loader so the user never
+  //      sees a wrong-orientation frame.
+  const initialAspect = intrinsicRatio ?? getCachedAspect(src);
+  const [aspectRatio, setAspectRatio] = useState<number | null>(initialAspect);
+  const [metaLoaded, setMetaLoaded] = useState<boolean>(initialAspect !== null);
 
-  // Reset cached state when the src changes (e.g. when this player is reused
-  // for a different message — happens with React's key reconciliation).
+  // Reset cached state when the src OR the supplied intrinsic dimensions
+  // change (e.g. when this player is reused for a different message —
+  // happens with React's key reconciliation).
   useEffect(() => {
-    const cached = getCachedAspect(src);
-    setAspectRatio(cached);
-    setMetaLoaded(cached !== null);
-  }, [src]);
+    const next = intrinsicRatio ?? getCachedAspect(src);
+    setAspectRatio(next);
+    setMetaLoaded(next !== null);
+  }, [src, intrinsicRatio]);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 

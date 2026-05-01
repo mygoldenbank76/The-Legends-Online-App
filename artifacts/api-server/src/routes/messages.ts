@@ -58,6 +58,8 @@ async function buildMessage(messageId: number, requestingUserId?: number): Promi
     sender: sender ? formatUser(sender) : undefined,
     content: msg.isDeleted ? null : msg.content,
     imageUrl: msg.isDeleted ? null : msg.imageUrl,
+    mediaWidth: msg.isDeleted ? null : msg.mediaWidth,
+    mediaHeight: msg.isDeleted ? null : msg.mediaHeight,
     mediaAlbum: msg.isDeleted ? null : (msg.mediaAlbum as string[] | null),
     audioUrl: msg.isDeleted ? null : msg.audioUrl,
     audioDuration: msg.isDeleted ? null : msg.audioDuration,
@@ -85,6 +87,8 @@ type FormattedMessage = {
   sender?: ReturnType<typeof formatUser>;
   content: string | null;
   imageUrl: string | null;
+  mediaWidth?: number | null;
+  mediaHeight?: number | null;
   mediaAlbum?: string[] | null;
   audioUrl?: string | null;
   audioDuration?: number | null;
@@ -217,6 +221,8 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
       sender: senderMap[m.senderId] ? formatUser(senderMap[m.senderId]) : undefined,
       content: m.isDeleted ? null : m.content,
       imageUrl: m.isDeleted ? null : m.imageUrl,
+      mediaWidth: m.isDeleted ? null : m.mediaWidth,
+      mediaHeight: m.isDeleted ? null : m.mediaHeight,
       mediaAlbum: m.isDeleted ? null : (m.mediaAlbum as string[] | null),
       audioUrl: m.isDeleted ? null : m.audioUrl,
       audioDuration: m.isDeleted ? null : m.audioDuration,
@@ -259,9 +265,17 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
   const conversationId = parseInt(rawId, 10);
   if (isNaN(conversationId)) { res.status(400).json({ error: "Invalid conversation ID" }); return; }
 
-  const { content, imageUrl, mediaAlbum, audioUrl, audioDuration, replyToId, poll, disableLinkPreview } = req.body as {
+  const {
+    content, imageUrl, mediaWidth, mediaHeight, mediaAlbum,
+    audioUrl, audioDuration, replyToId, poll, disableLinkPreview,
+  } = req.body as {
     content?: string;
     imageUrl?: string;
+    // Intrinsic dimensions of the single image/video (when imageUrl is set).
+    // Sent by the client at upload time so the receiver can size the bubble
+    // correctly on the very first paint.
+    mediaWidth?: number;
+    mediaHeight?: number;
     mediaAlbum?: string[];
     audioUrl?: string;
     audioDuration?: number;
@@ -275,6 +289,17 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
       isQuiz?: boolean;
     };
   };
+
+  // Validate dimensions: only accept safe positive integers within a sane
+  // upper bound (much larger than any real photo/video resolution but well
+  // below int4 overflow). Also require BOTH width and height — a lone
+  // dimension is meaningless for sizing the bubble, so we discard the pair.
+  const MAX_DIM = 100_000;
+  const isValidDim = (n: unknown): n is number =>
+    typeof n === "number" && Number.isSafeInteger(n) && n > 0 && n <= MAX_DIM;
+  const dimsValid = isValidDim(mediaWidth) && isValidDim(mediaHeight);
+  const safeWidth = dimsValid ? (mediaWidth as number) : null;
+  const safeHeight = dimsValid ? (mediaHeight as number) : null;
 
   if (content == null && imageUrl == null && mediaAlbum == null && audioUrl == null && poll == null) {
     res.status(400).json({ error: "Message must have content, imageUrl, mediaAlbum, audioUrl, or poll" });
@@ -307,6 +332,10 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
     senderId: userId,
     content: content ?? null,
     imageUrl: imageUrl ?? null,
+    // Only persist dimensions when the message actually carries a single
+    // image/video — they don't apply to album entries or audio messages.
+    mediaWidth: imageUrl ? safeWidth : null,
+    mediaHeight: imageUrl ? safeHeight : null,
     mediaAlbum: (mediaAlbum && mediaAlbum.length > 0 ? mediaAlbum : null) as string[] | null,
     audioUrl: audioUrl ?? null,
     audioDuration: audioDuration ?? null,

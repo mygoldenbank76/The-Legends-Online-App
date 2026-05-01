@@ -8,6 +8,12 @@ export const messagesTable = pgTable("messages", {
   senderId: integer("sender_id").notNull(),
   content: text("content"),
   imageUrl: text("image_url"),
+  // Intrinsic media dimensions captured at upload time so the receiving
+  // client can size the bubble correctly on the very first paint — no
+  // landscape→portrait flash, no loading placeholder. Both nullable for
+  // backwards compatibility with rows created before these columns existed.
+  mediaWidth: integer("media_width"),
+  mediaHeight: integer("media_height"),
   audioUrl: text("audio_url"),
   audioDuration: integer("audio_duration"),
   pollId: integer("poll_id"),

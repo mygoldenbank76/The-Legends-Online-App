@@ -36,6 +36,7 @@ import { FormattingToolbar } from './formatting-toolbar';
 import { RichText, applyFormat } from './rich-text';
 import type { FormatType } from './rich-text';
 import { GifPicker } from './gif-picker';
+import { getMediaDimensions } from '@/lib/media-dimensions';
 import type { GifResult } from './gif-picker';
 import { MediaPickerModal } from './media-picker-modal';
 import type { MediaQuality } from './media-picker-modal';
@@ -78,6 +79,10 @@ type Msg = {
   sender?: { id: number; displayName: string; username?: string; avatar?: string | null; bio?: string | null };
   content?: string | null;
   imageUrl?: string | null;
+  // Intrinsic dimensions captured server-side at upload time so we can
+  // size the bubble on the very first paint, with no orientation flash.
+  mediaWidth?: number | null;
+  mediaHeight?: number | null;
   audioUrl?: string | null;
   audioDuration?: number | null;
   poll?: Poll | null;
@@ -112,6 +117,8 @@ type PendingUpload = {
   startedAt: number;      // ms epoch — used to render the bubble's "sent at" time
   status: 'uploading' | 'sent'; // 'sent' = server already has the message; placeholder kept until the real msg appears in the list
   uploadedUrl?: string;   // server URL once the XHR completes
+  width?: number;         // intrinsic media width (px), computed before upload
+  height?: number;        // intrinsic media height (px), computed before upload
 };
 type TranslateEntry = { msgId: number; text: string };
 
@@ -1354,6 +1361,28 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     // Defer scroll so the new bubbles are in the DOM before we measure
     requestAnimationFrame(() => scrollBottom(0));
 
+    // 1b. Compute intrinsic dimensions client-side IN PARALLEL with the
+    //     upload. The dimensions are attached to the pending entry as soon
+    //     as they're known (so the optimistic bubble already has the right
+    //     shape) AND the resulting promises are awaited just before posting
+    //     the real message — that way the URL and the width/height land on
+    //     the server together and every receiver sees the bubble at the
+    //     correct shape on the very first paint, no orientation flash.
+    const dimsPromises = entries.map(entry =>
+      getMediaDimensions(entry.file)
+        .then(dims => {
+          if (dims) {
+            entry.width = dims.width;
+            entry.height = dims.height;
+            setPendingUploads(prev => prev.map(p =>
+              p.id === entry.id ? { ...p, width: dims.width, height: dims.height } : p
+            ));
+          }
+          return dims;
+        })
+        .catch(() => null),
+    );
+
     // 2. Upload all files in parallel with progress + cancellation.
     //    If any single upload fails or is cancelled, abort the WHOLE group
     //    so we don't leave orphan in-flight uploads in the background.
@@ -1425,12 +1454,30 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     }));
 
     // 5. Send the real message with the uploaded URL(s).
+    //    Wait for the parallel dimension extraction to settle FIRST — the
+    //    inner helper already has a 4 s hard timeout, so this can never
+    //    block the send indefinitely. Without this await we'd race: a
+    //    fast upload could fire `sendMsg` before metadata decode, posting
+    //    the message with NULL dimensions and re-triggering the very flash
+    //    this whole feature is meant to eliminate.
+    await Promise.all(dimsPromises);
+
     try {
       forceScrollRef.current = true;
       if (urls.length === 1) {
+        // Single image/video: forward the intrinsic dimensions so the
+        // server stores them and every client (including future page
+        // loads) can render the bubble at the correct shape instantly.
+        const e0 = entries[0];
         await sendMsg.mutateAsync({
           conversationId: targetConvId,
-          data: { imageUrl: urls[0], content: caption || undefined, replyToId: replyId },
+          data: {
+            imageUrl: urls[0],
+            content: caption || undefined,
+            replyToId: replyId,
+            mediaWidth: e0.width,
+            mediaHeight: e0.height,
+          } as any,
         });
       } else {
         await sendMsg.mutateAsync({
@@ -2298,16 +2345,27 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                           <VideoPlayer
                             src={msg.imageUrl}
                             className="w-full rounded-[10px]"
+                            intrinsicWidth={msg.mediaWidth ?? undefined}
+                            intrinsicHeight={msg.mediaHeight ?? undefined}
                             onExpand={() => {
                               if (Date.now() - conversationOpenedAt.current < 900) return;
                               setMediaViewer({ urls: [msg.imageUrl!], index: 0 });
                             }}
                           />
                         ) : (
+                          // Reserve the bubble's exact aspect ratio when the
+                          // server gave us the dimensions — prevents the brief
+                          // height-jump we used to see when portrait photos
+                          // loaded into a flat-default container.
                           <CachedImg
                             src={msg.imageUrl}
                             alt="attached"
                             className="max-w-full max-h-64 object-cover rounded-[10px] cursor-pointer active:opacity-80 transition-opacity"
+                            style={
+                              msg.mediaWidth && msg.mediaHeight
+                                ? { aspectRatio: `${msg.mediaWidth} / ${msg.mediaHeight}` }
+                                : undefined
+                            }
                             onClick={() => {
                               if (Date.now() - conversationOpenedAt.current < 900) return;
                               setMediaViewer({ urls: [msg.imageUrl!], index: 0 });
@@ -2538,20 +2596,32 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     <div className="rounded-[14px] px-2.5 py-[6px] text-[14.5px] leading-[1.3] bubble-sent rounded-br-[4px]">
                       {!isAlbum ? (
                         <div className="mb-1.5 -mx-1.5 -mt-0.5 overflow-hidden rounded-[10px] bg-foreground/5 relative">
-                          {items[0].isVideo ? (
-                            <video
-                              src={items[0].previewUrl}
-                              className="w-full max-h-64 object-cover rounded-[10px]"
-                              muted
-                              playsInline
-                            />
-                          ) : (
-                            <img
-                              src={items[0].previewUrl}
-                              alt=""
-                              className="w-full max-h-64 object-cover rounded-[10px]"
-                            />
-                          )}
+                          {(() => {
+                            // Apply the precomputed aspect ratio to the
+                            // sender's optimistic bubble too, so it matches
+                            // the final size from the very first paint and
+                            // doesn't visibly shift when the real (server-
+                            // backed) message replaces it.
+                            const aspectStyle = items[0].width && items[0].height
+                              ? { aspectRatio: `${items[0].width} / ${items[0].height}` }
+                              : undefined;
+                            return items[0].isVideo ? (
+                              <video
+                                src={items[0].previewUrl}
+                                className="w-full max-h-64 object-cover rounded-[10px]"
+                                style={aspectStyle}
+                                muted
+                                playsInline
+                              />
+                            ) : (
+                              <img
+                                src={items[0].previewUrl}
+                                alt=""
+                                className="w-full max-h-64 object-cover rounded-[10px]"
+                                style={aspectStyle}
+                              />
+                            );
+                          })()}
                           <UploadProgressOverlay
                             loaded={items[0].loaded}
                             total={items[0].total}
