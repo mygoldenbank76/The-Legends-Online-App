@@ -53,7 +53,6 @@ export function ContactsPage({ user, onSelectConv, onSearchActiveChange }: Props
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState('');
-  const [searchFocused, setSearchFocused] = useState(false);
   const [showHub, setShowHub] = useState(false);
   const [profileUser, setProfileUser] = useState<ContactUser | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -62,10 +61,10 @@ export function ContactsPage({ user, onSelectConv, onSearchActiveChange }: Props
   const list = (contacts ?? []) as ContactUser[];
 
   const trimmedSearch = search.trim();
-  // Telegram-style: search mode is active when the input is focused or has
-  // any text. While active, the page hides extra chrome (invite card, sort
-  // header, bottom nav) so results have maximum room above the keyboard.
-  const searchActive = searchFocused || trimmedSearch.length > 0;
+  // Search mode is active only while the input contains text. Clearing the
+  // text (via the X button or by deleting characters) restores the default
+  // page appearance — no manual cancel needed.
+  const searchActive = trimmedSearch.length > 0;
 
   const filtered = useMemo(() => {
     const q = trimmedSearch.toLowerCase();
@@ -84,12 +83,6 @@ export function ContactsPage({ user, onSelectConv, onSearchActiveChange }: Props
     return () => onSearchActiveChange?.(false);
   }, [onSearchActiveChange]);
 
-  function exitSearch() {
-    setSearch('');
-    setSearchFocused(false);
-    searchInputRef.current?.blur();
-  }
-
   return (
     <div
       className="h-full overflow-y-auto overscroll-contain relative"
@@ -101,51 +94,30 @@ export function ContactsPage({ user, onSelectConv, onSearchActiveChange }: Props
     >
       <div className="flex flex-col gap-4 px-4 pt-6">
         {/* Search bar (with optional clear button when text is present) */}
-        <div className="relative flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-            <Input
-              ref={searchInputRef}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setSearchFocused(false)}
-              placeholder={c.searchPlaceholder}
-              className="bg-white/5 border-white/10 pl-10 pr-10 h-11 rounded-2xl"
-              data-testid="input-search-contacts"
-            />
-            {search.length > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearch('');
-                  searchInputRef.current?.focus();
-                }}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors"
-                aria-label={c.clearSearch}
-                data-testid="button-clear-contacts-search"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-          <AnimatePresence initial={false}>
-            {searchActive && (
-              <motion.button
-                key="cancel-search"
-                type="button"
-                onClick={exitSearch}
-                initial={{ opacity: 0, width: 0, marginLeft: 0 }}
-                animate={{ opacity: 1, width: 'auto', marginLeft: 0 }}
-                exit={{ opacity: 0, width: 0, marginLeft: 0 }}
-                transition={{ duration: 0.15 }}
-                className="text-sm font-medium text-primary px-1 whitespace-nowrap overflow-hidden"
-                data-testid="button-cancel-contacts-search"
-              >
-                {c.cancel}
-              </motion.button>
-            )}
-          </AnimatePresence>
+        <div className="relative">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <Input
+            ref={searchInputRef}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={c.searchPlaceholder}
+            className="bg-white/5 border-white/10 pl-10 pr-10 h-11 rounded-2xl"
+            data-testid="input-search-contacts"
+          />
+          {search.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch('');
+                searchInputRef.current?.focus();
+              }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors"
+              aria-label={c.clearSearch}
+              data-testid="button-clear-contacts-search"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Action card + section header: hidden in search mode (Telegram-style) */}
