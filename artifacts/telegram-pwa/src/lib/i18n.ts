@@ -163,6 +163,9 @@ type Dict = {
     opening: string;
     copyUsername: string;
     usernameCopied: string;
+    setPhoto: string;
+    editInfo: string;
+    noBio: string;
   };
   contacts: {
     title: string;
@@ -336,6 +339,9 @@ export const i18n: Record<AppLang, Dict> = {
       opening: 'Ouverture…',
       copyUsername: "Copier l'identifiant",
       usernameCopied: "Identifiant copié",
+      setPhoto: "Définir",
+      editInfo: "Modifier les infos",
+      noBio: "Ajoute une biographie",
     },
     contacts: {
       title: "Contacts",
@@ -508,6 +514,9 @@ export const i18n: Record<AppLang, Dict> = {
       opening: 'Opening…',
       copyUsername: "Copy username",
       usernameCopied: "Username copied",
+      setPhoto: "Set",
+      editInfo: "Edit info",
+      noBio: "Add a bio",
     },
     contacts: {
       title: "Contacts",
@@ -683,6 +692,9 @@ export const i18n: Record<AppLang, Dict> = {
       opening: 'Abriendo…',
       copyUsername: "Copiar identificador",
       usernameCopied: "Identificador copiado",
+      setPhoto: "Definir",
+      editInfo: "Editar información",
+      noBio: "Añade una biografía",
     },
     contacts: {
       title: "Contactos",
@@ -858,6 +870,9 @@ export const i18n: Record<AppLang, Dict> = {
       opening: 'جارٍ الفتح…',
       copyUsername: "نسخ المعرف",
       usernameCopied: "تم نسخ المعرف",
+      setPhoto: "تعيين",
+      editInfo: "تعديل المعلومات",
+      noBio: "أضف نبذة",
     },
     contacts: {
       title: "جهات الاتصال",
@@ -1033,6 +1048,9 @@ export const i18n: Record<AppLang, Dict> = {
       opening: 'Abrindo…',
       copyUsername: "Copiar identificador",
       usernameCopied: "Identificador copiado",
+      setPhoto: "Definir",
+      editInfo: "Editar informações",
+      noBio: "Adicione uma biografia",
     },
     contacts: {
       title: "Contatos",
@@ -1208,6 +1226,9 @@ export const i18n: Record<AppLang, Dict> = {
       opening: 'Öffnen…',
       copyUsername: "Benutzernamen kopieren",
       usernameCopied: "Benutzername kopiert",
+      setPhoto: "Festlegen",
+      editInfo: "Infos bearbeiten",
+      noBio: "Biografie hinzufügen",
     },
     contacts: {
       title: "Kontakte",

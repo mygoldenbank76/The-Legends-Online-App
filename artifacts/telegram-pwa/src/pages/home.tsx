@@ -162,6 +162,7 @@ export default function Home() {
               onLogout={logout}
               onRefetchUser={refetchUser}
               user={user}
+              onNavigateTab={handleTabChange}
             />
           </div>
         </aside>
@@ -201,6 +202,7 @@ export default function Home() {
                       onLogout={logout}
                       onRefetchUser={refetchUser}
                       user={user}
+                      onNavigateTab={handleTabChange}
                     />
                   </motion.div>
                 </AnimatePresence>
@@ -437,7 +439,7 @@ function MobileBottomNav({
 
 /* ── Tab content switcher ── */
 function TabContent({
-  tab, activeConvId, onSelectConv, isMobile, onLogout, onRefetchUser, user,
+  tab, activeConvId, onSelectConv, isMobile, onLogout, onRefetchUser, user, onNavigateTab,
 }: {
   tab: Tab;
   activeConvId?: number;
@@ -446,6 +448,7 @@ function TabContent({
   onLogout: () => void;
   onRefetchUser: () => void;
   user: { id: number; displayName: string; username: string; avatar?: string | null; bio?: string | null };
+  onNavigateTab?: (tab: Tab) => void;
 }) {
   if (tab === 'groups') {
     return (
@@ -468,7 +471,7 @@ function TabContent({
     );
   }
   if (tab === 'profile') {
-    return <ProfilePage user={user} onSaved={onRefetchUser} />;
+    return <ProfilePage user={user} onSaved={onRefetchUser} onNavigateTab={onNavigateTab} />;
   }
   if (tab === 'contacts') {
     return <ContactsPage user={user} onSelectConv={onSelectConv} />;

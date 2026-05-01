@@ -1,16 +1,18 @@
 import { useState, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Camera, User, AtSign, FileText, Save, Trash2, Loader2, Check, Copy } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { Camera, Pencil, Settings, Copy, AtSign, FileText, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { usePreferences } from '@/lib/preferences-context';
+import { ProfileEditorSheet } from './profile-editor-sheet';
 
 const API_BASE = '/api';
-function getToken() { return localStorage.getItem('telechat_token'); }
-function authHeaders(isJson = true) {
-  const h: Record<string, string> = { Authorization: `Bearer ${getToken()}` };
-  if (isJson) h['Content-Type'] = 'application/json';
-  return h;
+
+function authJsonHeaders(): Record<string, string> {
+  const token = localStorage.getItem('telechat_token');
+  return {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  };
 }
 
 type ProfileUser = {
@@ -23,6 +25,7 @@ type ProfileUser = {
 type Props = {
   user: ProfileUser;
   onSaved: (updated: ProfileUser) => void;
+  onNavigateTab?: (tab: 'settings') => void;
 };
 
 async function compressImage(file: File): Promise<string> {
@@ -50,92 +53,58 @@ async function compressImage(file: File): Promise<string> {
   });
 }
 
-export function ProfilePage({ user, onSaved }: Props) {
+export function ProfilePage({ user, onSaved, onNavigateTab }: Props) {
   const { toast } = useToast();
   const { t } = usePreferences();
   const p = t.profile;
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [displayName, setDisplayName] = useState(user.displayName);
-  const [username, setUsername] = useState(user.username);
-  const [bio, setBio] = useState(user.bio || '');
-  const [avatar, setAvatar] = useState<string | null | undefined>(user.avatar);
-  const [avatarChanged, setAvatarChanged] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [showEditor, setShowEditor] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
-  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      toast({ variant: 'destructive', title: 'Format invalide', description: 'Sélectionne une image (JPG, PNG, WebP...)' });
-      return;
-    }
+  const initials = user.displayName.substring(0, 2).toUpperCase() || '??';
+
+  const copyUsername = useCallback(async () => {
     try {
-      const compressed = await compressImage(file);
-      setAvatar(compressed);
-      setAvatarChanged(true);
+      await navigator.clipboard.writeText(user.username);
+      toast({ title: p.usernameCopied, duration: 1600 });
     } catch {
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de traiter l\'image' });
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Copie impossible' });
     }
-    e.target.value = '';
-  }, [toast]);
+  }, [p.usernameCopied, toast, user.username]);
 
-  function removeAvatar() {
-    setAvatar(null);
-    setAvatarChanged(true);
-  }
-
-  async function save() {
-    const trimmedName = displayName.trim();
-    const trimmedUser = username.trim().toLowerCase();
-
-    if (!trimmedName || trimmedName.length > 50) {
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Nom affiché invalide (1–50 caractères)' });
-      return;
-    }
-    if (!/^[a-z0-9_]{3,20}$/.test(trimmedUser)) {
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Identifiant invalide (3–20 car., lettres, chiffres, _)' });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const body: Record<string, string | null> = {
-        displayName: trimmedName,
-        username: trimmedUser,
-        bio: bio.trim() || '',
-      };
-      if (avatarChanged) body.avatar = avatar ?? null;
-
-      const res = await fetch(`${API_BASE}/users/me/profile`, {
-        method: 'PATCH',
-        headers: authHeaders(),
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Erreur serveur');
+  const handleFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file) return;
+      if (!file.type.startsWith('image/')) {
+        toast({ variant: 'destructive', title: 'Format invalide', description: 'Sélectionne une image (JPG, PNG, WebP...)' });
+        return;
       }
-      const updated = await res.json();
-      setSaved(true);
-      onSaved(updated);
-      setAvatarChanged(false);
-      setTimeout(() => setSaved(false), 1500);
-    } catch (e: any) {
-      toast({ variant: 'destructive', title: 'Erreur', description: e.message });
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const initials = displayName.substring(0, 2).toUpperCase() || '??';
-  const bioLen = bio.length;
-  const hasChanges =
-    displayName.trim() !== user.displayName ||
-    username.trim().toLowerCase() !== user.username ||
-    bio.trim() !== (user.bio || '') ||
-    avatarChanged;
+      setUploading(true);
+      try {
+        const compressed = await compressImage(file);
+        const res = await fetch(`${API_BASE}/users/me/profile`, {
+          method: 'PATCH',
+          headers: authJsonHeaders(),
+          body: JSON.stringify({ avatar: compressed }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || 'Erreur serveur');
+        }
+        const updated = await res.json();
+        onSaved(updated);
+        toast({ title: p.saved, duration: 1400 });
+      } catch (err: any) {
+        toast({ variant: 'destructive', title: 'Erreur', description: err?.message || 'Impossible de mettre à jour la photo' });
+      } finally {
+        setUploading(false);
+      }
+    },
+    [onSaved, p.saved, toast],
+  );
 
   return (
     <div
@@ -143,69 +112,48 @@ export function ProfilePage({ user, onSaved }: Props) {
       style={{ paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }}
     >
       <div className="flex flex-col gap-5 px-4 pt-8">
-        {/* Avatar — large hero with futuristic ring */}
-        <div className="flex flex-col items-center gap-6">
+        {/* Hero: avatar + name + status */}
+        <div className="flex flex-col items-center gap-3">
           <motion.div
             initial={{ scale: 0.92, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: 'spring', damping: 22, stiffness: 240 }}
             className="relative"
           >
-            {/* Animated outer ring — kept tight so it doesn't overlap the header above or the name below */}
-            <span aria-hidden className="absolute -inset-1 rounded-[26px] profile-hero-ring pointer-events-none" />
-            <div
-              className="relative w-28 h-28 rounded-3xl bg-primary/20 overflow-hidden cursor-pointer group glow-primary-sm"
+            <span aria-hidden className="absolute -inset-1 rounded-full profile-hero-ring pointer-events-none" />
+            <button
+              type="button"
               onClick={() => fileRef.current?.click()}
+              className="relative w-32 h-32 rounded-full bg-primary/20 overflow-hidden glow-primary-sm group"
+              aria-label={p.setPhoto}
+              data-testid="button-hero-avatar"
             >
-              {avatar ? (
-                <img src={avatar} alt="avatar" className="w-full h-full object-cover" />
+              {user.avatar ? (
+                <img src={user.avatar} alt={user.displayName} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
-                  <span className="text-4xl font-bold text-primary">{initials}</span>
+                  <span className="text-5xl font-bold text-primary">{initials}</span>
                 </div>
               )}
-              <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <Camera className="w-7 h-7 text-white" />
+              <div className="absolute inset-0 bg-black/55 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                {uploading ? (
+                  <Loader2 className="w-7 h-7 text-white animate-spin" />
+                ) : (
+                  <Camera className="w-7 h-7 text-white" />
+                )}
               </div>
-            </div>
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="absolute -bottom-1 -right-1 w-9 h-9 rounded-2xl gradient-primary glow-primary-sm flex items-center justify-center shadow-lg hover:opacity-90 active:scale-95 transition-all"
-            >
-              <Camera className="w-4 h-4 text-white" />
+              {uploading && (
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                  <Loader2 className="w-7 h-7 text-white animate-spin" />
+                </div>
+              )}
             </button>
           </motion.div>
 
-          <div className="flex flex-col items-center text-center gap-1.5">
-            <p className="text-lg font-bold leading-tight">{user.displayName}</p>
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(user.username);
-                  toast({ title: p.usernameCopied, duration: 1600 });
-                } catch {
-                  toast({ variant: 'destructive', title: 'Erreur', description: 'Copie impossible' });
-                }
-              }}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 active:scale-95 transition-all"
-              aria-label={p.copyUsername}
-              data-testid="button-copy-username"
-            >
-              <span className="text-sm text-muted-foreground">@{user.username}</span>
-              <Copy className="w-3.5 h-3.5 text-primary" />
-            </button>
+          <div className="flex flex-col items-center text-center gap-1">
+            <p className="text-2xl font-bold leading-tight" data-testid="text-display-name">{user.displayName}</p>
+            <p className="text-sm text-primary">{t.chat.online}</p>
           </div>
-
-          {avatar && (
-            <button
-              onClick={removeAvatar}
-              className="text-xs px-3 py-1.5 rounded-lg bg-white/10 text-muted-foreground hover:bg-red-500/15 hover:text-red-400 transition-colors flex items-center gap-1"
-            >
-              <Trash2 className="w-3 h-3" />
-              {p.removePhoto}
-            </button>
-          )}
 
           <input
             ref={fileRef}
@@ -216,80 +164,107 @@ export function ProfilePage({ user, onSaved }: Props) {
           />
         </div>
 
-        {/* Fields card */}
-        <div className="glass rounded-2xl p-4 flex flex-col gap-3">
-          {/* Display name */}
-          <div>
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-              <User className="w-3 h-3" /> {p.displayName}
-            </label>
-            <Input
-              value={displayName}
-              onChange={e => setDisplayName(e.target.value)}
-              placeholder={p.displayNamePlaceholder}
-              maxLength={50}
-              className="bg-white/5 border-white/10"
-            />
-            <p className="text-[10px] text-muted-foreground mt-1 text-right">{displayName.length}/50</p>
-          </div>
-
-          {/* Username */}
-          <div>
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-              <AtSign className="w-3 h-3" /> {p.username}
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">@</span>
-              <Input
-                value={username}
-                onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                placeholder="username"
-                maxLength={20}
-                className="bg-white/5 border-white/10 pl-7"
-              />
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-1">{p.usernameHint}</p>
-          </div>
-
-          {/* Bio */}
-          <div>
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-              <FileText className="w-3 h-3" /> {p.bio}
-            </label>
-            <textarea
-              value={bio}
-              onChange={e => setBio(e.target.value.slice(0, 160))}
-              placeholder={p.bioPlaceholder}
-              rows={3}
-              className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary/50 transition-colors"
-            />
-            <p className={`text-[10px] mt-1 text-right ${bioLen > 140 ? 'text-yellow-400' : 'text-muted-foreground'}`}>
-              {bioLen}/160
-            </p>
-          </div>
+        {/* Three action buttons row */}
+        <div className="grid grid-cols-3 gap-2.5">
+          <ActionButton
+            icon={<Camera className="w-5 h-5" />}
+            label={p.setPhoto}
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            testId="button-set-photo"
+          />
+          <ActionButton
+            icon={<Pencil className="w-5 h-5" />}
+            label={p.editInfo}
+            onClick={() => setShowEditor(true)}
+            testId="button-edit-info"
+          />
+          <ActionButton
+            icon={<Settings className="w-5 h-5" />}
+            label={t.tabs.settings}
+            onClick={() => onNavigateTab?.('settings')}
+            testId="button-open-settings"
+          />
         </div>
 
-        {/* Save button — pulled closer to the form so the visual gap above is smaller than the breathing room below */}
-        <button
-          onClick={save}
-          disabled={!hasChanges || loading}
-          className={`-mt-2 w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-semibold text-sm transition-all ${
-            saved
-              ? 'bg-green-500 text-white'
-              : hasChanges
-                ? 'gradient-primary glow-primary text-white hover:opacity-95 active:scale-[0.97]'
-                : 'bg-white/10 text-muted-foreground cursor-not-allowed'
-          }`}
-        >
-          {loading ? (
-            <><Loader2 className="w-4 h-4 animate-spin" /> {p.saving}</>
-          ) : saved ? (
-            <><Check className="w-4 h-4" /> {p.saved}</>
-          ) : (
-            <><Save className="w-4 h-4" /> {p.save}</>
-          )}
-        </button>
+        {/* Info card: identifier + bio */}
+        <div className="glass rounded-2xl overflow-hidden">
+          <button
+            type="button"
+            onClick={copyUsername}
+            className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/5 active:bg-white/10 transition-colors"
+            data-testid="button-copy-username"
+          >
+            <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
+              <AtSign className="w-4 h-4 text-primary" />
+            </div>
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-sm font-medium truncate">@{user.username}</span>
+              <span className="text-xs text-muted-foreground">{p.username}</span>
+            </div>
+            <Copy className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          </button>
+
+          <div className="h-px bg-white/8 mx-4" />
+
+          <button
+            type="button"
+            onClick={() => setShowEditor(true)}
+            className="w-full flex items-start gap-3 px-4 py-3.5 text-left hover:bg-white/5 active:bg-white/10 transition-colors"
+            data-testid="button-bio-edit"
+          >
+            <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
+              <FileText className="w-4 h-4 text-primary" />
+            </div>
+            <div className="flex flex-col min-w-0 flex-1">
+              {user.bio && user.bio.trim().length > 0 ? (
+                <span className="text-sm font-medium whitespace-pre-wrap break-words">{user.bio}</span>
+              ) : (
+                <span className="text-sm text-muted-foreground italic">{p.noBio}</span>
+              )}
+              <span className="text-xs text-muted-foreground mt-0.5">{p.bio}</span>
+            </div>
+          </button>
+        </div>
       </div>
+
+      {showEditor && (
+        <ProfileEditorSheet
+          user={user}
+          onClose={() => setShowEditor(false)}
+          onSaved={(u) => {
+            onSaved(u);
+            setShowEditor(false);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function ActionButton({
+  icon,
+  label,
+  onClick,
+  disabled,
+  testId,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  testId?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      data-testid={testId}
+      className="glass rounded-2xl px-3 py-3 flex flex-col items-center gap-1.5 hover:bg-white/10 active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100 transition-all"
+    >
+      <span className="text-primary">{icon}</span>
+      <span className="text-xs font-medium leading-tight text-center">{label}</span>
+    </button>
   );
 }
