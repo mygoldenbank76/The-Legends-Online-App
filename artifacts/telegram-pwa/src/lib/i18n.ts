@@ -170,6 +170,10 @@ type Dict = {
     call: string;
     addToContacts: string;
     addedToContacts: string;
+    userDetails: string;
+    noBioOther: string;
+    removeFromContacts: string;
+    removedFromContacts: string;
   };
   contacts: {
     title: string;
@@ -350,6 +354,10 @@ export const i18n: Record<AppLang, Dict> = {
       call: "Appeler",
       addToContacts: "Ajouter aux contacts",
       addedToContacts: "Ajouté aux contacts",
+      userDetails: "Détail de l'utilisateur",
+      noBioOther: "Aucune biographie",
+      removeFromContacts: "Retirer de mes contacts",
+      removedFromContacts: "Retiré de mes contacts",
     },
     contacts: {
       title: "Contacts",
@@ -529,6 +537,10 @@ export const i18n: Record<AppLang, Dict> = {
       call: "Call",
       addToContacts: "Add to contacts",
       addedToContacts: "Added to contacts",
+      userDetails: "User details",
+      noBioOther: "No bio",
+      removeFromContacts: "Remove from my contacts",
+      removedFromContacts: "Removed from my contacts",
     },
     contacts: {
       title: "Contacts",
@@ -711,6 +723,10 @@ export const i18n: Record<AppLang, Dict> = {
       call: "Llamar",
       addToContacts: "Añadir a contactos",
       addedToContacts: "Añadido a contactos",
+      userDetails: "Detalles del usuario",
+      noBioOther: "Sin biografía",
+      removeFromContacts: "Quitar de mis contactos",
+      removedFromContacts: "Quitado de mis contactos",
     },
     contacts: {
       title: "Contactos",
@@ -893,6 +909,10 @@ export const i18n: Record<AppLang, Dict> = {
       call: "اتصال",
       addToContacts: "إضافة إلى جهات الاتصال",
       addedToContacts: "تمت الإضافة إلى جهات الاتصال",
+      userDetails: "تفاصيل المستخدم",
+      noBioOther: "لا توجد نبذة",
+      removeFromContacts: "إزالة من جهات الاتصال",
+      removedFromContacts: "تمت الإزالة من جهات الاتصال",
     },
     contacts: {
       title: "جهات الاتصال",
@@ -1075,6 +1095,10 @@ export const i18n: Record<AppLang, Dict> = {
       call: "Ligar",
       addToContacts: "Adicionar aos contatos",
       addedToContacts: "Adicionado aos contatos",
+      userDetails: "Detalhes do utilizador",
+      noBioOther: "Sem biografia",
+      removeFromContacts: "Remover dos meus contatos",
+      removedFromContacts: "Removido dos meus contatos",
     },
     contacts: {
       title: "Contatos",
@@ -1257,6 +1281,10 @@ export const i18n: Record<AppLang, Dict> = {
       call: "Anrufen",
       addToContacts: "Zu Kontakten hinzufügen",
       addedToContacts: "Zu Kontakten hinzugefügt",
+      userDetails: "Benutzerdetails",
+      noBioOther: "Keine Biografie",
+      removeFromContacts: "Aus Kontakten entfernen",
+      removedFromContacts: "Aus Kontakten entfernt",
     },
     contacts: {
       title: "Kontakte",

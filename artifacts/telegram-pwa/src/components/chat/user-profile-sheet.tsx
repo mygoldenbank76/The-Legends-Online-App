@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, MessageSquare, Phone, AtSign, FileText, UserPlus, Loader2, Check } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Phone, AtSign, FileText, UserPlus, UserMinus, Loader2 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useListContacts, getListContactsQueryKey } from '@workspace/api-client-react';
 import { getAuthHeaders } from '@/lib/auth-fetch';
 import { usePreferences } from '@/lib/preferences-context';
 import { useToast } from '@/hooks/use-toast';
@@ -73,15 +75,21 @@ export function UserProfileSheet({ user, currentUserId, onClose, onOpenConversat
   const p = t.profile;
   const { toast } = useToast();
   const { initiateCall } = useCall();
+  const queryClient = useQueryClient();
 
   const [translatedBio, setTranslatedBio] = useState<string | null>(null);
   const [bioLoading, setBioLoading] = useState(false);
   const [messageLoading, setMessageLoading] = useState(false);
   const [callLoading, setCallLoading] = useState(false);
-  const [addLoading, setAddLoading] = useState(false);
-  const [addedFlag, setAddedFlag] = useState(false);
+  const [contactLoading, setContactLoading] = useState(false);
 
   const isSelf = user.id === currentUserId;
+
+  const { data: contacts = [] } = useListContacts();
+  const isContact = useMemo(
+    () => !isSelf && contacts.some((c) => c.id === user.id),
+    [contacts, isSelf, user.id],
+  );
 
   useEffect(() => {
     setTranslatedBio(null);
@@ -150,33 +158,47 @@ export function UserProfileSheet({ user, currentUserId, onClose, onOpenConversat
     }
   }, [p.usernameCopied, toast, user.username]);
 
-  const handleAddContact = useCallback(async () => {
-    if (isSelf || addLoading || !user.username) return;
-    setAddLoading(true);
+  const handleToggleContact = useCallback(async () => {
+    if (isSelf || contactLoading || !user.username) return;
+    setContactLoading(true);
     try {
-      const res = await fetch('/api/contacts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() } as Record<string, string>,
-        body: JSON.stringify({ username: user.username }),
-      });
-      if (res.status === 404) {
-        toast({ variant: 'destructive', title: t.contacts.userNotFound });
-        return;
+      if (isContact) {
+        const res = await fetch(`/api/contacts/${user.id}`, {
+          method: 'DELETE',
+          headers: { ...getAuthHeaders() } as Record<string, string>,
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          toast({ variant: 'destructive', title: t.contacts.addContactError, description: err?.error });
+          return;
+        }
+        await queryClient.invalidateQueries({ queryKey: getListContactsQueryKey() });
+        toast({ title: p.removedFromContacts, duration: 1800 });
+      } else {
+        const res = await fetch('/api/contacts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() } as Record<string, string>,
+          body: JSON.stringify({ username: user.username }),
+        });
+        if (res.status === 404) {
+          toast({ variant: 'destructive', title: t.contacts.userNotFound });
+          return;
+        }
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          toast({ variant: 'destructive', title: t.contacts.addContactError, description: err?.error });
+          return;
+        }
+        await queryClient.invalidateQueries({ queryKey: getListContactsQueryKey() });
+        const msg = res.status === 200 ? t.contacts.contactAlreadyExists : t.contacts.contactAdded;
+        toast({ title: msg, duration: 1800 });
       }
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast({ variant: 'destructive', title: t.contacts.addContactError, description: err?.error });
-        return;
-      }
-      const msg = res.status === 200 ? t.contacts.contactAlreadyExists : t.contacts.contactAdded;
-      toast({ title: msg, duration: 1800 });
-      setAddedFlag(true);
     } catch {
       toast({ variant: 'destructive', title: t.contacts.addContactError });
     } finally {
-      setAddLoading(false);
+      setContactLoading(false);
     }
-  }, [addLoading, isSelf, t.contacts.addContactError, t.contacts.contactAdded, t.contacts.contactAlreadyExists, t.contacts.userNotFound, toast, user.username]);
+  }, [contactLoading, isContact, isSelf, p.removedFromContacts, queryClient, t.contacts.addContactError, t.contacts.contactAdded, t.contacts.contactAlreadyExists, t.contacts.userNotFound, toast, user.id, user.username]);
 
   return createPortal(
     <AnimatePresence>
@@ -201,7 +223,7 @@ export function UserProfileSheet({ user, currentUserId, onClose, onOpenConversat
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="text-sm font-semibold text-muted-foreground">{p.publicInfo}</div>
+          <div className="text-sm font-semibold text-muted-foreground">{p.userDetails}</div>
           <div className="w-9 h-9" />
         </div>
 
@@ -283,7 +305,7 @@ export function UserProfileSheet({ user, currentUserId, onClose, onOpenConversat
                       )}
                     </>
                   ) : (
-                    <span className="text-sm text-muted-foreground italic">{p.noBio}</span>
+                    <span className="text-sm text-muted-foreground italic">{p.noBioOther}</span>
                   )}
                   <span className="text-xs text-muted-foreground mt-0.5">{p.bio}</span>
                 </div>
@@ -310,26 +332,26 @@ export function UserProfileSheet({ user, currentUserId, onClose, onOpenConversat
               )}
             </div>
 
-            {/* Add to contacts */}
+            {/* Add to / Remove from contacts */}
             {!isSelf && user.username && (
               <button
                 type="button"
-                onClick={handleAddContact}
-                disabled={addLoading || addedFlag}
+                onClick={handleToggleContact}
+                disabled={contactLoading}
                 className="glass rounded-2xl flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/5 active:bg-white/10 transition-colors disabled:opacity-60"
-                data-testid="button-add-to-contacts"
+                data-testid={isContact ? 'button-remove-from-contacts' : 'button-add-to-contacts'}
               >
-                <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
-                  {addLoading ? (
-                    <Loader2 className="w-4 h-4 text-primary animate-spin" />
-                  ) : addedFlag ? (
-                    <Check className="w-4 h-4 text-primary" />
+                <div className={`w-9 h-9 rounded-full ${isContact ? 'bg-destructive/15' : 'bg-primary/15'} flex items-center justify-center flex-shrink-0`}>
+                  {contactLoading ? (
+                    <Loader2 className={`w-4 h-4 ${isContact ? 'text-destructive' : 'text-primary'} animate-spin`} />
+                  ) : isContact ? (
+                    <UserMinus className="w-4 h-4 text-destructive" />
                   ) : (
                     <UserPlus className="w-4 h-4 text-primary" />
                   )}
                 </div>
-                <span className="text-sm font-medium">
-                  {addedFlag ? p.addedToContacts : p.addToContacts}
+                <span className={`text-sm font-medium ${isContact ? 'text-destructive' : ''}`}>
+                  {isContact ? p.removeFromContacts : p.addToContacts}
                 </span>
               </button>
             )}
