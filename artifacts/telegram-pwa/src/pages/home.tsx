@@ -8,7 +8,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useQueryClient } from '@tanstack/react-query';
 import { getListConversationsQueryKey } from '@workspace/api-client-react';
 import { AnimatedBackground } from '@/components/animated-background';
-import { Users, MessageSquare, Settings, Zap, LogOut, Globe, Languages, ChevronDown, Shield, X, ChevronRight, Download, Smartphone, CheckCircle2, Share, Bell, BellOff, User, Contact } from 'lucide-react';
+import { Users, MessageSquare, Settings, Zap, LogOut, Globe, Languages, ChevronDown, Shield, X, ChevronRight, Download, Smartphone, CheckCircle2, Share, Bell, BellOff, User, Contact, ArrowLeft } from 'lucide-react';
 import { AdminPanel } from '@/components/admin/admin-panel';
 import { ProfilePage } from '@/components/profile/profile-page';
 import { ContactsPage } from '@/components/contacts/contacts-page';
@@ -670,60 +670,44 @@ function SettingsPage({
             </div>
           </div>
 
-          {/* Admin bottom sheet — portal to escape sidebar stacking context */}
+          {/* Admin full-page view — portal to escape sidebar stacking context */}
           {createPortal(
             <AnimatePresence>
               {showAdmin && (
-                <>
-                  <motion.div
-                    key="admin-backdrop"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
-                    onClick={() => setShowAdmin(false)}
-                  />
-                  <motion.div
-                    key="admin-sheet"
-                    initial={{ y: '100%', opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: '100%', opacity: 0 }}
-                    transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-                    className="fixed inset-x-0 bottom-0 z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4"
-                    onClick={() => setShowAdmin(false)}
-                  >
-                    <div
-                      className="glass-strong rounded-t-3xl sm:rounded-3xl flex flex-col overflow-hidden w-full sm:max-w-2xl"
-                      style={{ maxHeight: '92dvh' }}
-                      onClick={e => e.stopPropagation()}
+                <motion.div
+                  key="admin-page"
+                  initial={{ x: '100%', opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={{ x: '100%', opacity: 0 }}
+                  transition={{ type: 'spring', damping: 30, stiffness: 320 }}
+                  className="fixed inset-0 z-[450] bg-background flex flex-col"
+                  style={{ height: '100dvh' }}
+                >
+                  {/* Header — same language as conversation detail pages */}
+                  <div className="flex items-center justify-between px-4 py-3 glass gradient-hairline-bottom flex-shrink-0">
+                    <button
+                      onClick={() => setShowAdmin(false)}
+                      className="w-10 h-10 rounded-full hover:bg-foreground/10 flex items-center justify-center transition-colors -ml-2"
+                      aria-label={t.chat.back}
                     >
-                      <div className="flex justify-center pt-3 pb-1 flex-shrink-0 sm:hidden">
-                        <div className="w-10 h-1 rounded-full bg-foreground/20" />
+                      <ArrowLeft className="w-5 h-5" />
+                    </button>
+                    <div className="flex items-center gap-3 flex-1 ml-1">
+                      <div className="w-9 h-9 rounded-xl gradient-primary glow-primary-sm flex items-center justify-center flex-shrink-0">
+                        <Shield className="w-4 h-4 text-white" />
                       </div>
-                      <div className="flex items-center justify-between px-5 py-3 gradient-hairline-bottom flex-shrink-0">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-xl gradient-primary glow-primary-sm flex items-center justify-center">
-                            <Shield className="w-4 h-4 text-white" />
-                          </div>
-                          <div>
-                            <p className="font-bold text-sm">{t.settings.adminPanel}</p>
-                            <p className="text-xs text-muted-foreground">The Legends Online</p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => setShowAdmin(false)}
-                          className="w-8 h-8 rounded-xl bg-foreground/10 hover:bg-foreground/15 flex items-center justify-center transition-colors"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                      <div className="flex-1 overflow-y-auto p-4">
-                        <AdminPanel />
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm leading-tight truncate">{t.settings.adminPanel}</p>
+                        <p className="text-xs text-muted-foreground leading-tight truncate">The Legends Online</p>
                       </div>
                     </div>
-                  </motion.div>
-                </>
+                    <div className="w-10 h-10" />
+                  </div>
+                  {/* Content */}
+                  <div className="flex-1 overflow-y-auto p-4">
+                    <AdminPanel />
+                  </div>
+                </motion.div>
               )}
             </AnimatePresence>,
             document.body
