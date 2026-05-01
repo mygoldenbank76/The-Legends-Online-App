@@ -46,7 +46,7 @@ import { UploadProgressOverlay } from './upload-progress-overlay';
 import { uploadFileWithProgress, UploadAbortError } from '@/lib/upload-with-progress';
 import { preloadMedia } from '@/lib/media-cache';
 import { prewarmIframe } from '@/lib/iframe-pool';
-import { VideoThumbnail } from './video-thumbnail';
+import { VideoThumbnail, cacheVideoPosterBlob, cacheVideoAspect } from './video-thumbnail';
 import { useCall } from '@/lib/call-context';
 import { CallBanner } from './call-modal';
 
@@ -1515,6 +1515,26 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       const idx = entries.indexOf(e);
       return { ...p, status: 'sent', uploadedUrl: urls[idx], loaded: p.total };
     }));
+
+    // 4b. Pre-populate VideoThumbnail's poster + aspect caches keyed by
+    //     the freshly uploaded video URL, BEFORE the message POST goes
+    //     out. By the time the server's WebSocket emit lands and the
+    //     real message replaces the upload placeholder, the new
+    //     VideoThumbnail finds the poster already in cache and paints
+    //     it on the very first frame — no network fetch, no flash of
+    //     the gradient background, no visible "blink" during the swap
+    //     the user reported. The cache lives in localStorage so the
+    //     same instant paint also applies on every future page load
+    //     for the sender.
+    entries.forEach((e, idx) => {
+      if (!e.isVideo) return;
+      const videoUrl = urls[idx];
+      if (!videoUrl) return;
+      if (e.posterBlob) cacheVideoPosterBlob(videoUrl, e.posterBlob);
+      if (e.width && e.height && e.height > 0) {
+        cacheVideoAspect(videoUrl, e.width / e.height);
+      }
+    });
 
     // 5. Send the real message with the uploaded URL(s). Dimensions were
     //    resolved up-front (step 1) so the URL and width/height always

@@ -109,6 +109,44 @@ function setCachedPoster(url: string, dataUrl: string): void {
   }
 }
 
+/**
+ * Pre-populate the poster cache for a video URL from a Blob.
+ *
+ * Called by chat-area the moment an outgoing video upload completes,
+ * so that when the real server message subsequently replaces the
+ * upload placeholder, the new VideoThumbnail finds the poster
+ * already in cache and paints it on the very first frame — no
+ * network fetch, no flash of the gradient background, no visible
+ * blink during the placeholder→message swap.
+ *
+ * Best-effort: if FileReader fails or the dataURL is suspiciously
+ * small, we silently no-op and the regular thumbnailUrl fetch path
+ * takes over.
+ */
+export function cacheVideoPosterBlob(videoUrl: string, blob: Blob): void {
+  try {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      if (typeof dataUrl === 'string' && dataUrl.length > 1024) {
+        setCachedPoster(videoUrl, dataUrl);
+      }
+    };
+    reader.readAsDataURL(blob);
+  } catch { /* ignore — cache write is purely an optimisation */ }
+}
+
+/**
+ * Pre-populate the aspect-ratio cache for a video URL.
+ *
+ * Same idea as cacheVideoPosterBlob — primes the cache before the
+ * VideoThumbnail mounts so the bubble lands at the correct shape
+ * on the very first paint with no need to wait for metadata.
+ */
+export function cacheVideoAspect(videoUrl: string, ratio: number): void {
+  if (isFinite(ratio) && ratio > 0) setCachedAspect(videoUrl, ratio);
+}
+
 function captureFrame(v: HTMLVideoElement, maxDim = 360): string | null {
   if (v.videoWidth <= 0 || v.videoHeight <= 0) return null;
   try {
@@ -145,18 +183,24 @@ export function VideoThumbnail({
     ? intrinsicWidth / intrinsicHeight
     : null;
 
-  // Server-supplied thumbnail wins outright. Otherwise fall back to any
-  // locally cached frame (legacy videos), otherwise capture on the fly.
+  // Local cache wins outright when present — both because it's a
+  // synchronous data URL (no network round-trip, no decode flash) AND
+  // because chat-area pre-populates it the moment a video upload
+  // completes, so the placeholder→real-message swap is seamless. When
+  // there's no local cache we fall back to the server-stored
+  // `thumbnailUrl` prop (which still loads instantly on a warm cache),
+  // and finally to an on-the-fly capture for legacy videos that have
+  // neither.
   const [aspect, setAspect] = useState<number | null>(
     () => intrinsicRatio ?? getCachedAspect(src),
   );
   const [localPoster, setLocalPoster] = useState<string | null>(
-    () => (thumbnailUrl ? null : getCachedPoster(src)),
+    () => getCachedPoster(src),
   );
 
   useEffect(() => {
     setAspect(intrinsicRatio ?? getCachedAspect(src));
-    setLocalPoster(thumbnailUrl ? null : getCachedPoster(src));
+    setLocalPoster(getCachedPoster(src));
   }, [src, intrinsicRatio, thumbnailUrl]);
 
   // Fall-through capture: only runs when neither the server thumbnail
@@ -222,8 +266,10 @@ export function VideoThumbnail({
   }, [src, thumbnailUrl, localPoster]);
 
   const effectiveAspect = aspect ?? DEFAULT_FALLBACK_ASPECT;
-  // Server thumbnail (when present) is what the receiver paints first.
-  const visiblePoster = thumbnailUrl ?? localPoster;
+  // Local cache wins (data URL, instant); server thumbnail is the
+  // backup so receivers without any local cache still get a real
+  // poster on first paint.
+  const visiblePoster = localPoster ?? thumbnailUrl;
 
   return (
     <div
