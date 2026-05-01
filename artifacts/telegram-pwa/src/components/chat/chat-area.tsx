@@ -46,7 +46,7 @@ import { UploadProgressOverlay } from './upload-progress-overlay';
 import { uploadFileWithProgress, UploadAbortError } from '@/lib/upload-with-progress';
 import { preloadMedia } from '@/lib/media-cache';
 import { prewarmIframe } from '@/lib/iframe-pool';
-import { VideoPlayer } from './video-player';
+import { VideoThumbnail } from './video-thumbnail';
 import { useCall } from '@/lib/call-context';
 import { CallBanner } from './call-modal';
 
@@ -2327,12 +2327,16 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                         onClick={(e) => e.stopPropagation()}
                       >
                         {msg.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? (
-                          <VideoPlayer
+                          // Static thumbnail tile (first frame + centered
+                          // play button). Tapping it opens the full-screen
+                          // MediaViewer where the actual playback happens
+                          // with native controls — same UX as Telegram.
+                          <VideoThumbnail
                             src={msg.imageUrl}
                             className="w-full rounded-[10px]"
                             intrinsicWidth={msg.mediaWidth ?? undefined}
                             intrinsicHeight={msg.mediaHeight ?? undefined}
-                            onExpand={() => {
+                            onClick={() => {
                               if (Date.now() - conversationOpenedAt.current < 900) return;
                               setMediaViewer({ urls: [msg.imageUrl!], index: 0 });
                             }}
