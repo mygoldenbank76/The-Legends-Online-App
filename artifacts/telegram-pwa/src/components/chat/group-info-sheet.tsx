@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -149,12 +150,13 @@ export function GroupInfoSheet({ open, onClose, conversation, messages, onOpenCo
     }
   }
 
-  return (
+  return createPortal(
     <>
       <AnimatePresence>
         {open && (
           <motion.div
             className="fixed inset-0 z-[450] bg-background flex flex-col"
+            style={{ height: '100dvh' }}
             initial={{ y: '-100%', opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: '-100%', opacity: 0 }}
@@ -266,7 +268,8 @@ export function GroupInfoSheet({ open, onClose, conversation, messages, onOpenCo
           }}
         />
       )}
-    </>
+    </>,
+    document.body,
   );
 }
 
@@ -301,7 +304,10 @@ type MainViewProps = {
 
 function MainView(p: MainViewProps) {
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
+    <div
+      className="flex flex-col h-full overflow-y-auto bg-background"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
       {/* Top bar with back arrow and (group only) 3-dot menu */}
       <div className="sticky top-0 z-10 flex items-center justify-between px-3 pt-3 pb-2 bg-background/80 backdrop-blur-md gradient-hairline-bottom">
         <button
