@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './auth-context';
 import { useQueryClient } from '@tanstack/react-query';
@@ -238,7 +238,11 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, queryClient]);
 
-  const joinConversation = (conversationId: number) => {
+  // Memoize so the chat-area join/leave effect doesn't fire on every parent
+  // render — without this, a render loop in SocketProvider (caused by its own
+  // state updates) would keep cleaning up + re-joining the same conversation,
+  // racing the ack callback and dropping the local presence entry to empty.
+  const joinConversation = useCallback((conversationId: number) => {
     socket?.emit('join_conversation', conversationId, (roster: number[]) => {
       // Seed local room presence with the current roster from the server
       setRoomPresenceMap(prev => {
@@ -247,9 +251,9 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         return next;
       });
     });
-  };
+  }, [socket]);
 
-  const leaveConversation = (conversationId: number) => {
+  const leaveConversation = useCallback((conversationId: number) => {
     socket?.emit('leave_conversation', conversationId);
     // Clear local roster for this conversation — we no longer track it
     setRoomPresenceMap(prev => {
@@ -257,11 +261,11 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       next.delete(conversationId);
       return next;
     });
-  };
+  }, [socket]);
 
-  const emitTyping = (conversationId: number, isTyping: boolean) => {
+  const emitTyping = useCallback((conversationId: number, isTyping: boolean) => {
     socket?.emit('typing', { conversationId, isTyping });
-  };
+  }, [socket]);
 
   return (
     <SocketContext.Provider value={{ socket, joinConversation, leaveConversation, emitTyping, typingUsers, presenceMap, roomPresenceMap }}>
