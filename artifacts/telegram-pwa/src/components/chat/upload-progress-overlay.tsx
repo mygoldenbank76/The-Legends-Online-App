@@ -55,29 +55,31 @@ export function UploadProgressOverlay({ loaded, total, onCancel }: Props) {
           </svg>
 
           {/* Progress arc — continuously rotates while filling
-              (Telegram-style). The dasharray fills as upload progresses,
-              and the whole SVG spins so the arc rotates around the X. */}
-          <svg
-            className="absolute inset-0 animate-spin"
+              (Telegram-style). The wrapper div spins independently of
+              React updates so the rotation stays perfectly fluid even
+              as the dashoffset jumps each time progress events fire.
+              Removing the CSS transition on stroke-dashoffset is what
+              fixes the "stutter" the user reported: with a transition,
+              the browser would re-sync the arc growth on every progress
+              event, which made the rotation appear to pause. */}
+          <div
+            className="absolute inset-0 animate-spin will-change-transform"
             style={{ animationDuration: '1.4s' }}
-            width="56"
-            height="56"
-            viewBox="0 0 56 56"
-            aria-hidden
           >
-            <circle
-              cx="28"
-              cy="28"
-              r={radius}
-              stroke="white"
-              strokeWidth="2.5"
-              fill="none"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={dashOffset}
-              style={{ transition: 'stroke-dashoffset 200ms ease-out' }}
-            />
-          </svg>
+            <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden>
+              <circle
+                cx="28"
+                cy="28"
+                r={radius}
+                stroke="white"
+                strokeWidth="2.5"
+                fill="none"
+                strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={dashOffset}
+              />
+            </svg>
+          </div>
 
           {/* X icon stays still in the center while the ring spins */}
           <X className="w-5 h-5 text-white relative" strokeWidth={2.5} />

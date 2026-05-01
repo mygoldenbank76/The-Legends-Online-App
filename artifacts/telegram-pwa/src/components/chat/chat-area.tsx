@@ -2276,8 +2276,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                             setMediaViewer({ urls: (msg as any).mediaAlbum, index: i });
                           }}
                         />
-                        {/* Time overlay on the album when there's no caption (Telegram-style) */}
-                        {!msg.content && (
+                        {/* Time overlay on the album — only when no caption AND no reactions.
+                            As soon as a reaction is added (or a caption appears via edit),
+                            the time moves out to the bottom row like a regular message. */}
+                        {!msg.content && !hasReactions && (
                           <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/55 backdrop-blur-sm text-white text-[11px] flex items-center gap-1 pointer-events-none">
                             {msg.editedAt && <span className="italic opacity-80">modifié</span>}
                             <span>{msgTime}</span>
@@ -2312,8 +2314,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                             }}
                           />
                         )}
-                        {/* Time overlay on the media when there's no caption (Telegram-style) */}
-                        {!msg.content && (
+                        {/* Time overlay on the media — only when no caption AND no reactions.
+                            As soon as a reaction is added (or a caption appears via edit),
+                            the time moves out to the bottom row like a regular message. */}
+                        {!msg.content && !hasReactions && (
                           <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/55 backdrop-blur-sm text-white text-[11px] flex items-center gap-1 pointer-events-none">
                             {msg.editedAt && <span className="italic opacity-80">modifié</span>}
                             <span>{msgTime}</span>
@@ -2438,9 +2442,12 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                         we hide it here. The row is still rendered when reactions
                         exist so they have a place to live. */}
                     {(() => {
-                      const isMediaOnly = !msg.content && !isPoll && !isCall && !isAudio &&
+                      // The time is only shown OVER the media when the message has
+                      // no caption AND no reactions. Otherwise it must show in the
+                      // normal bottom row like any other message.
+                      const isMediaOnly = !msg.content && !isPoll && !isCall && !isAudio && !hasReactions &&
                         (!!msg.imageUrl || (Array.isArray((msg as any).mediaAlbum) && (msg as any).mediaAlbum.length > 0));
-                      if (isMediaOnly && !hasReactions) return null;
+                      if (isMediaOnly) return null;
                       return (
                     <div className={`flex items-end justify-between gap-2 ${isPoll ? 'mt-2' : 'mt-0.5 -mb-0.5'}`}>
                       {/* Reactions inside bubble — animated with Framer Motion */}
