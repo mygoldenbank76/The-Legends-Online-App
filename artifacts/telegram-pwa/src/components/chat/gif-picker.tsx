@@ -53,6 +53,31 @@ export function GifPicker({ open, onClose, onSelect }: Props) {
   const { results, loading } = useGifs(query, open);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Track the visual viewport so the picker shrinks when the on-screen keyboard appears
+  const [viewportH, setViewportH] = useState<number>(
+    typeof window !== 'undefined' ? window.innerHeight : 800
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const vv = window.visualViewport;
+    const update = () => setViewportH(vv ? vv.height : window.innerHeight);
+    update();
+    if (vv) {
+      vv.addEventListener('resize', update);
+      vv.addEventListener('scroll', update);
+      return () => {
+        vv.removeEventListener('resize', update);
+        vv.removeEventListener('scroll', update);
+      };
+    }
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+
+  // Reserve space for the chat header at the top (~64px) and the input bar below (~64px)
+  // so the picker never collides with either, and the search bar always stays visible.
+  const maxPickerHeight = Math.max(180, viewportH - 140);
+
   useEffect(() => {
     if (open) {
       setRawQuery('');
@@ -74,9 +99,12 @@ export function GifPicker({ open, onClose, onSelect }: Props) {
           exit={{ opacity: 0, y: 10, scale: 0.97 }}
           transition={{ duration: 0.16, ease: 'easeOut' }}
         >
-          <div className="popover-floating rounded-2xl overflow-hidden mx-3">
+          <div
+            className="popover-floating rounded-2xl overflow-hidden mx-3 flex flex-col"
+            style={{ maxHeight: maxPickerHeight }}
+          >
             {/* Search bar */}
-            <div className="flex items-center gap-2 px-3 pt-3 pb-2 gradient-hairline-bottom">
+            <div className="flex-shrink-0 flex items-center gap-2 px-3 pt-3 pb-2 gradient-hairline-bottom">
               <div className="flex-1 relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                 <Input
@@ -97,12 +125,12 @@ export function GifPicker({ open, onClose, onSelect }: Props) {
             </div>
 
             {/* Section label */}
-            <p className="px-3 pt-2 pb-1 text-[10px] font-semibold tracking-widest uppercase text-gradient-primary">
+            <p className="flex-shrink-0 px-3 pt-2 pb-1 text-[10px] font-semibold tracking-widest uppercase text-gradient-primary">
               {rawQuery.trim() ? 'Résultats' : 'Tendances'}
             </p>
 
             {/* GIF grid */}
-            <div className="overflow-y-auto" style={{ maxHeight: 264 }}>
+            <div className="flex-1 min-h-0 overflow-y-auto">
               {loading ? (
                 <div className="flex items-center justify-center h-28">
                   <Loader2 className="w-5 h-5 animate-spin text-primary" />
@@ -132,7 +160,7 @@ export function GifPicker({ open, onClose, onSelect }: Props) {
             </div>
 
             {/* Tenor attribution */}
-            <p className="text-center text-[9px] text-muted-foreground/40 pb-2">
+            <p className="flex-shrink-0 text-center text-[9px] text-muted-foreground/40 pb-2">
               Powered by Tenor
             </p>
           </div>
