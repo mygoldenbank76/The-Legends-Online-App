@@ -1443,6 +1443,12 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
   const isGroup = conversation?.type === 'group';
   const memberCount = (conversation as any)?.participants?.length ?? 0;
+  const onlineMemberCount = (conversation as any)?.participants?.reduce((acc: number, p: any) => {
+    if (p.id === user?.id) return acc;
+    const live = presenceMap.get(p.id);
+    const online = live ? live.isOnline : !!p.isOnline;
+    return acc + (online ? 1 : 0);
+  }, 0) ?? 0;
 
   const ctxMsg = messages?.find(m => m.id === ctxMenu?.msgId);
   const isMineCtx = ctxMsg?.senderId === user?.id;
@@ -1538,9 +1544,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
               </div>
               <div className="flex flex-col flex-1 min-w-0">
                 <span className="font-semibold text-sm leading-tight text-foreground truncate">{title}</span>
-                <span className={`text-xs leading-tight ${!isGroup && isOnline ? 'text-green-400' : 'text-muted-foreground'}`}>
+                <span className={`text-xs leading-tight ${(!isGroup && isOnline) || (isGroup && onlineMemberCount > 0) ? 'text-green-400' : 'text-muted-foreground'}`}>
                   {isGroup
-                    ? `${memberCount} membre${memberCount !== 1 ? 's' : ''}`
+                    ? uiT.groupInfo.membersOnline.replace('{count}', String(onlineMemberCount))
                     : (isOnline ? uiT.chat.online : lastSeen)}
                 </span>
               </div>
