@@ -91,10 +91,14 @@ type Dict = {
     groupLink: string;
     media: string;
     files: string;
+    links: string;
     voice: string;
+    gifs: string;
     noMedia: string;
     noFiles: string;
+    noLinks: string;
     noVoice: string;
+    noGifs: string;
     voiceMessage: string;
   };
   attachments: {
@@ -221,10 +225,14 @@ export const i18n: Record<AppLang, Dict> = {
       groupLink: 'Lien du groupe',
       media: 'Médias',
       files: 'Fichiers',
+      links: 'Liens',
       voice: 'Voix',
+      gifs: 'GIFs',
       noMedia: 'Aucun média partagé',
       noFiles: 'Aucun fichier partagé',
+      noLinks: 'Aucun lien partagé',
       noVoice: 'Aucun message vocal',
+      noGifs: 'Aucun GIF partagé',
       voiceMessage: 'Message vocal',
     },
     attachments: {
@@ -350,10 +358,14 @@ export const i18n: Record<AppLang, Dict> = {
       groupLink: 'Group link',
       media: 'Media',
       files: 'Files',
+      links: 'Links',
       voice: 'Voice',
+      gifs: 'GIFs',
       noMedia: 'No media shared',
       noFiles: 'No files shared',
+      noLinks: 'No links shared',
       noVoice: 'No voice messages',
+      noGifs: 'No GIFs shared',
       voiceMessage: 'Voice message',
     },
     attachments: {
@@ -482,10 +494,14 @@ export const i18n: Record<AppLang, Dict> = {
       groupLink: 'Enlace del grupo',
       media: 'Medios',
       files: 'Archivos',
+      links: 'Enlaces',
       voice: 'Voz',
+      gifs: 'GIFs',
       noMedia: 'No hay medios compartidos',
       noFiles: 'No hay archivos compartidos',
+      noLinks: 'No hay enlaces compartidos',
       noVoice: 'No hay mensajes de voz',
+      noGifs: 'No hay GIFs compartidos',
       voiceMessage: 'Mensaje de voz',
     },
     attachments: {
@@ -614,10 +630,14 @@ export const i18n: Record<AppLang, Dict> = {
       groupLink: 'رابط المجموعة',
       media: 'الوسائط',
       files: 'الملفات',
+      links: 'الروابط',
       voice: 'الصوت',
+      gifs: 'صور متحركة',
       noMedia: 'لا توجد وسائط مشتركة',
       noFiles: 'لا توجد ملفات مشتركة',
+      noLinks: 'لا توجد روابط مشتركة',
       noVoice: 'لا توجد رسائل صوتية',
+      noGifs: 'لا توجد صور متحركة مشتركة',
       voiceMessage: 'رسالة صوتية',
     },
     attachments: {
@@ -746,10 +766,14 @@ export const i18n: Record<AppLang, Dict> = {
       groupLink: 'Link do grupo',
       media: 'Mídia',
       files: 'Arquivos',
+      links: 'Links',
       voice: 'Voz',
+      gifs: 'GIFs',
       noMedia: 'Nenhuma mídia compartilhada',
       noFiles: 'Nenhum arquivo compartilhado',
+      noLinks: 'Nenhum link compartilhado',
       noVoice: 'Nenhuma mensagem de voz',
+      noGifs: 'Nenhum GIF compartilhado',
       voiceMessage: 'Mensagem de voz',
     },
     attachments: {
@@ -878,10 +902,14 @@ export const i18n: Record<AppLang, Dict> = {
       groupLink: 'Gruppenlink',
       media: 'Medien',
       files: 'Dateien',
+      links: 'Links',
       voice: 'Sprache',
+      gifs: 'GIFs',
       noMedia: 'Keine geteilten Medien',
       noFiles: 'Keine geteilten Dateien',
+      noLinks: 'Keine geteilten Links',
       noVoice: 'Keine Sprachnachrichten',
+      noGifs: 'Keine geteilten GIFs',
       voiceMessage: 'Sprachnachricht',
     },
     attachments: {

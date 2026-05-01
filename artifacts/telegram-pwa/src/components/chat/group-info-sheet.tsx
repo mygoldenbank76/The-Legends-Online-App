@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, Link2, Image as ImageIcon, FileText, Mic, Play } from 'lucide-react';
+import { ArrowLeft, Link2, Image as ImageIcon, FileText, Mic, Play, ExternalLink, Film } from 'lucide-react';
 import { usePreferences } from '@/lib/preferences-context';
 import { translateGroupName } from '@/lib/i18n';
 import { MediaViewer } from './media-viewer';
@@ -23,6 +23,13 @@ type Msg = {
   imageUrl?: string | null;
   audioUrl?: string | null;
   mediaAlbum?: string[] | null;
+  linkPreview?: {
+    url: string;
+    title?: string | null;
+    description?: string | null;
+    image?: string | null;
+    siteName?: string | null;
+  } | null;
 };
 
 type Props = {
@@ -40,13 +47,15 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
   const { t, appLanguage } = usePreferences();
   const [mediaViewer, setMediaViewer] = useState<{ urls: string[]; index: number } | null>(null);
 
-  type Tab = 'media' | 'files' | 'voice';
+  type Tab = 'media' | 'files' | 'links' | 'voice' | 'gifs';
   const [tab, setTab] = useState<Tab>('media');
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'media', label: t.groupInfo.media },
     { key: 'files', label: t.groupInfo.files },
+    { key: 'links', label: t.groupInfo.links },
     { key: 'voice', label: t.groupInfo.voice },
+    { key: 'gifs', label: t.groupInfo.gifs },
   ];
 
   const rawTitle = conversation?.name || 'Conversation';
@@ -56,16 +65,35 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
   const groupLink = `https://thelegendsonline.social/join/${conversation.id}`;
 
   // Collect ALL media URLs in order (albums expanded + single images/videos)
+  const isGifUrl = (url: string) =>
+    /\.gif(\?|$)/i.test(url) || /(?:^|\/\/|\.)tenor\.com\//i.test(url) || /media\.tenor\./i.test(url);
+
   const allMediaUrls: string[] = [];
+  const gifUrls: string[] = [];
   for (const m of messages) {
     if (m.mediaAlbum && Array.isArray(m.mediaAlbum) && m.mediaAlbum.length > 0) {
-      allMediaUrls.push(...m.mediaAlbum);
+      for (const u of m.mediaAlbum) {
+        if (isGifUrl(u)) gifUrls.push(u);
+        else allMediaUrls.push(u);
+      }
     } else if (m.imageUrl) {
-      allMediaUrls.push(m.imageUrl);
+      if (isGifUrl(m.imageUrl)) gifUrls.push(m.imageUrl);
+      else allMediaUrls.push(m.imageUrl);
     }
   }
 
   const voiceMessages = messages.filter(m => m.audioUrl);
+
+  // Deduplicate links by URL (keep first occurrence)
+  const linkPreviews: NonNullable<Msg['linkPreview']>[] = [];
+  const seenLinkUrls = new Set<string>();
+  for (const m of messages) {
+    const lp = m.linkPreview;
+    if (lp?.url && !seenLinkUrls.has(lp.url)) {
+      seenLinkUrls.add(lp.url);
+      linkPreviews.push(lp);
+    }
+  }
 
   return (
     <>
@@ -122,14 +150,14 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
 
                 {/* Tabs */}
                 <div className="mx-4 gradient-hairline-bottom pb-2">
-                  <div className="glass relative grid grid-cols-3 gap-0.5 rounded-2xl p-1 overflow-hidden">
+                  <div className="glass relative grid grid-cols-5 gap-0.5 rounded-2xl p-1 overflow-hidden">
                     {tabs.map(tabItem => {
                       const active = tab === tabItem.key;
                       return (
                         <button
                           key={tabItem.key}
                           onClick={() => setTab(tabItem.key)}
-                          className={`relative py-2 rounded-xl text-xs font-medium transition-colors ${
+                          className={`relative py-2 rounded-xl text-[11px] font-medium transition-colors ${
                             active ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                           }`}
                         >
@@ -195,6 +223,42 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
                   {tab === 'files' && (
                     <EmptyState icon={<FileText className="w-8 h-8" />} label={t.groupInfo.noFiles} />
                   )}
+                  {tab === 'links' && (
+                    linkPreviews.length > 0 ? (
+                      <div className="space-y-2">
+                        {linkPreviews.map((lp, i) => (
+                          <a
+                            key={i}
+                            href={lp.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="glass rounded-xl px-3 py-2 flex items-center gap-3 hover:bg-foreground/5 transition-colors"
+                          >
+                            {lp.image ? (
+                              <img
+                                src={lp.image}
+                                alt=""
+                                className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-lg gradient-primary-soft border border-primary/30 flex items-center justify-center flex-shrink-0">
+                                <ExternalLink className="w-4 h-4 text-primary" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium text-foreground truncate">
+                                {lp.title || lp.siteName || lp.url}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground truncate">{lp.url}</p>
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    ) : (
+                      <EmptyState icon={<ExternalLink className="w-8 h-8" />} label={t.groupInfo.noLinks} />
+                    )
+                  )}
                   {tab === 'voice' && (
                     voiceMessages.length > 0 ? (
                       <div className="space-y-2">
@@ -208,6 +272,29 @@ export function GroupInfoSheet({ open, onClose, conversation, messages }: Props)
                       </div>
                     ) : (
                       <EmptyState icon={<Mic className="w-8 h-8" />} label={t.groupInfo.noVoice} />
+                    )
+                  )}
+                  {tab === 'gifs' && (
+                    gifUrls.length > 0 ? (
+                      <div className="grid grid-cols-3 gap-1">
+                        {gifUrls.map((url, i) => (
+                          <button
+                            key={i}
+                            className="aspect-square rounded-lg overflow-hidden relative focus:outline-none active:opacity-75 transition-opacity"
+                            onClick={() => setMediaViewer({ urls: gifUrls, index: i })}
+                          >
+                            <img
+                              src={url}
+                              alt=""
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <EmptyState icon={<Film className="w-8 h-8" />} label={t.groupInfo.noGifs} />
                     )
                   )}
                 </div>
