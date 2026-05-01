@@ -145,36 +145,17 @@ export function ProfileEditorSheet({ user, onClose, onSaved }: Props) {
 
   return createPortal(
     <AnimatePresence>
-      <>
-        {/* Backdrop */}
-        <motion.div
-          key="profile-backdrop"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
-          onClick={onClose}
-        />
-
-        {/* Sheet — bottom sheet on mobile, centered dialog on desktop */}
-        <motion.div
-          key="profile-sheet"
-          initial={{ y: '100%', opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: '100%', opacity: 0 }}
-          transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-          className="fixed inset-x-0 bottom-0 z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4"
-          onClick={onClose}
-        >
-          <div className="glass-strong rounded-t-3xl sm:rounded-3xl flex flex-col overflow-hidden w-full sm:max-w-md sm:mx-auto" style={{ height: 'calc(100dvh - 2rem)' }} onClick={e => e.stopPropagation()}>
-            {/* Drag handle */}
-            <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
-              <div className="w-10 h-1 rounded-full bg-white/20" />
-            </div>
-
+      <motion.div
+        key="profile-editor-page"
+        initial={{ x: '100%', opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        exit={{ x: '100%', opacity: 0 }}
+        transition={{ type: 'spring', damping: 32, stiffness: 320 }}
+        className="fixed inset-0 z-[450] bg-background flex flex-col"
+      >
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 flex-shrink-0">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 flex-shrink-0" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}>
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-xl gradient-primary glow-primary-sm flex items-center justify-center">
                   <User className="w-4 h-4 text-white" />
@@ -328,8 +309,7 @@ export function ProfileEditorSheet({ user, onClose, onSaved }: Props) {
               </div>
             </div>
           </div>
-        </motion.div>
-      </>
+      </motion.div>
     </AnimatePresence>,
     document.body
   );

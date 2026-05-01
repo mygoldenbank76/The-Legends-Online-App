@@ -113,18 +113,18 @@ export function ProfilePage({ user, onSaved, onNavigateTab }: Props) {
     >
       <div className="flex flex-col gap-5 px-4 pt-8">
         {/* Hero: avatar + name + status */}
-        <div className="flex flex-col items-center gap-3">
+        <div className="flex flex-col items-center gap-4">
           <motion.div
             initial={{ scale: 0.92, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: 'spring', damping: 22, stiffness: 240 }}
-            className="relative"
+            className="relative mb-2"
           >
-            <span aria-hidden className="absolute -inset-1 rounded-[2rem] profile-hero-ring pointer-events-none" />
+            <span aria-hidden className="absolute -inset-1 rounded-[1.75rem] profile-hero-ring pointer-events-none" />
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="relative w-32 h-32 rounded-3xl bg-primary/20 overflow-hidden glow-primary-sm group"
+              className="relative w-28 h-28 rounded-3xl bg-primary/20 overflow-hidden glow-primary-sm group"
               aria-label={p.setPhoto}
               data-testid="button-hero-avatar"
             >
