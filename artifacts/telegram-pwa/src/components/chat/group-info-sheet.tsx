@@ -303,6 +303,31 @@ type MainViewProps = {
 };
 
 function MainView(p: MainViewProps) {
+  // While the 3-dot popover is open, the FIRST tap anywhere outside
+  // the popover (or its trigger) should ONLY dismiss the popover —
+  // it must not also fire whatever onClick is underneath (e.g. the
+  // back arrow). We attach a document-level CAPTURE-phase handler
+  // that closes the popover and stops further propagation. The user
+  // then needs to tap a second time to actually trigger an action.
+  useEffect(() => {
+    if (!p.menuOpen) return;
+    const handler = (e: Event) => {
+      const target = e.target as Element | null;
+      if (target && target.closest && target.closest('[data-overlay-region="group-info-menu"]')) return;
+      p.setMenuOpen(false);
+      e.stopPropagation();
+      if (typeof (e as any).stopImmediatePropagation === 'function') {
+        (e as any).stopImmediatePropagation();
+      }
+    };
+    document.addEventListener('click', handler, true);
+    document.addEventListener('touchstart', handler, true);
+    return () => {
+      document.removeEventListener('click', handler, true);
+      document.removeEventListener('touchstart', handler, true);
+    };
+  }, [p.menuOpen, p.setMenuOpen]);
+
   return (
     <div
       className="flex flex-col h-full overflow-y-auto bg-background"
@@ -322,6 +347,7 @@ function MainView(p: MainViewProps) {
           <Popover open={p.menuOpen} onOpenChange={p.setMenuOpen}>
             <PopoverTrigger asChild>
               <button
+                data-overlay-region="group-info-menu"
                 className="w-10 h-10 rounded-full glass flex items-center justify-center text-foreground hover:text-primary transition-colors"
                 aria-label="Menu"
               >
@@ -331,6 +357,7 @@ function MainView(p: MainViewProps) {
             <PopoverContent
               align="end"
               sideOffset={8}
+              data-overlay-region="group-info-menu"
               className="w-60 p-1 glass border-border/40 rounded-2xl z-[460]"
             >
               <button
