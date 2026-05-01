@@ -153,12 +153,11 @@ export function AdminPanel() {
       {tab === 'users' && (
         <>
           {/* Stats */}
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {[
               { label: 'Total', value: stats.total, color: 'text-foreground' },
               { label: 'En ligne', value: stats.online, color: 'text-green-400' },
               { label: 'Bannis', value: stats.banned, color: 'text-red-400' },
-              { label: 'Rapide', value: stats.replit, color: 'text-primary' },
             ].map(s => (
               <div key={s.label} className="glass rounded-xl p-2.5 text-center">
                 <p className={`text-lg font-bold ${s.color}`}>{s.value}</p>
