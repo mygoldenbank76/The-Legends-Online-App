@@ -167,7 +167,7 @@ export function ProfileEditorSheet({ user, onClose, onSaved }: Props) {
           className="fixed inset-x-0 bottom-0 z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4"
           onClick={onClose}
         >
-          <div className="glass-strong rounded-t-3xl sm:rounded-3xl flex flex-col overflow-hidden w-full sm:max-w-md sm:mx-auto" style={{ maxHeight: '92dvh' }} onClick={e => e.stopPropagation()}>
+          <div className="glass-strong rounded-t-3xl sm:rounded-3xl flex flex-col overflow-hidden w-full sm:max-w-md sm:mx-auto" style={{ height: 'calc(100dvh - 2rem)' }} onClick={e => e.stopPropagation()}>
             {/* Drag handle */}
             <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
               <div className="w-10 h-1 rounded-full bg-white/20" />

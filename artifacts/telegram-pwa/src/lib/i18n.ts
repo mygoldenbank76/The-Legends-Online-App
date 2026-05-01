@@ -340,7 +340,7 @@ export const i18n: Record<AppLang, Dict> = {
       copyUsername: "Copier l'identifiant",
       usernameCopied: "Identifiant copié",
       setPhoto: "Définir",
-      editInfo: "Modifier les infos",
+      editInfo: "Modifier",
       noBio: "Ajoute une biographie",
     },
     contacts: {
@@ -515,7 +515,7 @@ export const i18n: Record<AppLang, Dict> = {
       copyUsername: "Copy username",
       usernameCopied: "Username copied",
       setPhoto: "Set",
-      editInfo: "Edit info",
+      editInfo: "Edit",
       noBio: "Add a bio",
     },
     contacts: {
@@ -693,7 +693,7 @@ export const i18n: Record<AppLang, Dict> = {
       copyUsername: "Copiar identificador",
       usernameCopied: "Identificador copiado",
       setPhoto: "Definir",
-      editInfo: "Editar información",
+      editInfo: "Editar",
       noBio: "Añade una biografía",
     },
     contacts: {
@@ -871,7 +871,7 @@ export const i18n: Record<AppLang, Dict> = {
       copyUsername: "نسخ المعرف",
       usernameCopied: "تم نسخ المعرف",
       setPhoto: "تعيين",
-      editInfo: "تعديل المعلومات",
+      editInfo: "تعديل",
       noBio: "أضف نبذة",
     },
     contacts: {
@@ -1049,7 +1049,7 @@ export const i18n: Record<AppLang, Dict> = {
       copyUsername: "Copiar identificador",
       usernameCopied: "Identificador copiado",
       setPhoto: "Definir",
-      editInfo: "Editar informações",
+      editInfo: "Editar",
       noBio: "Adicione uma biografia",
     },
     contacts: {
@@ -1227,7 +1227,7 @@ export const i18n: Record<AppLang, Dict> = {
       copyUsername: "Benutzernamen kopieren",
       usernameCopied: "Benutzername kopiert",
       setPhoto: "Festlegen",
-      editInfo: "Infos bearbeiten",
+      editInfo: "Bearbeiten",
       noBio: "Biografie hinzufügen",
     },
     contacts: {

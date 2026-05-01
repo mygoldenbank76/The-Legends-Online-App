@@ -120,11 +120,11 @@ export function ProfilePage({ user, onSaved, onNavigateTab }: Props) {
             transition={{ type: 'spring', damping: 22, stiffness: 240 }}
             className="relative"
           >
-            <span aria-hidden className="absolute -inset-1 rounded-full profile-hero-ring pointer-events-none" />
+            <span aria-hidden className="absolute -inset-1 rounded-[2rem] profile-hero-ring pointer-events-none" />
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="relative w-32 h-32 rounded-full bg-primary/20 overflow-hidden glow-primary-sm group"
+              className="relative w-32 h-32 rounded-3xl bg-primary/20 overflow-hidden glow-primary-sm group"
               aria-label={p.setPhoto}
               data-testid="button-hero-avatar"
             >
@@ -264,7 +264,7 @@ function ActionButton({
       className="glass rounded-2xl px-3 py-3 flex flex-col items-center gap-1.5 hover:bg-white/10 active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100 transition-all"
     >
       <span className="text-primary">{icon}</span>
-      <span className="text-xs font-medium leading-tight text-center">{label}</span>
+      <span className="text-xs font-medium leading-tight text-center whitespace-nowrap truncate max-w-full">{label}</span>
     </button>
   );
 }
