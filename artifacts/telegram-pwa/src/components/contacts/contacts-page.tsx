@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, UserPlus, Share2, X, Loader2, Check } from 'lucide-react';
+import { Search, UserPlus, Share2, ArrowLeft, Loader2, Check } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListContacts,
@@ -50,8 +50,7 @@ export function ContactsPage({ user, onSelectConv }: Props) {
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState('');
-  const [showNewContact, setShowNewContact] = useState(false);
-  const [showInvite, setShowInvite] = useState(false);
+  const [showHub, setShowHub] = useState(false);
   const [profileUser, setProfileUser] = useState<ContactUser | null>(null);
 
   const { data: contacts = [], isLoading } = useListContacts();
@@ -83,11 +82,11 @@ export function ContactsPage({ user, onSelectConv }: Props) {
           />
         </div>
 
-        {/* Action card: Invite friends */}
+        {/* Action card: Invite friends (now opens the 2-in-1 hub) */}
         <div className="glass rounded-2xl overflow-hidden">
           <button
             type="button"
-            onClick={() => setShowInvite(true)}
+            onClick={() => setShowHub(true)}
             className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 active:bg-white/10 transition-colors"
             data-testid="button-invite-friends"
           >
@@ -143,31 +142,15 @@ export function ContactsPage({ user, onSelectConv }: Props) {
         </div>
       </div>
 
-      {/* FAB */}
-      <button
-        type="button"
-        onClick={() => setShowNewContact(true)}
-        className="fixed right-5 z-30 w-14 h-14 rounded-full gradient-primary glow-primary flex items-center justify-center shadow-lg active:scale-95 transition-transform"
-        style={{ bottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }}
-        aria-label={c.newContact}
-        data-testid="button-new-contact-fab"
-      >
-        <UserPlus className="w-6 h-6 text-white" />
-      </button>
-
-      <AnimatePresence>
-        {showNewContact && (
-          <NewContactSheet
-            currentUsername={user.username}
-            onClose={() => setShowNewContact(false)}
-            onAdded={() => {
-              queryClient.invalidateQueries({ queryKey: getListContactsQueryKey() });
-              setShowNewContact(false);
-            }}
-          />
-        )}
-        {showInvite && <InviteFriendsSheet onClose={() => setShowInvite(false)} />}
-      </AnimatePresence>
+      <ContactsHubSheet
+        open={showHub}
+        currentUsername={user.username}
+        onClose={() => setShowHub(false)}
+        onAdded={() => {
+          queryClient.invalidateQueries({ queryKey: getListContactsQueryKey() });
+          setShowHub(false);
+        }}
+      />
 
       {/* User profile detail (opened by tapping a contact row) */}
       {profileUser && (
@@ -185,12 +168,14 @@ export function ContactsPage({ user, onSelectConv }: Props) {
   );
 }
 
-/* ── New contact sheet ── */
-function NewContactSheet({
+/* ── 2-in-1 contacts hub: invite friends + new contact on the same page ── */
+function ContactsHubSheet({
+  open,
   currentUsername,
   onClose,
   onAdded,
 }: {
+  open: boolean;
   currentUsername: string;
   onClose: () => void;
   onAdded: (user: ContactUser) => void;
@@ -200,6 +185,19 @@ function NewContactSheet({
   const { toast } = useToast();
   const [identifier, setIdentifier] = useState('');
   const [loading, setLoading] = useState(false);
+  // Bumped each time the hub opens so in-flight requests from a previous
+  // session can detect they are stale and skip their UI side-effects.
+  const sessionRef = useRef(0);
+
+  // Reset identifier whenever the hub closes
+  useEffect(() => {
+    if (open) {
+      sessionRef.current += 1;
+    } else {
+      setIdentifier('');
+      setLoading(false);
+    }
+  }, [open]);
 
   const trimmed = identifier.trim().toLowerCase();
   const valid = trimmed.length >= 1;
@@ -210,6 +208,7 @@ function NewContactSheet({
       toast({ variant: 'destructive', title: c.cannotAddSelf });
       return;
     }
+    const session = sessionRef.current;
     setLoading(true);
     try {
       const res = await fetch('/api/contacts', {
@@ -217,6 +216,8 @@ function NewContactSheet({
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() } as Record<string, string>,
         body: JSON.stringify({ username: trimmed }),
       });
+      // Drop result if the user closed/reopened the hub mid-flight.
+      if (session !== sessionRef.current) return;
       if (res.status === 404) {
         toast({ variant: 'destructive', title: c.userNotFound });
         return;
@@ -227,120 +228,29 @@ function NewContactSheet({
         return;
       }
       const added = (await res.json()) as ContactUser;
+      if (session !== sessionRef.current) return;
       const msg = res.status === 200 ? c.contactAlreadyExists : c.contactAdded;
       toast({ title: msg, duration: 1800 });
       onAdded(added);
     } catch {
+      if (session !== sessionRef.current) return;
       toast({ variant: 'destructive', title: c.addContactError });
     } finally {
-      setLoading(false);
+      if (session === sessionRef.current) setLoading(false);
     }
   }
 
-  return createPortal(
-    <>
-      <motion.div
-        key="new-contact-backdrop"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <motion.div
-        key="new-contact-sheet"
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-        className="fixed inset-x-0 bottom-0 z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4"
-        onClick={onClose}
-      >
-        <div
-          className="glass-strong rounded-t-3xl sm:rounded-3xl flex flex-col w-full sm:max-w-md sm:mx-auto"
-          style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Drag handle */}
-          <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
-            <div className="w-10 h-1 rounded-full bg-white/20" />
-          </div>
-
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3 flex-shrink-0">
-            <h3 className="text-lg font-bold">{c.newContact}</h3>
-            <button
-              onClick={onClose}
-              className="w-9 h-9 rounded-full hover:bg-white/10 flex items-center justify-center"
-              aria-label={c.cancel}
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Body */}
-          <div className="px-5 pb-5 flex flex-col gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                {c.identifier}
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">@</span>
-                <Input
-                  autoFocus
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                  placeholder={c.identifierPlaceholder}
-                  maxLength={64}
-                  className="bg-white/5 border-white/10 pl-7 h-12 rounded-xl"
-                  onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
-                  data-testid="input-new-contact-identifier"
-                />
-              </div>
-              <p className="text-[11px] text-muted-foreground mt-1.5">{c.identifierHint}</p>
-            </div>
-
-            <button
-              type="button"
-              onClick={submit}
-              disabled={!valid || loading}
-              className={`mt-2 w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-semibold text-sm transition-all ${
-                valid && !loading
-                  ? 'gradient-primary glow-primary text-white hover:opacity-95 active:scale-[0.97]'
-                  : 'bg-white/10 text-muted-foreground cursor-not-allowed'
-              }`}
-              data-testid="button-create-contact"
-            >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-              {loading ? c.creating : c.create}
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    </>,
-    document.body,
-  );
-}
-
-/* ── Invite friends sheet (just shares/copies a link to the app) ── */
-function InviteFriendsSheet({ onClose }: { onClose: () => void }) {
-  const { t } = usePreferences();
-  const c = t.contacts;
-  const { toast } = useToast();
-
-  const link = window.location.origin;
+  const link = typeof window !== 'undefined' ? window.location.origin : '';
   const message = `${c.inviteMessage} ${link}`;
 
   async function shareNative() {
     try {
-      if (navigator.share) {
+      if (typeof navigator !== 'undefined' && navigator.share) {
         await navigator.share({ title: 'The Legends Online', text: message, url: link });
-      } else {
+      } else if (typeof navigator !== 'undefined') {
         await navigator.clipboard.writeText(message);
         toast({ title: c.inviteLinkCopied, duration: 1800 });
       }
-      onClose();
     } catch {
       // User cancelled — no-op
     }
@@ -355,67 +265,119 @@ function InviteFriendsSheet({ onClose }: { onClose: () => void }) {
     }
   }
 
+  if (typeof document === 'undefined') return null;
+
   return createPortal(
-    <>
-      <motion.div
-        key="invite-backdrop"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <motion.div
-        key="invite-sheet"
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-        className="fixed inset-x-0 bottom-0 z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4"
-        onClick={onClose}
-      >
-        <div
-          className="glass-strong rounded-t-3xl sm:rounded-3xl flex flex-col w-full sm:max-w-md sm:mx-auto"
-          style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
-          onClick={(e) => e.stopPropagation()}
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          key="contacts-hub"
+          initial={{ x: '100%' }}
+          animate={{ x: 0 }}
+          exit={{ x: '100%' }}
+          transition={{ type: 'spring', damping: 30, stiffness: 320 }}
+          className="fixed inset-0 z-[450] bg-background flex flex-col"
+          style={{ height: '100dvh' }}
+          data-testid="sheet-contacts-hub"
         >
-          <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
-            <div className="w-10 h-1 rounded-full bg-white/20" />
-          </div>
-          <div className="flex items-center justify-between px-5 py-3 flex-shrink-0">
-            <h3 className="text-lg font-bold">{c.inviteFriends}</h3>
+          {/* Top bar */}
+          <div className="flex items-center gap-3 px-3 pt-3 pb-3 bg-background/80 backdrop-blur-md border-b border-white/5 flex-shrink-0">
             <button
+              type="button"
               onClick={onClose}
-              className="w-9 h-9 rounded-full hover:bg-white/10 flex items-center justify-center"
+              className="w-10 h-10 rounded-full glass flex items-center justify-center text-foreground hover:text-primary transition-colors"
+              aria-label={c.cancel}
+              data-testid="button-contacts-hub-back"
             >
-              <X className="w-5 h-5" />
+              <ArrowLeft className="w-5 h-5" />
             </button>
+            <h1 className="text-lg font-bold text-foreground">{c.inviteFriends}</h1>
           </div>
-          <div className="px-5 pb-5 flex flex-col gap-3">
-            <div className="rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-muted-foreground break-words">
-              {message}
-            </div>
-            <div className="flex gap-2">
+
+          {/* Body */}
+          <div
+            className="flex-1 overflow-y-auto overscroll-contain px-4 py-5 flex flex-col gap-5"
+            style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom, 0px))' }}
+          >
+            {/* Section: New contact */}
+            <section className="glass-strong rounded-2xl p-4 flex flex-col gap-3" data-testid="section-new-contact">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                  <UserPlus className="w-5 h-5 text-primary" />
+                </div>
+                <h2 className="text-base font-semibold">{c.newContact}</h2>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                  {c.identifier}
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">@</span>
+                  <Input
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                    placeholder={c.identifierPlaceholder}
+                    maxLength={64}
+                    className="bg-white/5 border-white/10 pl-7 h-12 rounded-xl"
+                    onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
+                    data-testid="input-new-contact-identifier"
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1.5">{c.identifierHint}</p>
+              </div>
+
               <button
                 type="button"
-                onClick={copyLink}
-                className="flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/15 active:scale-[0.97] font-medium text-sm transition-all"
+                onClick={submit}
+                disabled={!valid || loading}
+                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-semibold text-sm transition-all ${
+                  valid && !loading
+                    ? 'gradient-primary glow-primary text-white hover:opacity-95 active:scale-[0.97]'
+                    : 'bg-white/10 text-muted-foreground cursor-not-allowed'
+                }`}
+                data-testid="button-create-contact"
               >
-                {t.chat.copy}
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                {loading ? c.creating : c.create}
               </button>
-              <button
-                type="button"
-                onClick={shareNative}
-                className="flex-1 py-3 rounded-xl gradient-primary glow-primary text-white font-semibold text-sm hover:opacity-95 active:scale-[0.97] transition-all"
-              >
-                {c.inviteFriends}
-              </button>
-            </div>
+            </section>
+
+            {/* Section: Invite friends (share link) */}
+            <section className="glass-strong rounded-2xl p-4 flex flex-col gap-3" data-testid="section-invite-friends">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                  <Share2 className="w-5 h-5 text-primary" />
+                </div>
+                <h2 className="text-base font-semibold">{c.inviteFriends}</h2>
+              </div>
+
+              <div className="rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-muted-foreground break-words">
+                {message}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={copyLink}
+                  className="flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/15 active:scale-[0.97] font-medium text-sm transition-all"
+                  data-testid="button-copy-invite-link"
+                >
+                  {t.chat.copy}
+                </button>
+                <button
+                  type="button"
+                  onClick={shareNative}
+                  className="flex-1 py-3 rounded-xl gradient-primary glow-primary text-white font-semibold text-sm hover:opacity-95 active:scale-[0.97] transition-all"
+                  data-testid="button-share-invite-link"
+                >
+                  {c.inviteFriends}
+                </button>
+              </div>
+            </section>
           </div>
-        </div>
-      </motion.div>
-    </>,
+        </motion.div>
+      )}
+    </AnimatePresence>,
     document.body,
   );
 }
