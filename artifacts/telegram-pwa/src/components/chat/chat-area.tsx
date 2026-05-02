@@ -193,15 +193,15 @@ function AlbumGrid({ urls, onItemClick, tightBottom = false }: { urls: string[];
   const r = (tl: boolean, tr: boolean, bl: boolean, br: boolean) =>
     `${tl ? 10 : 1}px ${tr ? 10 : 1}px ${br ? 10 : 1}px ${bl ? 10 : 1}px`;
 
-  // Symmetric 3px visible border on every side of the album when the
+  // Symmetric 2px visible border on every side of the album when the
   // bubble is media-only (time-overlay variant): bubble pads 6px T/B
-  // and 10px L/R, the album wrapper pulls -3px / -7px → 3px gap on
+  // and 10px L/R, the album wrapper pulls -4px / -8px → 2px gap on
   // every edge. When a caption / reactions / link-preview row sits
   // below the album, fall back to mb-1 so the next row keeps its
   // breathing room.
   const wrap = (content: React.ReactNode) => (
     <div
-      className={`${tightBottom ? '-mb-[3px]' : 'mb-1'} -mx-[7px] -mt-[3px] overflow-hidden rounded-[10px]`}
+      className={`${tightBottom ? '-mb-1' : 'mb-1'} -mx-2 -mt-1 overflow-hidden rounded-[10px]`}
       onClick={e => e.stopPropagation()}
     >
       {content}
@@ -1813,7 +1813,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         <div className="max-w-[80%] relative">
           <div className={`rounded-[14px] px-2.5 py-[6px] text-[14.5px] leading-[1.3] bubble-sent rounded-br-[4px] ${isSameAuthor ? 'rounded-tr-[4px]' : ''}`}>
             {!isAlbum ? (
-              <div className="-mb-[3px] -mx-[7px] -mt-[3px] overflow-hidden rounded-[10px] bg-foreground/5 relative">
+              <div className="-mb-1 -mx-2 -mt-1 overflow-hidden rounded-[10px] bg-foreground/5 relative">
                 {(() => {
                   const hasDims = !!(items[0].width && items[0].height);
                   const ar = hasDims
@@ -1891,7 +1891,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
               </div>
             ) : (
               <div
-                className="-mb-[3px] -mx-[7px] -mt-[3px] overflow-hidden rounded-[10px] grid gap-[2px] relative"
+                className="-mb-1 -mx-2 -mt-1 overflow-hidden rounded-[10px] grid gap-[2px] relative"
                 style={{
                   gridTemplateColumns: items.length === 2 ? '1fr 1fr' : '1fr 1fr',
                   gridAutoRows: items.length <= 2 ? '180px' : '120px',
@@ -2975,11 +2975,11 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                           />
                         );
                       }
-                      // Symmetric 3px visible border on every side of the
+                      // Symmetric 2px visible border on every side of the
                       // photo/video bubble when there's no caption / no
                       // reactions (time-overlay variant). Bubble pads
-                      // 6px T/B + 10px L/R; the wrapper pulls -3px /
-                      // -7px → 3px gap on every edge. When a caption or
+                      // 6px T/B + 10px L/R; the wrapper pulls -4px /
+                      // -8px → 2px gap on every edge. When a caption or
                       // reactions row sits below the media, fall back
                       // to mb-1 so that next row keeps its breathing
                       // room. Same condition is used below to decide
@@ -2987,7 +2987,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       const tightBottom = !msg.content && !hasReactions;
                       return (
                         <div
-                          className={`${tightBottom ? '-mb-[3px]' : 'mb-1'} -mx-[7px] -mt-[3px] overflow-hidden rounded-[10px] bg-foreground/5 relative`}
+                          className={`${tightBottom ? '-mb-1' : 'mb-1'} -mx-2 -mt-1 overflow-hidden rounded-[10px] bg-foreground/5 relative`}
                           onClick={(e) => e.stopPropagation()}
                         >
                           {isVideoMsg ? (
