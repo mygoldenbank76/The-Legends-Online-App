@@ -20,10 +20,16 @@ export default function InstallApk() {
 
   useEffect(() => {
     setPlatform(detectPlatform());
-    // HEAD request to learn the file size and confirm the APK is uploaded
+    // HEAD request to learn the file size and confirm the APK is uploaded.
+    // We also check the content-type because in dev (Vite) the SPA
+    // catch-all returns 200 with HTML for any unknown path — a naive
+    // `r.ok` check would falsely report the APK as available and the
+    // user would download a 1 KB index.html renamed `.apk.html`.
     fetch(APK_URL, { method: 'HEAD' })
       .then((r) => {
-        if (!r.ok) {
+        const ct = r.headers.get('content-type') || '';
+        const isApk = r.ok && ct.includes('android.package-archive');
+        if (!isApk) {
           setApkAvailable(false);
           return;
         }

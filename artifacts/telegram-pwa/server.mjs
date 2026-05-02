@@ -83,6 +83,24 @@ app.use(
   })
 );
 
+// Explicit 404 for missing APK / well-known files BEFORE the SPA
+// catch-all. Without this, a request for `/downloads/legends.apk`
+// when the file isn't uploaded yet would fall through to the SPA
+// catch-all below, get served `index.html` with `Content-Type:
+// text/html`, and Chrome would happily save the response as
+// `legends.apk.html` — confusing the user. Same risk for
+// `/.well-known/assetlinks.json` if the file is ever removed.
+app.use((req, res, next) => {
+  const p = req.path;
+  const isApk = p.startsWith("/downloads/") && p.endsWith(".apk");
+  const isWellKnown = p.startsWith("/.well-known/");
+  if (!isApk && !isWellKnown) return next();
+  res
+    .status(404)
+    .type("application/json")
+    .send(JSON.stringify({ error: "not_found", path: p }));
+});
+
 app.use((_req, res) => {
   setNoCache(res);
   res.setHeader("Content-Type", "text/html; charset=utf-8");
