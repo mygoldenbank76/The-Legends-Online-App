@@ -3773,47 +3773,54 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       <AnimatePresence>
         {pollVotes && (
           <motion.div
-            className="fixed inset-0 z-[500] flex items-end sm:items-center justify-center sm:p-4"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={() => setPollVotes(null)}
+            key="poll-votes-page"
+            initial={{ x: '100%', opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: '100%', opacity: 0 }}
+            transition={{ type: 'spring', damping: 32, stiffness: 320 }}
+            className="fixed inset-0 z-[450] bg-background flex flex-col"
           >
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-            <motion.div
-              className="relative w-full max-w-lg sm:max-w-md"
-              initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              onClick={e => e.stopPropagation()}
+            {/* Header */}
+            <div
+              className="flex items-center gap-3 px-3 py-3 border-b border-white/10 flex-shrink-0"
+              style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}
             >
-              <div className="glass-strong rounded-t-3xl sm:rounded-3xl max-h-[70dvh] overflow-y-auto">
-                <div className="flex items-center justify-between p-4 sticky top-0 glass-strong">
-                  <h3 className="font-bold text-foreground">{uiT.poll.votesTitle}</h3>
-                  <button onClick={() => setPollVotes(null)} className="text-muted-foreground hover:text-foreground p-1">
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                <div className="px-4 pb-6 space-y-4">
-                  {pollVotes.map((opt, i) => (
-                    <div key={i}>
-                      <p className="text-sm font-semibold text-foreground mb-2">{opt.optionText}</p>
-                      {opt.voters.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">{uiT.poll.noVotes}</p>
-                      ) : (
-                        <div className="space-y-1">
-                          {opt.voters.map((v: any) => (
-                            <div key={v.id} className="flex items-center gap-2 glass rounded-xl px-3 py-2">
-                              <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                                <span className="text-xs font-bold text-primary">{v.displayName[0].toUpperCase()}</span>
-                              </div>
-                              <span className="text-sm text-foreground">{v.displayName}</span>
-                            </div>
-                          ))}
+              <button
+                onClick={() => setPollVotes(null)}
+                className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+                data-testid="button-back-poll-votes"
+                aria-label={uiT.chat.back}
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <h3 className="font-bold text-foreground flex-1">{uiT.poll.votesTitle}</h3>
+            </div>
+
+            {/* Scrollable body */}
+            <div
+              className="flex-1 overflow-y-auto overscroll-contain px-4 pt-4 space-y-4"
+              style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
+            >
+              {pollVotes.map((opt, i) => (
+                <div key={i}>
+                  <p className="text-sm font-semibold text-foreground mb-2">{opt.optionText}</p>
+                  {opt.voters.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">{uiT.poll.noVotes}</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {opt.voters.map((v: any) => (
+                        <div key={v.id} className="flex items-center gap-2 glass rounded-xl px-3 py-2">
+                          <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                            <span className="text-xs font-bold text-primary">{v.displayName[0].toUpperCase()}</span>
+                          </div>
+                          <span className="text-sm text-foreground">{v.displayName}</span>
                         </div>
-                      )}
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
-              </div>
-            </motion.div>
+              ))}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
