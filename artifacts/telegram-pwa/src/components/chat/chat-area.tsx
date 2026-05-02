@@ -523,7 +523,14 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length]);
 
-  // Load older messages when sentinel becomes visible
+  // Load older messages on demand (triggered by the "show previous" button).
+  // Auto-load on scroll-to-top was removed: it caused a layout shift on
+  // entry — the IntersectionObserver fires immediately when the sentinel
+  // is briefly inside the viewport during the very first paint (before
+  // the scroll snaps to the bottom), which then prepends 50 messages and
+  // visually "pushes" everything down. Replacing the trigger with an
+  // explicit button means entering a conversation is now stable: what
+  // you see on the first frame is what stays.
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore || isLoading) return;
     const oldestId = messages[0]?.id;
@@ -540,7 +547,8 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         const newBatch = (batch as Msg[]).filter(m => !existingIds.has(m.id));
         return [...newBatch, ...prev];
       });
-      // Restore scroll position after prepend
+      // Restore scroll position after prepend so the message the user was
+      // looking at stays under their thumb (the new batch is added above).
       requestAnimationFrame(() => {
         if (container) {
           container.scrollTop = container.scrollHeight - prevScrollHeight;
@@ -550,18 +558,6 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       setLoadingMore(false);
     }
   }, [conversationId, loadingMore, hasMore, isLoading, messages]);
-
-  // IntersectionObserver on sentinel
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-    const observer = new IntersectionObserver(
-      (entries) => { if (entries[0].isIntersecting) loadMore(); },
-      { root: scrollRef.current, threshold: 0.1 }
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [loadMore]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -2577,15 +2573,33 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           paddingBottom: `calc(${composerHeight}px + env(safe-area-inset-bottom, 0px))`,
         }}
       >
-        {/* Sentinel — triggers loading older messages on scroll to top */}
+        {/* Anchor kept for layout symmetry; no longer wired to an
+            IntersectionObserver. Older messages are now fetched
+            explicitly via the button below — no auto-load on scroll. */}
         <div ref={sentinelRef} className="h-1" />
-        {/* Spinner while loading older messages */}
-        {loadingMore && (
-          <div className="flex justify-center py-3">
-            <Loader2 className="w-5 h-5 animate-spin text-primary/60" />
+        {/* Manual "show previous messages" pill — only appears once the
+            conversation has rendered (avoids the entry-time flash) and
+            only while there are still older messages to fetch. */}
+        {hasMore && !isLoading && messages.length > 0 && (
+          <div className="flex justify-center py-2">
+            <button
+              type="button"
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="inline-flex items-center gap-1.5 px-3 h-7 rounded-full gradient-primary-soft border border-primary/35 text-[11px] font-medium text-foreground/85 hover:text-foreground transition-colors disabled:opacity-60"
+            >
+              {loadingMore ? (
+                <>
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span>Chargement…</span>
+                </>
+              ) : (
+                <span>Afficher les messages précédents</span>
+              )}
+            </button>
           </div>
         )}
-        {/* No-more-messages indicator */}
+        {/* Subtle "start of conversation" marker once everything is loaded. */}
         {!hasMore && !isLoading && messages.length > 0 && (
           <div className="flex justify-center py-2">
             <span className="text-[10px] text-muted-foreground/50 select-none">— début de la conversation —</span>
