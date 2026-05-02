@@ -72,6 +72,27 @@ export function preloadMedia(src: string): void {
 }
 
 /**
+ * Register a Blob (or File) under a future server URL so the very next
+ * render of `<CachedImg src={src}/>` paints from RAM with zero network
+ * round-trip. Used by the upload pipeline: the moment a photo finishes
+ * uploading we store its original File blob keyed by the freshly
+ * returned server URL, so the swap from the optimistic upload bubble
+ * to the real message is pixel-identical and gap-free.
+ *
+ * The cache mints its own object URL (independent of any blob URL the
+ * caller may already hold), so callers remain free to revoke their own
+ * URLs without breaking the cache entry.
+ */
+export function registerBlob(src: string, blob: Blob): void {
+  if (!src || src.startsWith('blob:') || src.startsWith('data:')) return;
+  if (cache.has(src)) return;
+  evictIfNeeded();
+  const objectUrl = URL.createObjectURL(blob);
+  cache.set(src, objectUrl);
+  notify(src, objectUrl);
+}
+
+/**
  * Subscribe to be notified when a src is cached.
  * Returns an unsubscribe function.
  */

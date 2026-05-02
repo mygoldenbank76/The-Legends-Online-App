@@ -45,7 +45,7 @@ import { CachedImg, InstantImg } from './cached-img';
 import { DustEffect, DUST_DURATION } from './dust-effect';
 import { UploadProgressOverlay } from './upload-progress-overlay';
 import { uploadFileWithProgress, UploadAbortError } from '@/lib/upload-with-progress';
-import { preloadMedia } from '@/lib/media-cache';
+import { preloadMedia, registerBlob } from '@/lib/media-cache';
 import { prewarmIframe } from '@/lib/iframe-pool';
 import { VideoThumbnail, cacheVideoPosterBlob, cacheVideoAspect, getVideoPoster } from './video-thumbnail';
 import { FileCard, isDocumentUrl, isDocumentMessage, stripDocPrefix } from './file-card';
@@ -1571,23 +1571,35 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       return { ...p, status: 'sent', uploadedUrl: urls[idx], loaded: p.total };
     }));
 
-    // 4b. Pre-populate VideoThumbnail's poster + aspect caches keyed by
-    //     the freshly uploaded video URL, BEFORE the message POST goes
-    //     out. By the time the server's WebSocket emit lands and the
-    //     real message replaces the upload placeholder, the new
-    //     VideoThumbnail finds the poster already in cache and paints
-    //     it on the very first frame — no network fetch, no flash of
-    //     the gradient background, no visible "blink" during the swap
-    //     the user reported. The cache lives in localStorage so the
-    //     same instant paint also applies on every future page load
-    //     for the sender.
+    // 4b. Pre-populate the media caches keyed by the freshly uploaded
+    //     server URLs, BEFORE the message POST goes out. By the time the
+    //     server's WebSocket emit lands and the real message replaces
+    //     the optimistic placeholder:
+    //
+    //       • Photos: <CachedImg src={url}/> hits the in-memory blob
+    //         registered here and paints from RAM on the very first
+    //         frame — no fetch, no decode flash, no "violet square"
+    //         gap the user reported during the swap.
+    //
+    //       • Videos: VideoThumbnail finds the captured first-frame
+    //         poster + aspect ratio already in cache and paints them
+    //         instantly. Both poster + aspect are also persisted to
+    //         localStorage so the same instant paint applies on every
+    //         future page load for the sender.
     entries.forEach((e, idx) => {
-      if (!e.isVideo) return;
-      const videoUrl = urls[idx];
-      if (!videoUrl) return;
-      if (e.posterBlob) cacheVideoPosterBlob(videoUrl, e.posterBlob);
-      if (e.width && e.height && e.height > 0) {
-        cacheVideoAspect(videoUrl, e.width / e.height);
+      const url = urls[idx];
+      if (!url) return;
+      if (e.isVideo) {
+        if (e.posterBlob) cacheVideoPosterBlob(url, e.posterBlob);
+        if (e.width && e.height && e.height > 0) {
+          cacheVideoAspect(url, e.width / e.height);
+        }
+      } else {
+        // Photos: register the original File so the next CachedImg
+        // render keyed by `url` paints from RAM. Independent of the
+        // optimistic preview blob URL, which is still revoked on
+        // cleanup — the cache mints its own object URL.
+        registerBlob(url, e.file);
       }
     });
 
@@ -1812,6 +1824,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                           aspectRatio: hasDims ? ar : '9 / 16',
                           maxHeight: '70vh',
                           minWidth: '240px',
+                          maxWidth: '360px',
                           background:
                             'linear-gradient(135deg, rgba(140,120,255,0.14), rgba(60,40,120,0.22))',
                         }}
@@ -1835,12 +1848,26 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       </div>
                     );
                   }
+                  // Photo placeholder — uses the IDENTICAL sizing as the
+                  // final CachedImg bubble below (min 240, max 360, max-h
+                  // 70vh, aspect-ratio reserved when known) so the swap
+                  // from "uploading" to "sent" is pixel-perfect: same
+                  // width, same height, no jump, no resize. Previously
+                  // the placeholder was clamped to max-h-64 (≈256px)
+                  // with no min-width — so portrait photos appeared
+                  // noticeably smaller during upload than after publish.
                   return (
                     <img
                       src={items[0].previewUrl}
                       alt=""
-                      className="w-full max-h-64 object-cover rounded-[10px]"
-                      style={hasDims ? { aspectRatio: ar } : undefined}
+                      className="block w-full object-cover rounded-[10px]"
+                      draggable={false}
+                      style={{
+                        minWidth: 240,
+                        maxWidth: 360,
+                        maxHeight: '70vh',
+                        ...(hasDims ? { aspectRatio: ar } : {}),
+                      }}
                     />
                   );
                 })()}
