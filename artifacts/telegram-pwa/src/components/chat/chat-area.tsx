@@ -2534,8 +2534,28 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         )}
         <div ref={msgsWrapRef} className="flex flex-col gap-0.5 pb-2">
           {timeline.map((item, index) => {
-            const prevItem = index > 0 ? timeline[index - 1] : undefined;
-            const nextItem = index < timeline.length - 1 ? timeline[index + 1] : undefined;
+            // Skip past messages whose dust-dissolve animation has finished
+            // but whose entry hasn't been removed from `messages` yet
+            // (deadIds). This makes the avatar / sender-name re-anchor onto
+            // the new "first in group" the instant the deletion completes,
+            // instead of waiting for the API refetch to physically remove
+            // the row from the array.
+            let prevIdx = index - 1;
+            while (prevIdx >= 0) {
+              const cand = timeline[prevIdx];
+              if (cand.kind !== 'msg' || !deadIds.has(cand.msg.id)) break;
+              prevIdx--;
+            }
+            const prevItem = prevIdx >= 0 ? timeline[prevIdx] : undefined;
+
+            let nextIdx = index + 1;
+            while (nextIdx < timeline.length) {
+              const cand = timeline[nextIdx];
+              if (cand.kind !== 'msg' || !deadIds.has(cand.msg.id)) break;
+              nextIdx++;
+            }
+            const nextItem = nextIdx < timeline.length ? timeline[nextIdx] : undefined;
+
             const isSameAuthor = !!prevItem && prevItem.senderId === item.senderId;
             const isLastInGroup = !nextItem || nextItem.senderId !== item.senderId;
 
