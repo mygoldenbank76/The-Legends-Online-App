@@ -567,10 +567,18 @@ html:not(.dark) .ambient-blobs::after {
   /* Rotation eases out so the comet head decelerates as it
      fades, instead of moving at full speed up to the very last
      frame and then snapping to a stop. The fade keeps a linear
-     curve so the dissolve itself stays smooth. */
+     curve so the dissolve itself stays smooth.
+
+     `forwards` is critical: without it, both animations revert
+     to their initial values (angle 0 deg, opacity 1) the
+     instant the 1.6 s ends — and since the JS only removes
+     the class 100 ms later, the comet would briefly reappear
+     at its starting position before the cleanup. With
+     `forwards`, the final keyframe state (opacity 0) sticks
+     until the class is removed. */
   animation:
-    pinned-snake-rotate 1.6s cubic-bezier(0.18, 0.6, 0.25, 1),
-    pinned-snake-fade   1.6s linear;
+    pinned-snake-rotate 1.6s cubic-bezier(0.18, 0.6, 0.25, 1) forwards,
+    pinned-snake-fade   1.6s linear forwards;
   pointer-events: none;
 }
 
