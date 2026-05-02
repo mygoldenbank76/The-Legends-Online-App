@@ -392,10 +392,10 @@ function LiveMembersPill() {
       title={formatMemberLabel(count, appLanguage)}
       aria-live="polite"
     >
-      {/* Pulsing live dot — solid red core + ping ring (broadcast feel) */}
+      {/* Pulsing live dot — solid green core + ping ring (live broadcast feel) */}
       <span className="relative inline-flex w-2 h-2 flex-shrink-0">
-        <span className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-75" />
-        <span className="relative inline-flex w-2 h-2 rounded-full bg-red-500" />
+        <span className="absolute inset-0 rounded-full bg-green-500 animate-ping opacity-75" />
+        <span className="relative inline-flex w-2 h-2 rounded-full bg-green-500" />
       </span>
       <span className="text-[11px] font-semibold text-foreground leading-none whitespace-nowrap tabular-nums">
         {formatMemberLabel(count, appLanguage)}
