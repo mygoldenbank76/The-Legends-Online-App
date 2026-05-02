@@ -51,6 +51,26 @@ app.use(
         res.setHeader("Cache-Control", "public, max-age=3600");
         return;
       }
+      if (rel.startsWith("downloads/") && rel.endsWith(".apk")) {
+        // Android-specific MIME type — without this, some browsers serve
+        // the APK as `application/octet-stream` and Chrome/Files won't
+        // offer the "Install" button. `Content-Disposition: attachment`
+        // forces a download instead of letting Chrome try to render it.
+        res.setHeader(
+          "Content-Type",
+          "application/vnd.android.package-archive"
+        );
+        const filename = rel.split("/").pop();
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="${filename}"`
+        );
+        // 1-day cache; users on slow connections shouldn't re-download
+        // mid-install if they retry, but we want new releases to
+        // propagate within a day.
+        res.setHeader("Cache-Control", "public, max-age=86400");
+        return;
+      }
       if (rel.startsWith("assets/")) {
         res.setHeader(
           "Cache-Control",

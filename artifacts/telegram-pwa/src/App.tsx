@@ -9,6 +9,7 @@ import Login from "@/pages/login";
 import Register from "@/pages/register";
 import Home from "@/pages/home";
 import JoinGroup from "@/pages/join";
+import InstallApk from "@/pages/install-apk";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { SocketProvider } from "@/lib/socket-context";
 import { CallProvider } from "@/lib/call-context";
@@ -96,6 +97,8 @@ function AppRouter() {
         <Route path="/login" component={Login} />
         <Route path="/register" component={Register} />
         <Route path="/join/:id" component={JoinGroup} />
+        <Route path="/install-apk" component={InstallApk} />
+        <Route path="/install" component={InstallApk} />
         <Route path="/" component={Home} />
         <Route component={NotFound} />
       </Switch>
