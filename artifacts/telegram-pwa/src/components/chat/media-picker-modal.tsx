@@ -24,7 +24,12 @@ interface Props {
 // Compress an image file using canvas. Hardened so it can NEVER
 // hang the send flow: every failure path resolves with the
 // original file instead of leaving the promise pending.
-async function compressImage(file: File, quality: MediaQuality): Promise<File> {
+//
+// Exported because the actual call site lives in chat-area's
+// upload pipeline (after the optimistic bubble is painted) so
+// that the picker modal can close instantly on tap — the user
+// no longer waits on compression before seeing the message.
+export async function compressImage(file: File, quality: MediaQuality): Promise<File> {
   return new Promise((resolve) => {
     const img = new Image();
     const objUrl = URL.createObjectURL(file);
@@ -106,7 +111,9 @@ export function MediaPickerModal({ initialFiles, onClose, onSend, addMoreInputRe
   const [activeIdx, setActiveIdx] = useState(0);
   const [caption, setCaption] = useState('');
   const [quality, setQuality] = useState<MediaQuality>('HD');
-  const [sending, setSending] = useState(false);
+  // No `sending` state on purpose — see handleSend below. The
+  // modal closes on the same tap that fires onSend, so there
+  // is no in-modal latency to indicate.
   const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
   const [linkMode, setLinkMode] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
@@ -279,33 +286,30 @@ export function MediaPickerModal({ initialFiles, onClose, onSend, addMoreInputRe
     e.target.value = '';
   }, []);
 
-  const handleSend = useCallback(async () => {
-    if (!mediaFiles.length || sending) return;
-    setSending(true);
-    try {
-      // Process each file independently so a single failing
-      // compression can't poison the whole batch. Each promise
-      // is wrapped to fall back to the original file on any
-      // throw — combined with compressImage's own 8 s
-      // watchdog, this guarantees the await below always
-      // resolves and the spinner never spins forever.
-      const processedFiles = await Promise.all(
-        mediaFiles.map((m) =>
-          m.type === 'image'
-            ? compressImage(m.file, quality).catch(() => m.file)
-            : Promise.resolve(m.file), // videos sent as-is
-        ),
-      );
-      await onSend(processedFiles, caption.trim(), quality);
-    } catch (err) {
-      // Surface the failure in the console for diagnostics —
-      // without this, a thrown onSend would just look like
-      // "the button does nothing".
-      console.error('[MediaPickerModal] send failed', err);
-    } finally {
-      setSending(false);
-    }
-  }, [mediaFiles, caption, quality, sending, onSend]);
+  // Telegram/WhatsApp-style instant send: tap fires onSend
+  // synchronously with the ORIGINAL files and lets the parent
+  // (chat-area) close the modal + paint the optimistic bubble
+  // immediately. Compression is no longer awaited here — it
+  // runs lazily inside the upload pipeline, after the bubble
+  // is already on screen, so the user sees zero in-modal
+  // latency between the tap and the chat appearing.
+  //
+  // We intentionally do NOT `await` onSend; awaiting would
+  // re-introduce the "spinner on the send button" the user
+  // complained about. Errors thrown by onSend are surfaced
+  // via the parent (chat-area logs them and rolls back the
+  // optimistic placeholder).
+  const sendingRef = useRef(false);
+  const handleSend = useCallback(() => {
+    if (!mediaFiles.length || sendingRef.current) return;
+    sendingRef.current = true;
+    const files = mediaFiles.map(m => m.file);
+    const trimmed = caption.trim();
+    const q = quality;
+    // Fire-and-forget. Parent will setMediaPicker(null) which
+    // unmounts this component, so re-arming the ref is moot.
+    void Promise.resolve().then(() => onSend(files, trimmed, q));
+  }, [mediaFiles, caption, quality, onSend]);
 
   if (!mediaFiles.length) { onClose(); return null; }
 
@@ -509,19 +513,9 @@ export function MediaPickerModal({ initialFiles, onClose, onSend, addMoreInputRe
 
         <button
           onClick={handleSend}
-          disabled={sending}
-          className="flex-shrink-0 w-10 h-10 rounded-xl gradient-primary glow-primary-sm text-white transition-all flex items-center justify-center hover:opacity-95 active:scale-95 disabled:opacity-60"
+          className="flex-shrink-0 w-10 h-10 rounded-xl gradient-primary glow-primary-sm text-white transition-all flex items-center justify-center hover:opacity-95 active:scale-95"
         >
-          {sending ? (
-            // Spinner border was `border-primary` (purple) on a
-            // purple `gradient-primary` button — invisible. Use
-            // white so the user actually sees that the send is
-            // in progress instead of a "filled-purple-blob"
-            // button that looks broken.
-            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <Send className="w-4 h-4" />
-          )}
+          <Send className="w-4 h-4" />
         </button>
       </div>
     </motion.div>

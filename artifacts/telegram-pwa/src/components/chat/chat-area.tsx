@@ -38,7 +38,7 @@ import type { FormatType } from './rich-text';
 import { GifPicker } from './gif-picker';
 import { getMediaDimensions, captureVideoFirstFrame } from '@/lib/media-dimensions';
 import type { GifResult } from './gif-picker';
-import { MediaPickerModal } from './media-picker-modal';
+import { MediaPickerModal, compressImage } from './media-picker-modal';
 import type { MediaQuality } from './media-picker-modal';
 import { MediaViewer } from './media-viewer';
 import { CachedImg, InstantImg } from './cached-img';
@@ -1473,7 +1473,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const handleMediaSend = useCallback(async (
     files: File[],
     caption: string,
-    _quality: MediaQuality,
+    quality: MediaQuality,
   ) => {
     setMediaPicker(null);
     if (files.length === 0) return;
@@ -1559,10 +1559,47 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             // round-trip never delays the actual send. The thumbnail
             // upload is best-effort: a failure resolves to null so the
             // message still goes through, just without a server poster.
+            // Lazy compression: compress AFTER the optimistic
+            // bubble is already painted, so the user sees the
+            // chat update instantly. Compression typically
+            // adds <300 ms to the upload start; for videos
+            // (or if compression fails/times out) we fall back
+            // to the original file unchanged.
+            //
+            // Abort-aware: if the user cancels (entry.abort)
+            // while compression is in flight, race it against
+            // the abort signal so cancellation is immediate
+            // instead of waiting up to 8 s for the compress
+            // watchdog to fire.
+            let fileToUpload: File;
+            if (entry.isVideo) {
+              fileToUpload = entry.file;
+            } else if (entry.abort.signal.aborted) {
+              throw new UploadAbortError();
+            } else {
+              fileToUpload = await new Promise<File>((resolve, reject) => {
+                let settled = false;
+                const onAbort = () => {
+                  if (settled) return;
+                  settled = true;
+                  entry.abort.signal.removeEventListener('abort', onAbort);
+                  reject(new UploadAbortError());
+                };
+                entry.abort.signal.addEventListener('abort', onAbort);
+                compressImage(entry.file, quality)
+                  .catch(() => entry.file)
+                  .then((out) => {
+                    if (settled) return;
+                    settled = true;
+                    entry.abort.signal.removeEventListener('abort', onAbort);
+                    resolve(out);
+                  });
+              });
+            }
             const [mainResult, thumbUrl] = await Promise.all([
               uploadFileWithProgress<{ url: string }>(
                 '/api/uploads/image',
-                entry.file,
+                fileToUpload,
                 'file',
                 {
                   signal: entry.abort.signal,
