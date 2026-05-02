@@ -2786,7 +2786,13 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             const isCurrentMatch =
               isSearchMatch && messages[searchMatches[searchMatchIdx]]?.id === msg.id;
 
-            // Call events render as centered system pills (WhatsApp/Telegram style)
+            // ── Call events — WhatsApp-style card bubble ──
+            // Aligned left/right like a regular message (NOT centered),
+            // with a circular icon container on the left, the call type
+            // and detail stacked in the middle, and the time tucked at
+            // the bottom-right of the bubble. Tapping the bubble in a
+            // 1-to-1 conversation re-initiates the same kind of call
+            // (audio/video) — same affordance Telegram/WhatsApp expose.
             if (isCall) {
               const isVideo = msg.callType === 'video';
               const Icon = isVideo ? VideoIcon : Phone;
@@ -2806,7 +2812,11 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
               else { label = isVideo ? 'Appel vidéo manqué' : 'Appel vocal manqué'; detail = isMine ? 'Sans réponse' : 'Appuyez pour rappeler'; }
 
               return (
-                <div key={msg.id} id={`msg-${msg.id}`} className={`flex justify-center w-full ${isSameAuthor ? 'mt-1' : 'mt-3'}`}>
+                <div
+                  key={msg.id}
+                  id={`msg-${msg.id}`}
+                  className={`flex w-full ${isMine ? 'justify-end' : 'justify-start'} ${isSameAuthor ? 'mt-0.5' : 'mt-3'}`}
+                >
                   <button
                     type="button"
                     onClick={async (e) => {
@@ -2823,14 +2833,56 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                         }
                       }
                     }}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-foreground/[0.06] hover:bg-foreground/[0.10] border border-foreground/10 backdrop-blur-sm transition-colors max-w-[85%]"
+                    className={`max-w-[80%] rounded-[14px] pl-3 pr-3.5 py-2 flex items-center gap-3 text-left transition-colors active:scale-[0.99]
+                      ${isMine
+                        ? `bubble-sent rounded-br-[4px] ${isSameAuthor ? 'rounded-tr-[4px]' : ''}`
+                        : `bubble-received rounded-tl-[4px] ${!isLastInGroup ? 'rounded-bl-[4px]' : ''}`
+                      }`}
                   >
-                    <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${isMissed ? 'text-rose-400' : 'text-emerald-400'}`} />
-                    <span className="text-[12px] text-foreground/85 font-medium truncate">{label}</span>
-                    <span className="text-[11px] text-muted-foreground flex-shrink-0">·</span>
-                    <span className="text-[11px] text-muted-foreground flex-shrink-0">{detail}</span>
-                    {isPinned && <Pin className="w-2.5 h-2.5 text-muted-foreground/60 flex-shrink-0 ml-1" aria-label="Épinglé" />}
-                    <span className="text-[10px] text-muted-foreground/60 ml-1 font-mono flex-shrink-0">{msgTime}</span>
+                    {/* LEFT — circular icon. Tinted red when missed/declined,
+                        otherwise the bubble's own foreground tone. */}
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0
+                        ${isMine ? 'bg-primary-foreground/15' : 'bg-foreground/10'}`}
+                    >
+                      <Icon
+                        className={`w-[18px] h-[18px] ${
+                          isMissed
+                            ? 'text-rose-400'
+                            : isMine
+                              ? 'text-primary-foreground'
+                              : 'text-foreground/85'
+                        }`}
+                      />
+                    </div>
+                    {/* MIDDLE — title + subtitle stacked. min-w-0 + truncate
+                        so long detail strings (e.g. "Appuyez pour rappeler")
+                        don't blow the bubble past 80% width. */}
+                    <div className="flex flex-col items-start min-w-0 flex-1">
+                      <span
+                        className={`text-[14.5px] font-medium leading-tight truncate w-full
+                          ${isMine ? 'text-primary-foreground' : 'text-foreground'}`}
+                      >
+                        {label}
+                      </span>
+                      {detail && (
+                        <span
+                          className={`text-[12px] leading-tight mt-0.5 truncate w-full
+                            ${isMine ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}
+                        >
+                          {detail}
+                        </span>
+                      )}
+                    </div>
+                    {/* RIGHT — time + optional pin, anchored to bottom so it
+                        sits under the subtitle level rather than dead-centre. */}
+                    <div
+                      className={`text-[11px] flex items-center gap-1 flex-shrink-0 self-end ml-1
+                        ${isMine ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}
+                    >
+                      {isPinned && <Pin className="w-2.5 h-2.5" aria-label="Épinglé" />}
+                      <span>{msgTime}</span>
+                    </div>
                   </button>
                 </div>
               );
