@@ -459,9 +459,15 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // Refs (declared early so they can be used in callbacks below)
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Pagination state — older messages prepended when scrolling to top
+  // Pagination state — older messages prepended when scrolling to top.
+  // `loadedAllOlder` is the only piece of pagination state we keep — it's
+  // set to true the moment loadMore() returns a short batch (less than the
+  // server's page size of 50). Outside of that, "is there more history"
+  // is fully derived from the messages payload synchronously, so the
+  // first paint already shows the correct top marker (button vs
+  // "— début … —" pill) — no flicker, no swap, no layout shift.
   const [olderMessages, setOlderMessages] = useState<Msg[]>([]);
-  const [hasMore, setHasMore] = useState(true);
+  const [loadedAllOlder, setLoadedAllOlder] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const prevConvIdRef = useRef<number | null>(null);
@@ -470,28 +476,31 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   useEffect(() => {
     if (prevConvIdRef.current !== conversationId) {
       setOlderMessages([]);
-      setHasMore(true);
+      setLoadedAllOlder(false);
       setLoadingMore(false);
       prevConvIdRef.current = conversationId;
     }
   }, [conversationId]);
 
-  // Auto-detect "no more older messages" from the very first fetch.
-  // The server returns up to 50 messages per page (see api-server/src/
-  // routes/messages.ts). If the initial useListMessages payload comes
-  // back with fewer than 50, we already know we have the entire history
-  // and there's nothing older to load — so we hide the
-  // "Afficher les messages précédents" button straight away (instead
-  // of showing it once and only retracting it after a wasted round-trip
-  // that returns an empty batch).
-  useEffect(() => {
-    if (isLoading) return;
-    if (olderMessages.length > 0) return; // user has already paginated
-    const recentLen = (rawMessages as Msg[] | undefined)?.length ?? 0;
-    if (recentLen < 50) {
-      setHasMore(false);
-    }
-  }, [isLoading, rawMessages, olderMessages.length]);
+  // Derived "is there more older history" — computed synchronously every
+  // render. Three cases:
+  //   1. We've explicitly hit the end during a paginated loadMore call
+  //      (`loadedAllOlder` flipped to true) → no more.
+  //   2. The user has already paginated at least once and the latest
+  //      paginated batch was a full 50 → likely more (loadedAllOlder
+  //      stays false; another loadMore tap is needed to confirm).
+  //   3. No pagination yet → derive from the initial useListMessages
+  //      payload size: a full page (50) means more probably exists,
+  //      a short page means we already have everything.
+  // While the initial fetch is still loading we *show* nothing in the
+  // top slot anyway (gated on `messages.length > 0`), so it doesn't
+  // matter what hasMore returns during that frame.
+  const recentLen = (rawMessages as Msg[] | undefined)?.length ?? 0;
+  const hasMore = !loadedAllOlder && (
+    olderMessages.length > 0
+      ? true
+      : recentLen >= 50
+  );
 
   // Merge: older pages first, then real-time messages, deduplicated by id
   const recentIds = new Set((rawMessages as Msg[] | undefined)?.map(m => m.id) ?? []);
@@ -557,8 +566,8 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       const container = scrollRef.current;
       const prevScrollHeight = container?.scrollHeight ?? 0;
       const batch = await listMessages(conversationId, { before: oldestId, limit: 50 });
-      if (!batch || batch.length === 0) { setHasMore(false); return; }
-      if (batch.length < 50) setHasMore(false);
+      if (!batch || batch.length === 0) { setLoadedAllOlder(true); return; }
+      if (batch.length < 50) setLoadedAllOlder(true);
       setOlderMessages(prev => {
         const existingIds = new Set(prev.map(m => m.id));
         const newBatch = (batch as Msg[]).filter(m => !existingIds.has(m.id));
@@ -835,23 +844,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const msgsWrapRef   = useRef<HTMLDivElement>(null);
   const settlingRef   = useRef(false);
   const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Top markers (the "Afficher les messages précédents" button and the
-  // "— début de la conversation —" pill) are gated behind a short delay
-  // so they don't render at all during the entry-time settle window.
-  // Reason: those two have different intrinsic heights (the button is
-  // ~44 px tall, the pill is ~24 px) and the `hasMore` flag flips from
-  // its initial `true` to `false` as soon as the messages payload
-  // resolves. If we render them right away, the user sees the gap
-  // between the header and the first message visibly grow/shrink as
-  // those states settle — which is exactly the layout shift the user
-  // reported.
-  const [topMarkerReady, setTopMarkerReady] = useState(false);
-  const topMarkerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   // Reset visibility when conversation changes
   useEffect(() => {
     setScrollReady(false);
-    setTopMarkerReady(false);
     scrollReadyConvRef.current = null;
   }, [conversationId]);
 
@@ -870,19 +865,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     settlingRef.current = true;
     if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
     settleTimerRef.current = setTimeout(() => { settlingRef.current = false; }, 5000);
-    // Reveal the top markers (button / "début" pill) only after the
-    // first wave of layout-shifting work has had time to settle. 700 ms
-    // is enough for `hasMore` to be derived from the message payload
-    // (sub-frame), for the link-preview iframes to compute their final
-    // height, and for any in-cache photos to finish decoding.
-    if (topMarkerTimerRef.current) clearTimeout(topMarkerTimerRef.current);
-    topMarkerTimerRef.current = setTimeout(() => setTopMarkerReady(true), 700);
   });
-
-  // Cleanup the deferred-reveal timer if the component unmounts mid-flight.
-  useEffect(() => () => {
-    if (topMarkerTimerRef.current) clearTimeout(topMarkerTimerRef.current);
-  }, []);
 
   // Re-scroll to bottom whenever the messages wrapper grows in height
   // (e.g. images/GIFs loading) — but only during the settle window.
@@ -2619,35 +2602,37 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             IntersectionObserver. Older messages are now fetched
             explicitly via the button below — no auto-load on scroll. */}
         <div ref={sentinelRef} className="h-1" />
-        {/* Top marker slot — fixed height so the button (taller) and
-            the "début de la conversation" pill (shorter) take the
-            exact same vertical space. Without a fixed height, the
-            `hasMore` flag flipping from true → false right after the
-            first paint visibly resized the gap between the header and
-            the first message, which is what the user was seeing as
-            "the messages move when I arrive in a conversation".
-            Both children are gated on `topMarkerReady` so the slot
-            stays empty during the ~700 ms settling window. */}
+        {/* Top marker slot — always present, fixed height. The slot
+            reserves its space from the very first paint so the gap
+            between the header and the first message NEVER changes
+            after entry. Inside, we render exactly one of three states
+            (button / pill / nothing) and `hasMore` is derived
+            synchronously from the messages payload, so even on the
+            first frame the correct child is shown — no swap, no
+            flicker, no shift. The slot itself stays in the layout
+            even while the conversation is still loading or empty,
+            which is what makes the entry rock-solid stable. */}
         <div className="h-11 flex items-center justify-center">
-          {topMarkerReady && hasMore && !isLoading && messages.length > 0 && (
-            <button
-              type="button"
-              onClick={loadMore}
-              disabled={loadingMore}
-              className="inline-flex items-center gap-1.5 px-3 h-7 rounded-full gradient-primary-soft border border-primary/35 text-[11px] font-medium text-foreground/85 hover:text-foreground transition-colors disabled:opacity-60"
-            >
-              {loadingMore ? (
-                <>
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  <span>Chargement…</span>
-                </>
-              ) : (
-                <span>Afficher les messages précédents</span>
-              )}
-            </button>
-          )}
-          {topMarkerReady && !hasMore && !isLoading && messages.length > 0 && (
-            <span className="text-[10px] text-muted-foreground/50 select-none">— début de la conversation —</span>
+          {!isLoading && messages.length > 0 && (
+            hasMore ? (
+              <button
+                type="button"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="inline-flex items-center gap-1.5 px-3 h-7 rounded-full gradient-primary-soft border border-primary/35 text-[11px] font-medium text-foreground/85 hover:text-foreground transition-colors disabled:opacity-60"
+              >
+                {loadingMore ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>Chargement…</span>
+                  </>
+                ) : (
+                  <span>Afficher les messages précédents</span>
+                )}
+              </button>
+            ) : (
+              <span className="text-[10px] text-muted-foreground/50 select-none">— début de la conversation —</span>
+            )
           )}
         </div>
         {isLoading && <MessagesSkeleton />}
