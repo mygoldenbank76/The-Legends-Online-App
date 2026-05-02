@@ -881,18 +881,23 @@ html:not(.dark) .composer-pill {
 .send-circle:active { transform: scale(0.96); }
 
 /* ── Telegram-style dust dissolve effect for deleted messages ─────────────
-   The bubble itself blurs out, scales down, gets swept away by a
-   right-pointing mask, and ~80 small particles fly off to the right
-   while fading. After ~750ms the React state removes the row entirely,
-   so the layout collapse is hidden underneath the dust haze. */
+   The bubble dissolves with a left-to-right mask sweep: the left edge
+   turns into dust first and the wipe progresses cleanly across to the
+   right edge. Particles trail the sweep, fly outward, blur out and
+   fade. The full animation runs ~1100ms; the React state only removes
+   the row from the list once the API confirms deletion, so the user
+   never sees the bubble pop back into view. */
 @keyframes dust-fly {
   0% {
-    opacity: 1;
+    opacity: 0;
     transform: translate(0, 0) rotate(0deg) scale(1);
+  }
+  8% {
+    opacity: 1;
   }
   100% {
     opacity: 0;
-    transform: translate(var(--dust-dx, 80px), var(--dust-dy, 0px)) rotate(var(--dust-rot, 30deg)) scale(0.4);
+    transform: translate(var(--dust-dx, 80px), var(--dust-dy, 0px)) rotate(var(--dust-rot, 30deg)) scale(0.35);
   }
 }
 @keyframes dust-fade {
@@ -900,31 +905,34 @@ html:not(.dark) .composer-pill {
     opacity: 1;
     filter: blur(0px) brightness(1);
     transform: translateX(0) scale(1);
-    -webkit-mask-image: linear-gradient(90deg, transparent -80%, #000 -10%, #000 100%);
-            mask-image: linear-gradient(90deg, transparent -80%, #000 -10%, #000 100%);
+    /* Sweep boundary just past the LEFT edge → bubble fully visible. */
+    -webkit-mask-image: linear-gradient(90deg, transparent -20%, #000 -5%, #000 100%);
+            mask-image: linear-gradient(90deg, transparent -20%, #000 -5%, #000 100%);
   }
-  60% {
-    opacity: 0.55;
-    filter: blur(2px) brightness(1.2);
+  55% {
+    opacity: 0.85;
+    filter: blur(1.5px) brightness(1.15);
   }
   100% {
     opacity: 0;
-    filter: blur(6px) brightness(1.4);
-    transform: translateX(14px) scale(0.985);
-    -webkit-mask-image: linear-gradient(90deg, transparent 80%, #000 170%, #000 200%);
-            mask-image: linear-gradient(90deg, transparent 80%, #000 170%, #000 200%);
+    filter: blur(7px) brightness(1.35);
+    transform: translateX(10px) scale(0.985);
+    /* Sweep boundary past the RIGHT edge → bubble fully wiped from
+       left to right. */
+    -webkit-mask-image: linear-gradient(90deg, transparent 100%, #000 115%, #000 130%);
+            mask-image: linear-gradient(90deg, transparent 100%, #000 115%, #000 130%);
   }
 }
 .dust-fading {
-  animation: dust-fade 750ms cubic-bezier(.45,.05,.55,.95) forwards;
+  animation: dust-fade 1100ms cubic-bezier(.45,.05,.55,.95) forwards;
   pointer-events: none;
   will-change: transform, opacity, filter;
-  transform-origin: right center;
+  transform-origin: left center;
 }
 .dust-fading > .dust-overlay {
   animation: none;
 }
 @media (prefers-reduced-motion: reduce) {
-  .dust-fading { animation-duration: 200ms; }
-  .dust-particle { animation-duration: 200ms !important; }
+  .dust-fading { animation-duration: 250ms; }
+  .dust-particle { animation-duration: 250ms !important; }
 }

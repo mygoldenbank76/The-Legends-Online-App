@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 
-const DUST_DURATION_MS = 750;
+const DUST_DURATION_MS = 1100;
 
 export const DUST_DURATION = DUST_DURATION_MS;
 
@@ -58,8 +58,10 @@ export function DustEffect({ variant = 'sent', density = 1 }: DustEffectProps) {
         dx: dxBase,
         dy: dyBase,
         rot: (Math.random() - 0.5) * 90,
-        delay: (x / rect.width) * 220,
-        duration: 480 + Math.random() * 260,
+        // Each particle fires when the left-to-right sweep mask reaches its
+        // x position. Scaled to leave a tail of particles trailing the wipe.
+        delay: (x / rect.width) * 600,
+        duration: 520 + Math.random() * 320,
       });
     }
     particles.current = arr;

@@ -2061,21 +2061,24 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const handleDeleteConfirm = async (msgId: number) => {
     closeCtx();
     // Telegram-style dust dissolve. We mark the bubble as "dusting" so the
-    // CSS animation + particle overlay play in place, wait for the
-    // animation to (almost) finish, then commit the actual delete. The
-    // visible row only collapses once the message is gone from the
-    // messages list, so the user sees the dust scatter, not a sudden
-    // jump-cut. We hold the dustingIds entry slightly past the API call
-    // so the animation never gets cut short by an early refetch.
+    // CSS animation + particle overlay play in place, wait for the full
+    // animation, then commit the actual delete. We deliberately do NOT
+    // clear the dustingIds entry on success — the GC effect below removes
+    // it once the message disappears from the messages list (after the
+    // refetch). That way the bubble never pops back into view between the
+    // animation ending and the row unmounting. On error we restore the
+    // bubble so the user can retry.
     setDustingIds(prev => {
       const next = new Set(prev);
       next.add(msgId);
       return next;
     });
     setTimeout(async () => {
-      try { await deleteMsg.mutateAsync({ messageId: msgId }); invalidate(); }
-      catch (e) { console.error(e); }
-      finally {
+      try {
+        await deleteMsg.mutateAsync({ messageId: msgId });
+        invalidate();
+      } catch (e) {
+        console.error(e);
         setDustingIds(prev => {
           if (!prev.has(msgId)) return prev;
           const next = new Set(prev);
