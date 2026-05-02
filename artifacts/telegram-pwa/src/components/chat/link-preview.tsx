@@ -249,6 +249,21 @@ export function LinkPreviewCard({ preview, isMine }: Props) {
       ? 'bg-black/15 border border-white/10 hover:border-white/25'
       : 'bg-background/60 border border-border hover:border-primary/40 hover:glow-primary-sm'}`;
 
+  // Minimum card width — forces the message bubble to expand to a sane
+  // size even when the user wrote only one or two words ("Spotify",
+  // "lol", a single emoji…). Without this the bubble shrinks to the
+  // text width and the rich preview underneath gets squeezed into a
+  // narrow column where the album art crops, the title clips and the
+  // play button overlaps the metadata (the exact bug in the user's
+  // screenshot). 280 px is the sweet spot that matches Telegram /
+  // WhatsApp's preview width and keeps the Spotify mini-player
+  // (72 px artwork + flex text + 24 px logo + paddings) laid out
+  // exactly as designed. The negative -mx-2 means the bubble's
+  // content box only needs to be ~264 px to accommodate this — well
+  // under the bubble's max-width — so longer messages still get the
+  // organic shrink-to-content behaviour they had before.
+  const containerStyle: React.CSSProperties = { minWidth: 280 };
+
   const blockProps = {
     onTouchStart: stopTouch,
     onTouchEnd: stopTouch,
@@ -259,7 +274,7 @@ export function LinkPreviewCard({ preview, isMine }: Props) {
   // ── Spotify ──────────────────────────────────────────────────────────
   if (platform === 'spotify' && preview.embedUrl) {
     return (
-      <div className={containerClass} {...blockProps}>
+      <div className={containerClass} style={containerStyle} {...blockProps}>
         <div className="px-2.5 pt-1.5 pb-1">
           <PlatformBadge platform={platform} siteName={preview.siteName} />
           {preview.title && <p className="font-semibold mt-1 truncate text-foreground">{preview.title}</p>}
@@ -273,7 +288,7 @@ export function LinkPreviewCard({ preview, isMine }: Props) {
   // ── YouTube ───────────────────────────────────────────────────────────
   if (platform === 'youtube') {
     return (
-      <div className={containerClass} {...blockProps}>
+      <div className={containerClass} style={containerStyle} {...blockProps}>
         <YouTubeEmbed preview={preview} isMine={isMine} />
         <div className="px-2.5 py-1.5 flex items-start gap-2">
           <div className="flex-1 min-w-0">
@@ -299,6 +314,7 @@ export function LinkPreviewCard({ preview, isMine }: Props) {
       target="_blank"
       rel="noopener noreferrer"
       className={containerClass + ' block'}
+      style={containerStyle}
       {...blockProps}
     >
       {hasImage && <GenericImage src={preview.image!} alt={preview.title ?? ''} />}
