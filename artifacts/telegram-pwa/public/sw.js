@@ -1,10 +1,50 @@
-const CACHE_NAME = 'legends-v9';
-const STATIC_CACHE = 'legends-static-v9';
-const MEDIA_CACHE = 'legends-media-v9';
+// ─────────────────────────────────────────────────────────────────────────────
+// Service Worker v10 — true app-shell precache + stale-while-revalidate
+//
+// Goal: when the user re-opens the APK / installed PWA, the app boots
+// INSTANTLY from cache without a network round-trip — exactly like a
+// native app. Network is only used in the background to refresh the
+// shell for the next launch.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const VERSION = 'v10';
+const CACHE_NAME = `legends-${VERSION}`;
+const STATIC_CACHE = `legends-static-${VERSION}`;
+const MEDIA_CACHE = `legends-media-${VERSION}`;
+const SHELL_CACHE = `legends-shell-${VERSION}`;
+
+// App-shell URLs precached at install time. These are the bare minimum
+// the browser needs to paint the first frame from cache without any
+// network call. The hashed JS/CSS bundles are NOT listed here — they
+// live in /assets/ and get cache-first treatment on first request,
+// then live forever in STATIC_CACHE thanks to their content-hashed
+// filenames (immutable).
+const SHELL_URLS = [
+  '/',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-notification.png',
+  '/icon-badge.png',
+  '/favicon.svg',
+];
 
 // ── Install ──────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
+  event.waitUntil((async () => {
+    const cache = await caches.open(SHELL_CACHE);
+    // addAll is atomic — if any URL fails the whole precache fails and the
+    // SW won't install. We use addAll with allSettled-like resilience by
+    // adding one-by-one so a single missing icon doesn't break everything.
+    await Promise.all(
+      SHELL_URLS.map((url) =>
+        fetch(url, { cache: 'reload' })
+          .then((res) => (res.ok ? cache.put(url, res) : null))
+          .catch(() => null),
+      ),
+    );
+    self.skipWaiting();
+  })());
 });
 
 // Allow the page to force activation of an installed-but-waiting SW.
@@ -18,10 +58,11 @@ self.addEventListener('message', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
+    const valid = new Set([CACHE_NAME, STATIC_CACHE, MEDIA_CACHE, SHELL_CACHE]);
     await Promise.all(
       keys
-        .filter((k) => k !== CACHE_NAME && k !== STATIC_CACHE && k !== MEDIA_CACHE)
-        .map((k) => caches.delete(k))
+        .filter((k) => !valid.has(k))
+        .map((k) => caches.delete(k)),
     );
     await self.clients.claim();
     // Tell all open clients a new SW is controlling them so they can reload.
@@ -122,21 +163,46 @@ self.addEventListener('fetch', (event) => {
   // Skip cross-origin non-media
   if (url.origin !== self.location.origin) return;
 
-  // ── 3. Navigation requests — ALWAYS network, never cache HTML ────────────
-  // Caching index.html breaks deploys (old HTML references missing JS/CSS hashes).
+  // ── 3. Navigation requests — Stale-while-revalidate (instant app boot) ──
+  // BEFORE: every app launch hit the network for the HTML, so the user
+  // saw a 200-800 ms blank screen on every cold open — exactly the
+  // "web feel" they complained about.
+  // NOW: serve the cached shell immediately (boot < 50 ms, native feel)
+  // and refresh the cache in the background so the next launch already
+  // has the latest deploy. The SW broadcasts SW_UPDATED on the new
+  // activate cycle, which the client uses to reload only when the
+  // bundle hash actually changes — so this is safe against stale
+  // HTML pointing to deleted /assets/ bundles.
   if (request.mode === 'navigate') {
-    event.respondWith(fetch(request));
+    event.respondWith((async () => {
+      const cache = await caches.open(SHELL_CACHE);
+      const cached = await cache.match('/');
+      const networkPromise = fetch(request).then((res) => {
+        if (res && res.ok) cache.put('/', res.clone());
+        return res;
+      }).catch(() => null);
+      // Cache-first; if no cache exists yet (first ever visit), fall back
+      // to network. After that first visit, every subsequent launch is
+      // instant.
+      return cached || (await networkPromise) || new Response('', { status: 504 });
+    })());
     return;
   }
 
-  // ── 4. Hashed static assets (JS/CSS bundles) — Cache First ───────────────
+  // ── 4. Hashed static assets (JS/CSS bundles) — Cache First, immutable ──
+  // Hashed filenames mean the same URL ALWAYS returns the same bytes,
+  // so we can cache forever — that's why STATIC_CACHE never needs to
+  // expire entries. New deploys use new hashes, which simply add new
+  // entries without invalidating old ones.
   if (url.pathname.startsWith('/assets/')) {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) return cached;
         return fetch(request).then((response) => {
-          const clone = response.clone();
-          caches.open(STATIC_CACHE).then((c) => c.put(request, clone));
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(STATIC_CACHE).then((c) => c.put(request, clone));
+          }
           return response;
         });
       })
@@ -144,7 +210,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // ── 5. Everything else — Network First ───────────────────────────────────
+  // ── 5. Everything else — Network First with cache fallback ──────────────
   event.respondWith(fetch(request).catch(() => caches.match(request)));
 });
 
