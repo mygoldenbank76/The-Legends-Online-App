@@ -23,7 +23,7 @@ const PreferencesContext = createContext<PreferencesContextType | undefined>(und
 const THEME_KEY = 'telechat_theme';
 const EFFECTS_KEY = 'telechat_effects';
 
-const THEME_COLOR_DARK = '#0e121c';
+const THEME_COLOR_DARK = '#0c1019';
 const THEME_COLOR_LIGHT = '#f9f9fc';
 
 function readStoredTheme(): Theme {
