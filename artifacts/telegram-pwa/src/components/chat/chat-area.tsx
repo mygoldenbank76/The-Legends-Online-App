@@ -1014,6 +1014,38 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // new messages from old messages loaded by pagination (which are prepended).
   const lastMsgIdRef = useRef<number | null>(null);
 
+  // Mirror the messages-effect for OPTIMISTIC media uploads. Sending a
+  // media doesn't grow `messages` (the server message arrives later),
+  // it grows `pendingUploads`. Without this effect, sending a photo
+  // while at the bottom showed the optimistic bubble half-hidden behind
+  // the composer because the bubble's image was still decoding when the
+  // single rAF-scheduled scrollBottom fired — once the image decoded a
+  // few frames later, the bubble grew downward but no one re-pinned
+  // scrollTop. We use the SAME forceScrollRef contract as the messages
+  // effect (set by every send path) so the scroll behaviour is uniform
+  // regardless of whether the user sent text, GIF, or an upload.
+  const prevPendingCountRef = useRef(0);
+  useEffect(() => {
+    const count = pendingUploads.length;
+    const prev = prevPendingCountRef.current;
+    prevPendingCountRef.current = count;
+    if (count <= prev) return;
+    if (scrollReadyConvRef.current !== conversationId) return;
+    if (!forceScrollRef.current) return;
+    forceScrollRef.current = false;
+    // Initial pin — bubble is now in the DOM with its aspect-ratio
+    // height reservation in place.
+    scrollBottom(0);
+    // Re-pin a few frames later in case the image decoded slightly
+    // taller than the reservation, OR in case dims weren't probed
+    // in time and the bubble grew once the natural image kicked in.
+    // 100 ms covers fast local files, 350 ms covers slower decodes
+    // and the case where setPendingUploads + first paint were a few
+    // frames apart due to React batching with other state updates.
+    setTimeout(() => scrollBottom(0), 100);
+    setTimeout(() => scrollBottom(0), 350);
+  }, [pendingUploads.length, conversationId, scrollBottom]);
+
   useEffect(() => {
     const count = messages?.length ?? 0;
     const currentLastId = messages && messages.length > 0 ? messages[messages.length - 1].id : null;
@@ -1881,6 +1913,11 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                             className="block w-full h-full object-contain"
                             draggable={false}
                             decoding="async"
+                            onLoad={() => {
+                              if (wasAtBottomRef.current && scrollRef.current) {
+                                scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+                              }
+                            }}
                           />
                         ) : (
                           <svg
@@ -1913,6 +1950,18 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                         maxHeight: '70vh',
                         ...(hasDims ? { aspectRatio: ar } : {}),
                       }}
+                      // Catch the case where the just-decoded natural
+                      // image size differs from the aspectRatio
+                      // reservation (or no reservation existed). If
+                      // the user was sitting at the bottom — which is
+                      // the case the user reported — re-snap so the
+                      // optimistic bubble's bottom edge ends right
+                      // above the composer instead of being clipped.
+                      onLoad={() => {
+                        if (wasAtBottomRef.current && scrollRef.current) {
+                          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+                        }
+                      }}
                     />
                   );
                 })()}
@@ -1936,7 +1985,16 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   gridAutoRows: items.length <= 2 ? '180px' : '120px',
                 }}
               >
-                {items.slice(0, 6).map(it => (
+                {items.slice(0, 6).map(it => {
+                  // Same re-pin-on-load logic as the single-photo
+                  // branch above so albums also stay glued to the
+                  // bottom while their thumbnails decode.
+                  const onAlbumLoad = () => {
+                    if (wasAtBottomRef.current && scrollRef.current) {
+                      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+                    }
+                  };
+                  return (
                   <div key={it.id} className="relative bg-foreground/5 overflow-hidden">
                     {it.isVideo ? (
                       it.posterUrl ? (
@@ -1945,6 +2003,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                           alt=""
                           className="w-full h-full object-cover"
                           draggable={false}
+                          onLoad={onAlbumLoad}
                         />
                       ) : (
                         <video
@@ -1959,6 +2018,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                         src={it.previewUrl}
                         alt=""
                         className="w-full h-full object-cover"
+                        onLoad={onAlbumLoad}
                       />
                     )}
                     <UploadProgressOverlay
@@ -1967,7 +2027,8 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       onCancel={() => cancelPendingUpload(it.id)}
                     />
                   </div>
-                ))}
+                  );
+                })}
                 {!caption && (
                   <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/55 backdrop-blur-sm text-white text-[11px] flex items-center gap-1 pointer-events-none z-10">
                     <Clock className="w-3 h-3" />
