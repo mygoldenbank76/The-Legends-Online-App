@@ -476,6 +476,23 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     }
   }, [conversationId]);
 
+  // Auto-detect "no more older messages" from the very first fetch.
+  // The server returns up to 50 messages per page (see api-server/src/
+  // routes/messages.ts). If the initial useListMessages payload comes
+  // back with fewer than 50, we already know we have the entire history
+  // and there's nothing older to load — so we hide the
+  // "Afficher les messages précédents" button straight away (instead
+  // of showing it once and only retracting it after a wasted round-trip
+  // that returns an empty batch).
+  useEffect(() => {
+    if (isLoading) return;
+    if (olderMessages.length > 0) return; // user has already paginated
+    const recentLen = (rawMessages as Msg[] | undefined)?.length ?? 0;
+    if (recentLen < 50) {
+      setHasMore(false);
+    }
+  }, [isLoading, rawMessages, olderMessages.length]);
+
   // Merge: older pages first, then real-time messages, deduplicated by id
   const recentIds = new Set((rawMessages as Msg[] | undefined)?.map(m => m.id) ?? []);
   const dedupedOlder = olderMessages.filter(m => !recentIds.has(m.id));
