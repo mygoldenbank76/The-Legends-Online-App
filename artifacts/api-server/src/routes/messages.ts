@@ -8,6 +8,7 @@ import { eq, and, lt, desc, inArray, ne, gt, gte } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 import { formatUser } from "./users";
 import { extractFirstUrl, fetchLinkPreview } from "../lib/linkPreview";
+import { probeImageDimensions } from "../lib/mediaProbe";
 import { io, userSockets, getRoomMembers } from "../app";
 import { buildPoll } from "./polls";
 import { notifyNewMessage } from "../lib/pushNotifications";
@@ -307,8 +308,26 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
   const isValidDim = (n: unknown): n is number =>
     typeof n === "number" && Number.isSafeInteger(n) && n > 0 && n <= MAX_DIM;
   const dimsValid = isValidDim(mediaWidth) && isValidDim(mediaHeight);
-  const safeWidth = dimsValid ? (mediaWidth as number) : null;
-  const safeHeight = dimsValid ? (mediaHeight as number) : null;
+  let safeWidth = dimsValid ? (mediaWidth as number) : null;
+  let safeHeight = dimsValid ? (mediaHeight as number) : null;
+
+  // Safety net: if the client forwarded an imageUrl without dimensions
+  // (older clients, document picker reroute, future bugs), probe the
+  // bytes once so the row lands in the database with width/height
+  // populated and every recipient still gets a bubble that paints at
+  // the correct shape on the very first frame — no fallback aspect,
+  // no visible reflow when the image decodes.
+  if (imageUrl && (safeWidth === null || safeHeight === null)) {
+    try {
+      const probed = await probeImageDimensions(imageUrl);
+      if (probed) {
+        safeWidth = probed.width;
+        safeHeight = probed.height;
+      }
+    } catch {
+      // probe is best-effort; never fail the send because of it
+    }
+  }
 
   if (content == null && imageUrl == null && mediaAlbum == null && audioUrl == null && poll == null) {
     res.status(400).json({ error: "Message must have content, imageUrl, mediaAlbum, audioUrl, or poll" });
