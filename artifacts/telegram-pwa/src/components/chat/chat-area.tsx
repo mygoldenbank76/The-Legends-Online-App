@@ -3002,9 +3002,21 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                                 minWidth: 240,
                                 maxWidth: 360,
                                 maxHeight: '70vh',
-                                ...(msg.mediaWidth && msg.mediaHeight
-                                  ? { aspectRatio: `${msg.mediaWidth} / ${msg.mediaHeight}` }
-                                  : {}),
+                                // Reserve a sensible 4:3 box BEFORE the
+                                // image decodes when the server hasn't
+                                // stored intrinsic dimensions (legacy
+                                // messages). Without this fallback the
+                                // <img> reports 0×0 until decode and
+                                // then suddenly grows — pushing the
+                                // entire conversation downward when the
+                                // user scrolls back up. Browser
+                                // overrides this aspectRatio as soon as
+                                // the natural dimensions are known via
+                                // the img's own intrinsic ratio.
+                                aspectRatio:
+                                  msg.mediaWidth && msg.mediaHeight
+                                    ? `${msg.mediaWidth} / ${msg.mediaHeight}`
+                                    : '4 / 3',
                               }}
                               onClick={() => {
                                 if (Date.now() - conversationOpenedAt.current < 900) return;

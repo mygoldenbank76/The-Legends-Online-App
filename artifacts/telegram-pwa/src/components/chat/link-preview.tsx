@@ -84,53 +84,71 @@ function SpotifyEmbed({ preview }: { preview: LinkPreviewData; isMine: boolean }
   }, [preview.embedUrl, preview.image]);
 
   return (
-    <div className="mt-2 rounded-xl overflow-hidden relative" style={{ background: '#121212' }}>
-      {/* ── Static rich card: visible INSTANTLY, hidden once iframe is ready ── */}
-      {!iframeReady && (
-        <div className="flex items-center gap-3 px-3 py-3">
-          {preview.image ? (
-            <CachedImg
-              src={preview.image}
-              alt="album"
-              className="rounded flex-shrink-0 object-cover"
-              style={{ width: 72, height: 72 }}
-            />
-          ) : (
-            <div className="w-[72px] h-[72px] rounded flex-shrink-0 flex items-center justify-center" style={{ background: '#282828' }}>
-              <Music size={24} style={{ color: '#1DB954' }} />
-            </div>
+    // Fixed-height (152px) container that matches Spotify's mini-player
+    // exactly. Both the static rich card and the iframe slot are positioned
+    // absolutely inside it and cross-fade between each other — so the
+    // bubble's height is identical at every moment of the load and the
+    // user scrolling above this preview never gets pushed by a late iframe
+    // mount. Without this, the slot's 0→152 height transition combined
+    // with the card disappearing produces a ~64px downward shove that
+    // bumps the visible scroll position when the user scrolls back up
+    // through a Spotify-rich conversation.
+    <div className="mt-2 rounded-xl overflow-hidden relative" style={{ background: '#121212', height: 152 }}>
+      {/* ── Static rich card: cross-fades out once the iframe is ready ── */}
+      <div
+        className="absolute inset-0 flex items-center gap-3 px-3 py-3 pointer-events-none"
+        style={{
+          opacity: iframeReady ? 0 : 1,
+          transition: 'opacity 0.2s ease',
+        }}
+      >
+        {preview.image ? (
+          <CachedImg
+            src={preview.image}
+            alt="album"
+            className="rounded flex-shrink-0 object-cover"
+            style={{ width: 72, height: 72 }}
+          />
+        ) : (
+          <div className="w-[72px] h-[72px] rounded flex-shrink-0 flex items-center justify-center" style={{ background: '#282828' }}>
+            <Music size={24} style={{ color: '#1DB954' }} />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          {preview.title && (
+            <p className="font-semibold text-white text-sm truncate leading-snug">{preview.title}</p>
           )}
-          <div className="flex-1 min-w-0">
-            {preview.title && (
-              <p className="font-semibold text-white text-sm truncate leading-snug">{preview.title}</p>
-            )}
-            {preview.description && (
-              <p className="text-xs truncate mt-0.5" style={{ color: '#b3b3b3' }}>{preview.description}</p>
-            )}
-            <div className="flex items-center gap-2 mt-2">
-              <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: '#2a2a2a', color: '#b3b3b3' }}>Preview</span>
-            </div>
-            <div className="flex items-center gap-2 mt-1.5">
-              <Plus size={14} style={{ color: '#b3b3b3' }} />
-              <span className="text-xs" style={{ color: '#b3b3b3' }}>Save on Spotify</span>
-            </div>
-            <div className="flex items-center justify-between mt-1.5">
-              <MoreHorizontal size={16} style={{ color: '#b3b3b3' }} />
-              <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#1DB954' }}>
-                <Play size={14} fill="white" className="text-white ml-0.5" />
-              </div>
+          {preview.description && (
+            <p className="text-xs truncate mt-0.5" style={{ color: '#b3b3b3' }}>{preview.description}</p>
+          )}
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: '#2a2a2a', color: '#b3b3b3' }}>Preview</span>
+          </div>
+          <div className="flex items-center gap-2 mt-1.5">
+            <Plus size={14} style={{ color: '#b3b3b3' }} />
+            <span className="text-xs" style={{ color: '#b3b3b3' }}>Save on Spotify</span>
+          </div>
+          <div className="flex items-center justify-between mt-1.5">
+            <MoreHorizontal size={16} style={{ color: '#b3b3b3' }} />
+            <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#1DB954' }}>
+              <Play size={14} fill="white" className="text-white ml-0.5" />
             </div>
           </div>
-          <svg width="24" height="24" viewBox="0 0 168 168" className="absolute top-3 right-3 flex-shrink-0" style={{ fill: '#1DB954' }}>
-            <path d="M84 0C37.6 0 0 37.6 0 84s37.6 84 84 84 84-37.6 84-84S130.4 0 84 0zm38.5 121.2c-1.5 2.5-4.8 3.3-7.3 1.8-19.9-12.2-45-14.9-74.5-8.2-2.8.6-5.7-1.1-6.3-3.9-.6-2.8 1.1-5.7 3.9-6.3 32.3-7.4 60-4.2 82.3 9.4 2.6 1.5 3.4 4.7 1.9 7.2zm10.3-22.8c-1.9 3.1-6 4.1-9.1 2.2-22.8-14-57.4-18-84.3-9.8-3.5 1.1-7.2-.9-8.3-4.4-1-3.5.9-7.2 4.4-8.3 30.8-9.4 69-4.8 95 11.2 3.1 1.9 4 6 2.3 9.1zm.9-23.8c-27.4-16.3-72.6-17.8-98.7-9.8-4.2 1.3-8.6-1.1-9.9-5.2-1.3-4.2 1.1-8.6 5.2-9.9 30-9.1 79.9-7.3 111.4 11.4 3.8 2.2 5 7.1 2.7 10.9-2.2 3.7-7.1 5-10.7 2.6z"/>
-          </svg>
         </div>
-      )}
+        <svg width="24" height="24" viewBox="0 0 168 168" className="absolute top-3 right-3 flex-shrink-0" style={{ fill: '#1DB954' }}>
+          <path d="M84 0C37.6 0 0 37.6 0 84s37.6 84 84 84 84-37.6 84-84S130.4 0 84 0zm38.5 121.2c-1.5 2.5-4.8 3.3-7.3 1.8-19.9-12.2-45-14.9-74.5-8.2-2.8.6-5.7-1.1-6.3-3.9-.6-2.8 1.1-5.7 3.9-6.3 32.3-7.4 60-4.2 82.3 9.4 2.6 1.5 3.4 4.7 1.9 7.2zm10.3-22.8c-1.9 3.1-6 4.1-9.1 2.2-22.8-14-57.4-18-84.3-9.8-3.5 1.1-7.2-.9-8.3-4.4-1-3.5.9-7.2 4.4-8.3 30.8-9.4 69-4.8 95 11.2 3.1 1.9 4 6 2.3 9.1zm.9-23.8c-27.4-16.3-72.6-17.8-98.7-9.8-4.2 1.3-8.6-1.1-9.9-5.2-1.3-4.2 1.1-8.6 5.2-9.9 30-9.1 79.9-7.3 111.4 11.4 3.8 2.2 5 7.1 2.7 10.9-2.2 3.7-7.1 5-10.7 2.6z"/>
+        </svg>
+      </div>
 
-      {/* ── Iframe slot: managed imperatively by the pool ── */}
+      {/* ── Iframe slot: full height from the start, fades in on ready ── */}
       <div
         ref={containerRef}
-        style={{ height: iframeReady ? 152 : 0, overflow: 'hidden', transition: 'height 0.25s ease' }}
+        className="absolute inset-0"
+        style={{
+          opacity: iframeReady ? 1 : 0,
+          transition: 'opacity 0.2s ease',
+          overflow: 'hidden',
+        }}
       />
     </div>
   );
@@ -191,14 +209,27 @@ function YouTubeEmbed({ preview, isMine }: { preview: LinkPreviewData; isMine: b
 // width and is bounded by ~224 px tall (matches the iOS/Android max-h
 // for landscape og-images while letting portrait images crop nicely
 // instead of dwarfing the rest of the card).
+//
+// The wrapper reserves the final box dimensions BEFORE the image loads
+// (Open Graph standard 1.91:1, capped at max-h 224 px). Without this
+// reservation the box would be 0 px tall until decode, then grow to
+// the natural image height — pushing every later message in the chat
+// downward by 100–224 px when the user scrolls back up through a
+// link-rich conversation. The neutral background sits behind the image
+// so the reserved space is invisible, not a stark blank rectangle.
 function GenericImage({ src, alt }: { src: string; alt: string }) {
   return (
-    <CachedImg
-      src={src}
-      alt={alt}
-      loading="eager"
-      className="w-full object-cover max-h-56 block"
-    />
+    <div
+      className="w-full bg-foreground/5 overflow-hidden"
+      style={{ aspectRatio: '1.91 / 1', maxHeight: 224 }}
+    >
+      <CachedImg
+        src={src}
+        alt={alt}
+        loading="eager"
+        className="w-full h-full object-cover block"
+      />
+    </div>
   );
 }
 
