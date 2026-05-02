@@ -570,6 +570,13 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // The bubble stays in the DOM for DUST_DURATION ms after the user clicks
   // Delete, so the dissolve animation can play before the row collapses.
   const [dustingIds, setDustingIds] = useState<Set<number>>(new Set());
+  // Messages whose dust animation has FINISHED but whose row is still
+  // mounted (because the API delete + refetch hasn't completed yet). These
+  // rows are hidden via `return null` in the timeline render so the bubble
+  // can never pop back into view between the animation ending and the row
+  // unmounting. Cleared by the same GC effect as `dustingIds` once the
+  // message is gone from the messages list.
+  const [deadIds, setDeadIds] = useState<Set<number>>(new Set());
   // Optimistic uploads shown as fake bubbles with a circular progress ring
   const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
   const pendingUploadsRef = useRef<PendingUpload[]>([]);
@@ -2060,20 +2067,36 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
   const handleDeleteConfirm = async (msgId: number) => {
     closeCtx();
-    // Telegram-style dust dissolve. We mark the bubble as "dusting" so the
-    // CSS animation + particle overlay play in place, wait for the full
-    // animation, then commit the actual delete. We deliberately do NOT
-    // clear the dustingIds entry on success — the GC effect below removes
-    // it once the message disappears from the messages list (after the
-    // refetch). That way the bubble never pops back into view between the
-    // animation ending and the row unmounting. On error we restore the
-    // bubble so the user can retry.
+    // Telegram-style dust dissolve. The flow is:
+    //   1. Mark the bubble as "dusting" so the CSS wipe + particle overlay
+    //      play in place over DUST_DURATION ms.
+    //   2. At the END of the animation, mark the message as "dead" so its
+    //      row is taken out of the render tree (returns null) — that way
+    //      the bubble cannot pop back into view if there's any gap between
+    //      the wipe finishing and the message disappearing from the list.
+    //   3. Fire the API delete after the animation completes; the refetch
+    //      then removes the message from `messages` and the GC effect
+    //      clears both Sets.
+    //   4. On error, restore the bubble (clear both Sets) so the user can
+    //      retry.
     setDustingIds(prev => {
       const next = new Set(prev);
       next.add(msgId);
       return next;
     });
     setTimeout(async () => {
+      // Hide the row IMMEDIATELY when the wipe ends — even before the API
+      // call returns. This is the key fix for the "bubble reappears then
+      // deletes again" glitch: without this, the bubble would briefly
+      // become fully visible during the ~50–100ms window between the
+      // animation ending and the refetch removing the message from the
+      // list (because clearing dustingIds removes the wipe mask, exposing
+      // the still-mounted bubble).
+      setDeadIds(prev => {
+        const next = new Set(prev);
+        next.add(msgId);
+        return next;
+      });
       try {
         await deleteMsg.mutateAsync({ messageId: msgId });
         invalidate();
@@ -2085,25 +2108,45 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           next.delete(msgId);
           return next;
         });
+        setDeadIds(prev => {
+          if (!prev.has(msgId)) return prev;
+          const next = new Set(prev);
+          next.delete(msgId);
+          return next;
+        });
       }
     }, DUST_DURATION);
   };
 
-  // Garbage-collect dustingIds entries whose message is already gone from
-  // the list (e.g. the API delete already happened, or the message was
-  // removed by another client). Keeps the Set bounded.
+  // Garbage-collect dustingIds / deadIds entries whose message is already
+  // gone from the list (e.g. the API delete already happened, or the
+  // message was removed by another client). Keeps both Sets bounded.
   useEffect(() => {
-    if (dustingIds.size === 0) return;
+    if (dustingIds.size === 0 && deadIds.size === 0) return;
     const live = new Set<number>(messages.map(m => m.id));
-    let stale = false;
-    for (const id of dustingIds) if (!live.has(id)) { stale = true; break; }
-    if (!stale) return;
-    setDustingIds(prev => {
-      const next = new Set<number>();
-      for (const id of prev) if (live.has(id)) next.add(id);
-      return next;
-    });
-  }, [messages, dustingIds]);
+    if (dustingIds.size > 0) {
+      let stale = false;
+      for (const id of dustingIds) if (!live.has(id)) { stale = true; break; }
+      if (stale) {
+        setDustingIds(prev => {
+          const next = new Set<number>();
+          for (const id of prev) if (live.has(id)) next.add(id);
+          return next;
+        });
+      }
+    }
+    if (deadIds.size > 0) {
+      let stale = false;
+      for (const id of deadIds) if (!live.has(id)) { stale = true; break; }
+      if (stale) {
+        setDeadIds(prev => {
+          const next = new Set<number>();
+          for (const id of prev) if (live.has(id)) next.add(id);
+          return next;
+        });
+      }
+    }
+  }, [messages, dustingIds, deadIds]);
 
   const handlePin = async (msg: Msg) => {
     closeCtx();
@@ -2580,6 +2623,12 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             }
 
             const isDusting = dustingIds.has(msg.id);
+            // Once the dust animation has completed, the row is removed
+            // from the render tree until the message is actually gone from
+            // `messages` (the GC effect handles that). This prevents the
+            // bubble from popping back into view between the wipe ending
+            // and the API delete + refetch finishing.
+            if (deadIds.has(msg.id)) return null;
             return (
               <div
                 key={msg.id}
