@@ -42,6 +42,7 @@ import { MediaPickerModal } from './media-picker-modal';
 import type { MediaQuality } from './media-picker-modal';
 import { MediaViewer } from './media-viewer';
 import { CachedImg, InstantImg } from './cached-img';
+import { DustEffect, DUST_DURATION } from './dust-effect';
 import { UploadProgressOverlay } from './upload-progress-overlay';
 import { uploadFileWithProgress, UploadAbortError } from '@/lib/upload-with-progress';
 import { preloadMedia } from '@/lib/media-cache';
@@ -565,6 +566,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const [content, setContent] = useState('');
   const [sending, setSending] = useState(false);
   const [uploadingImg, setUploadingImg] = useState(false);
+  // Messages currently playing the Telegram-style "dust" delete animation.
+  // The bubble stays in the DOM for DUST_DURATION ms after the user clicks
+  // Delete, so the dissolve animation can play before the row collapses.
+  const [dustingIds, setDustingIds] = useState<Set<number>>(new Set());
   // Optimistic uploads shown as fake bubbles with a circular progress ring
   const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
   const pendingUploadsRef = useRef<PendingUpload[]>([]);
@@ -2055,9 +2060,47 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
   const handleDeleteConfirm = async (msgId: number) => {
     closeCtx();
-    try { await deleteMsg.mutateAsync({ messageId: msgId }); invalidate(); }
-    catch (e) { console.error(e); }
+    // Telegram-style dust dissolve. We mark the bubble as "dusting" so the
+    // CSS animation + particle overlay play in place, wait for the
+    // animation to (almost) finish, then commit the actual delete. The
+    // visible row only collapses once the message is gone from the
+    // messages list, so the user sees the dust scatter, not a sudden
+    // jump-cut. We hold the dustingIds entry slightly past the API call
+    // so the animation never gets cut short by an early refetch.
+    setDustingIds(prev => {
+      const next = new Set(prev);
+      next.add(msgId);
+      return next;
+    });
+    setTimeout(async () => {
+      try { await deleteMsg.mutateAsync({ messageId: msgId }); invalidate(); }
+      catch (e) { console.error(e); }
+      finally {
+        setDustingIds(prev => {
+          if (!prev.has(msgId)) return prev;
+          const next = new Set(prev);
+          next.delete(msgId);
+          return next;
+        });
+      }
+    }, DUST_DURATION);
   };
+
+  // Garbage-collect dustingIds entries whose message is already gone from
+  // the list (e.g. the API delete already happened, or the message was
+  // removed by another client). Keeps the Set bounded.
+  useEffect(() => {
+    if (dustingIds.size === 0) return;
+    const live = new Set<number>(messages.map(m => m.id));
+    let stale = false;
+    for (const id of dustingIds) if (!live.has(id)) { stale = true; break; }
+    if (!stale) return;
+    setDustingIds(prev => {
+      const next = new Set<number>();
+      for (const id of prev) if (live.has(id)) next.add(id);
+      return next;
+    });
+  }, [messages, dustingIds]);
 
   const handlePin = async (msg: Msg) => {
     closeCtx();
@@ -2533,11 +2576,12 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
               );
             }
 
+            const isDusting = dustingIds.has(msg.id);
             return (
               <div
                 key={msg.id}
                 id={`msg-${msg.id}`}
-                className={`flex items-end gap-2 w-full ${isMine ? 'justify-end' : 'justify-start'} ${isSameAuthor ? 'mt-0.5' : 'mt-3'} ${isSearchMatch ? 'relative' : ''}`}
+                className={`flex items-end gap-2 w-full ${isMine ? 'justify-end' : 'justify-start'} ${isSameAuthor ? 'mt-0.5' : 'mt-3'} ${(isSearchMatch || isDusting) ? 'relative' : ''} ${isDusting ? 'dust-fading' : ''}`}
                 style={{ userSelect: 'none', WebkitUserSelect: 'none', contain: 'layout style', ...(isCurrentMatch ? { outline: '2px solid hsl(263,90%,65%)', outlineOffset: 4, borderRadius: 12 } : {}) } as React.CSSProperties}
                 onContextMenu={(e) => openCtxMenu(e, msg)}
                 onClick={(e) => {
@@ -2977,6 +3021,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     })()}
                   </div>
                 </div>
+                {isDusting && <DustEffect variant={isMine ? 'sent' : 'received'} />}
               </div>
             );
           })}
