@@ -2816,11 +2816,24 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   key={msg.id}
                   id={`msg-${msg.id}`}
                   className={`flex w-full ${isMine ? 'justify-end' : 'justify-start'} ${isSameAuthor ? 'mt-0.5' : 'mt-3'}`}
+                  style={{ userSelect: 'none', WebkitUserSelect: 'none' } as React.CSSProperties}
+                  onContextMenu={(e) => openCtxMenu(e, msg)}
+                  onTouchStart={(e) => onTouchStart(e, msg)}
+                  onTouchMove={(e) => onTouchMove(e, msg.id)}
+                  onTouchEnd={(e) => onTouchEnd(e, msg)}
                 >
                   <button
                     type="button"
                     onClick={async (e) => {
                       e.stopPropagation();
+                      // Skip the call-initiation if a long-press just opened
+                      // the context menu or a swipe-to-reply just fired —
+                      // same guard the regular bubble uses.
+                      if (didTriggerMenu.current || didJustSwipe.current) {
+                        didTriggerMenu.current = false;
+                        didJustSwipe.current = false;
+                        return;
+                      }
                       if (conversation?.type !== 'group') {
                         const other = (conversation as any)?.otherUser;
                         if (other && initiateCall) {
@@ -2833,7 +2846,12 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                         }
                       }
                     }}
-                    className={`max-w-[80%] rounded-[14px] pl-3 pr-3.5 py-2 flex items-center gap-3 text-left transition-colors active:scale-[0.99]
+                    // min-w-[240px] guarantees every call bubble for the
+                    // same call-type renders at an identical width regardless
+                    // of how wide the time string happens to be — fixes the
+                    // "they're not the same length" jitter the user spotted
+                    // when several missed calls stack vertically.
+                    className={`min-w-[240px] max-w-[80%] rounded-[14px] pl-3 pr-3.5 py-2 flex items-center gap-3 text-left transition-colors active:scale-[0.99]
                       ${isMine
                         ? `bubble-sent rounded-br-[4px] ${isSameAuthor ? 'rounded-tr-[4px]' : ''}`
                         : `bubble-received rounded-tl-[4px] ${!isLastInGroup ? 'rounded-bl-[4px]' : ''}`
@@ -2875,9 +2893,11 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       )}
                     </div>
                     {/* RIGHT — time + optional pin, anchored to bottom so it
-                        sits under the subtitle level rather than dead-centre. */}
+                        sits under the subtitle level rather than dead-centre.
+                        tabular-nums forces uniform digit widths so a "21:00"
+                        bubble doesn't render wider than a "19:47" bubble. */}
                     <div
-                      className={`text-[11px] flex items-center gap-1 flex-shrink-0 self-end ml-1
+                      className={`text-[11px] tabular-nums flex items-center gap-1 flex-shrink-0 self-end ml-1
                         ${isMine ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}
                     >
                       {isPinned && <Pin className="w-2.5 h-2.5" aria-label="Épinglé" />}
