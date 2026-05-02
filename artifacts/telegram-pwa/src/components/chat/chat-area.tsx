@@ -858,9 +858,18 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     scrollReadyConvRef.current = null;
   }, [conversationId]);
 
-  // Initial scroll — synchronous (before paint) to avoid flash
+  // Initial scroll — synchronous (before paint) to avoid flash.
+  // Gate on `composerHeight !== null` so we don't snap with a
+  // placeholder paddingBottom that's about to change one frame
+  // later (which would visibly slide the last message downward
+  // when the real, smaller composer height got measured by the
+  // ResizeObserver). The composer's own useLayoutEffect always
+  // runs first within the same render commit and writes the
+  // real height synchronously, so this gate adds no perceptible
+  // delay — it just guarantees correctness.
   useLayoutEffect(() => {
     if (!messages || messages.length === 0 || isLoading) return;
+    if (composerHeight === null) return;
     if (scrollReadyConvRef.current === conversationId) return;
     scrollReadyConvRef.current = conversationId;
     if (scrollRef.current) {
@@ -883,12 +892,32 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // ── Composer height tracking — used so messages list & scroll-to-bottom
   // button always sit above the floating composer, even when reply/edit
   // preview is added inside the pill (composer grows taller).
+  //
+  // `null` means "not yet measured". The messages-snap useLayoutEffect
+  // gates on a non-null value so its very first snap-to-bottom uses the
+  // REAL composer height for paddingBottom — not a guess. Without this
+  // gate the snap ran with a 64-px placeholder, paint happened, then
+  // the ResizeObserver fired ~16 ms later with the actual (smaller)
+  // composer height, paddingBottom shrunk, and scrollTop got clamped
+  // by the browser to the new max — visibly sliding the last message
+  // DOWNWARD by the delta. That late shrink was the residual "content
+  // pushes down on entry" sensation that survived removing the
+  // settling-window pin and adding overflow-anchor: it wasn't anything
+  // INSIDE the messages stack, it was the container's bottom padding
+  // changing AFTER the snap.
   const composerRef = useRef<HTMLDivElement>(null);
-  const [composerHeight, setComposerHeight] = useState(64);
-  const prevComposerHeightRef = useRef(64);
-  useEffect(() => {
+  const [composerHeight, setComposerHeight] = useState<number | null>(null);
+  const prevComposerHeightRef = useRef(0);
+  useLayoutEffect(() => {
     const el = composerRef.current;
     if (!el) return;
+    // Synchronous first measurement — runs before the next paint and
+    // before the messages-snap useLayoutEffect fires its scrollTop
+    // assignment, so the initial snap sees the right scrollHeight.
+    const h0 = Math.round(el.getBoundingClientRect().height);
+    if (h0 > 0) setComposerHeight(h0);
+    // Keep observing for runtime changes (reply pill opening, multi-
+    // line text expansion, link-preview chip appearing in the pill).
     const ro = new ResizeObserver(entries => {
       for (const entry of entries) {
         const h = Math.round(entry.contentRect.height);
@@ -901,6 +930,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // When the composer grows (e.g. reply/edit preview shown) AND we were at
   // the bottom, immediately scroll to keep the last message visible.
   useEffect(() => {
+    if (composerHeight === null) return;
     const prev = prevComposerHeightRef.current;
     if (composerHeight > prev && wasAtBottomRef.current && scrollRef.current) {
       const el = scrollRef.current;
@@ -2566,7 +2596,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             className="absolute right-3 z-40 w-10 h-10 rounded-full bg-card border border-border/60 shadow-lg flex items-center justify-center text-foreground hover:bg-primary/10 transition-colors"
             style={{
               backdropFilter: 'blur(12px)',
-              bottom: `calc(${composerHeight + 4}px + env(safe-area-inset-bottom, 0px))`,
+              bottom: `calc(${(composerHeight ?? 64) + 4}px + env(safe-area-inset-bottom, 0px))`,
             }}
           >
             <ChevronDown className="w-5 h-5" />
@@ -2583,7 +2613,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         className="h-full overflow-y-auto scroll-container px-3 pt-1.5"
         style={{
           visibility: searchOpen || scrollReady || isLoading || messages.length === 0 ? 'visible' : 'hidden',
-          paddingBottom: `calc(${composerHeight}px + env(safe-area-inset-bottom, 0px))`,
+          paddingBottom: `calc(${composerHeight ?? 64}px + env(safe-area-inset-bottom, 0px))`,
         }}
       >
         {/* Anchor kept for layout symmetry; no longer wired to an
