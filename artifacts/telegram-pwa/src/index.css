@@ -511,9 +511,12 @@ html:not(.dark) .ambient-blobs::after {
   to { --pinned-snake-angle: 720deg; }
 }
 @keyframes pinned-snake-fade {
+  /* Long, soft fade-out (last ~35 % of the run) so the snake
+     dissolves smoothly while it keeps orbiting, instead of
+     cutting off abruptly when the animation ends. */
   0%   { opacity: 0; }
   8%   { opacity: 1; }
-  88%  { opacity: 1; }
+  65%  { opacity: 1; }
   100% { opacity: 0; }
 }
 @keyframes pinned-flash-pop {
@@ -532,12 +535,14 @@ html:not(.dark) .ambient-blobs::after {
 .pinned-flash::before {
   content: '';
   position: absolute;
-  /* Extend 3 px beyond the bubble in every direction, then mask
-     out the inner content area so only the 3 px ring remains
-     visible — that ring sits exactly OUTSIDE the bubble's edge. */
-  inset: -3px;
+  /* Extend 2 px beyond the bubble in every direction, then mask
+     out the inner content area so only the 2 px ring remains
+     visible — that ring sits exactly OUTSIDE the bubble's edge.
+     2 px (down from 3 px) makes the comet trail visibly thinner
+     while still leaving room for the drop-shadow glow. */
+  inset: -2px;
   border-radius: inherit;
-  padding: 3px;
+  padding: 2px;
   background: conic-gradient(
     from var(--pinned-snake-angle, 0deg),
     transparent 0deg 220deg,
