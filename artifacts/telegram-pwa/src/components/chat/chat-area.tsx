@@ -2592,7 +2592,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       </AnimatePresence>
       <div
         ref={scrollRef}
-        className="h-full overflow-y-auto scroll-container px-3 pt-4"
+        className="h-full overflow-y-auto scroll-container px-3 pt-1.5"
         style={{
           visibility: searchOpen || scrollReady || isLoading || messages.length === 0 ? 'visible' : 'hidden',
           paddingBottom: `calc(${composerHeight}px + env(safe-area-inset-bottom, 0px))`,
@@ -2602,28 +2602,29 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             IntersectionObserver. Older messages are now fetched
             explicitly via the button below — no auto-load on scroll. */}
         <div ref={sentinelRef} className="h-1" />
-        {/* Top marker slot — always present, fixed height. The slot
-            reserves its space from the very first paint so the gap
-            between the header and the first message NEVER changes
-            after entry. Inside, we render exactly one of three states
-            (button / pill / nothing) and `hasMore` is derived
-            synchronously from the messages payload, so even on the
-            first frame the correct child is shown — no swap, no
-            flicker, no shift. The slot itself stays in the layout
-            even while the conversation is still loading or empty,
-            which is what makes the entry rock-solid stable. */}
-        <div className="h-11 flex items-center justify-center">
+        {/* Top marker slot — always present, height tightly sized
+            to the tallest possible child (the h-6 button = 24 px).
+            The slot reserves its 24 px from the very first paint so
+            the gap between the header and the first message NEVER
+            changes after entry. Inside, we render exactly one of
+            three states (button / pill / nothing) and `hasMore` is
+            derived synchronously from the messages payload, so even
+            on the first frame the correct child is shown — no swap,
+            no flicker, no shift. The slot stays in the layout even
+            while the conversation is still loading or empty, which
+            is what makes the entry rock-solid stable. */}
+        <div className="h-6 flex items-center justify-center">
           {!isLoading && messages.length > 0 && (
             hasMore ? (
               <button
                 type="button"
                 onClick={loadMore}
                 disabled={loadingMore}
-                className="inline-flex items-center gap-1.5 px-3 h-7 rounded-full gradient-primary-soft border border-primary/35 text-[11px] font-medium text-foreground/85 hover:text-foreground transition-colors disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 px-2.5 h-6 rounded-full gradient-primary-soft border border-primary/35 text-[10px] font-medium text-foreground/85 hover:text-foreground transition-colors disabled:opacity-60"
               >
                 {loadingMore ? (
                   <>
-                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <Loader2 className="w-2.5 h-2.5 animate-spin" />
                     <span>Chargement…</span>
                   </>
                 ) : (
