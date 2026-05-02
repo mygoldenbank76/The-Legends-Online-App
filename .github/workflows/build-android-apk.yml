@@ -84,10 +84,10 @@ jobs:
         working-directory: artifacts/telegram-pwa/android
         run: ./gradlew assembleDebug --no-daemon
 
-      - name: Rename APK to legends.apk
+      - name: Rename APK to "The Legends Online.apk"
         run: |
           mkdir -p _release
-          cp artifacts/telegram-pwa/android/app/build/outputs/apk/debug/app-debug.apk _release/legends.apk
+          cp artifacts/telegram-pwa/android/app/build/outputs/apk/debug/app-debug.apk "_release/The Legends Online.apk"
           ls -la _release/
 
       - name: Publish to "native-latest" release
@@ -103,7 +103,7 @@ jobs:
             - Compilé automatiquement à chaque modification
             - Build #${{ github.run_number }} · commit ${{ github.sha }}
 
-            👉 Télécharge `legends.apk` ci-dessous et installe sur Android 7.0+.
-          files: _release/legends.apk
+            👉 Télécharge `The Legends Online.apk` ci-dessous et installe sur Android 7.0+.
+          files: _release/The Legends Online.apk
           make_latest: 'true'
           prerelease: false

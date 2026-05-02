@@ -10,7 +10,7 @@ const GITHUB_REPO: string | null = 'mygoldenbank76/The-Legends-Online-App';
 
 const TWA_APK_URL = '/downloads/legends.apk';
 const NATIVE_APK_RELEASE_TAG = 'native-latest';
-const NATIVE_APK_ASSET_NAME = 'legends.apk';
+const NATIVE_APK_ASSET_NAME = 'The Legends Online.apk';
 
 type ApkSource = {
   url: string;
@@ -169,7 +169,7 @@ export default function InstallApk() {
               <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center font-bold text-[11px] text-primary">1</span>
               <div>
                 <p className="font-semibold">Touche le bouton de téléchargement</p>
-                <p className="opacity-70 mt-0.5">Le fichier <code className="px-1 py-0.5 rounded bg-muted text-[10px]">legends.apk</code> arrivera dans tes téléchargements.</p>
+                <p className="opacity-70 mt-0.5">Le fichier <code className="px-1 py-0.5 rounded bg-muted text-[10px]">The Legends Online.apk</code> arrivera dans tes téléchargements.</p>
               </div>
             </li>
             <li className="flex gap-3">
