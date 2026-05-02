@@ -37,6 +37,7 @@ import { RichText, applyFormat } from './rich-text';
 import type { FormatType } from './rich-text';
 import { GifPicker } from './gif-picker';
 import { getMediaDimensions, captureVideoFirstFrame } from '@/lib/media-dimensions';
+import { generateLqip } from '@/lib/lqip';
 import type { GifResult } from './gif-picker';
 import { MediaPickerModal, compressImage } from './media-picker-modal';
 import type { MediaQuality } from './media-picker-modal';
@@ -85,6 +86,11 @@ type Msg = {
   // size the bubble on the very first paint, with no orientation flash.
   mediaWidth?: number | null;
   mediaHeight?: number | null;
+  // Tiny base64 LQIP (`data:image/jpeg;base64,…`) painted as a blurred
+  // background BEHIND the photo so receivers see a recognisable preview
+  // on the very first frame instead of an empty placeholder while the
+  // multi-MB original streams from object storage.
+  mediaPreview?: string | null;
   audioUrl?: string | null;
   audioDuration?: number | null;
   poll?: Poll | null;
@@ -129,6 +135,10 @@ type PendingUpload = {
   //    — captured once, used twice.
   posterBlob?: Blob;
   posterUrl?: string;     // object URL for posterBlob; revoked on cleanup
+  // Tiny base64 LQIP generated locally before upload, forwarded to the
+  // server so every recipient gets a blurred preview baked into the
+  // message JSON.
+  lqip?: string;
 };
 type TranslateEntry = { msgId: number; text: string };
 
@@ -1560,7 +1570,14 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           getMediaDimensions(f).catch(() => null),
           isVideo ? captureVideoFirstFrame(f).catch(() => null) : Promise.resolve(null),
         ]);
-        return { dims, posterBlob };
+        // LQIP: blurred preview for the recipient. For images we work
+        // straight from the file; for videos we feed the just-captured
+        // first-frame poster so the placeholder is also a recognisable
+        // freeze frame instead of black bars. Best-effort — failures
+        // resolve to null and the message goes out without an LQIP.
+        const lqipSource: File | Blob | null = isVideo ? posterBlob : f;
+        const lqip = lqipSource ? await generateLqip(lqipSource).catch(() => null) : null;
+        return { dims, posterBlob, lqip };
       }),
     );
 
@@ -1588,6 +1605,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         height: prepResults[idx].dims?.height,
         posterBlob,
         posterUrl: posterBlob ? URL.createObjectURL(posterBlob) : undefined,
+        lqip: prepResults[idx].lqip ?? undefined,
       };
     });
 
@@ -1798,6 +1816,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             mediaWidth: e0.width,
             mediaHeight: e0.height,
             thumbnailUrl: thumbUrls[0] ?? undefined,
+            mediaPreview: e0.lqip,
           } as any,
         });
       } else {
@@ -3480,6 +3499,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                             <CachedImg
                               src={msg.imageUrl}
                               alt="attached"
+                              placeholder={msg.mediaPreview}
                               className="block w-full object-cover rounded-[10px] cursor-pointer active:opacity-80 transition-opacity"
                               style={{
                                 minWidth: 240,
