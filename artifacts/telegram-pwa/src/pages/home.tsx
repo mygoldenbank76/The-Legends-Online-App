@@ -6,7 +6,7 @@ import { ConversationList } from '@/components/chat/conversation-list';
 import { useAuth } from '@/lib/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useQueryClient } from '@tanstack/react-query';
-import { getListConversationsQueryKey } from '@workspace/api-client-react';
+import { getListConversationsQueryKey, useGetUserCount, getGetUserCountQueryKey } from '@workspace/api-client-react';
 import { AnimatedBackground } from '@/components/animated-background';
 import { Users, MessageSquare, Settings, Zap, LogOut, Globe, Languages, ChevronDown, Shield, X, ChevronRight, Download, Smartphone, CheckCircle2, Share, Bell, BellOff, User, Contact, ArrowLeft } from 'lucide-react';
 import { AdminPanel } from '@/components/admin/admin-panel';
@@ -352,8 +352,60 @@ function DesktopTabs({ activeTab, onSelect }: { activeTab: Tab; onSelect: (t: Ta
   );
 }
 
+/* ── Live members pill ── */
+/* Localised "N membre/s" string. Kept inline (not added to i18n.ts) because
+   it's a single string used in one place and the i18n file is structurally
+   keyed deeply. Plural rules are intentionally simple — Arabic dual/plural
+   complexity is collapsed to a single form which is the common practice in
+   short status pills. */
+function formatMemberLabel(count: number, lang: string): string {
+  switch (lang) {
+    case 'fr': return count <= 1 ? `${count} membre`     : `${count} membres`;
+    case 'es': return count === 1 ? `${count} miembro`   : `${count} miembros`;
+    case 'pt': return count === 1 ? `${count} membro`    : `${count} membros`;
+    case 'de': return count === 1 ? `${count} Mitglied`  : `${count} Mitglieder`;
+    case 'ar': return `${count} عضو`;
+    case 'en':
+    default:   return count === 1 ? `${count} member`    : `${count} members`;
+  }
+}
+
+function LiveMembersPill() {
+  const { appLanguage } = usePreferences();
+  // Refetch every 15 s to keep the pill "live" without hammering the server.
+  // refetchOnWindowFocus already covers tab-switch returns. The endpoint is
+  // public so the very first paint already shows a real number — no flicker
+  // from "0 membres" → "127 membres".
+  const { data } = useGetUserCount({
+    query: {
+      queryKey: getGetUserCountQueryKey(),
+      refetchInterval: 15_000,
+      refetchOnWindowFocus: true,
+      staleTime: 10_000,
+    },
+  });
+  const count = data?.count ?? 0;
+
+  return (
+    <div
+      className="flex items-center gap-1.5 px-2.5 h-7 rounded-full gradient-primary-soft border border-primary/35"
+      title={formatMemberLabel(count, appLanguage)}
+      aria-live="polite"
+    >
+      {/* Pulsing live dot — solid red core + ping ring (broadcast feel) */}
+      <span className="relative inline-flex w-2 h-2 flex-shrink-0">
+        <span className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-75" />
+        <span className="relative inline-flex w-2 h-2 rounded-full bg-red-500" />
+      </span>
+      <span className="text-[11px] font-semibold text-foreground leading-none whitespace-nowrap tabular-nums">
+        {formatMemberLabel(count, appLanguage)}
+      </span>
+    </div>
+  );
+}
+
 /* ── Mobile header ── */
-function MobileHeader({ user }: { user: { displayName: string } }) {
+function MobileHeader(_props: { user: { displayName: string } }) {
   return (
     <div
       className="flex-shrink-0 flex items-center justify-between px-4 gradient-hairline-bottom relative surface-header"
@@ -370,9 +422,7 @@ function MobileHeader({ user }: { user: { displayName: string } }) {
         <span className="font-bold text-base text-gradient-primary">The Legends Online</span>
       </div>
       <div className="flex items-center gap-2 relative z-10">
-        <div className="w-7 h-7 rounded-lg gradient-primary-soft border border-primary/35 flex items-center justify-center">
-          <span className="text-xs font-bold text-primary">{user.displayName.substring(0, 2).toUpperCase()}</span>
-        </div>
+        <LiveMembersPill />
       </div>
     </div>
   );

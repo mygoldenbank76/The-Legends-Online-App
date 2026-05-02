@@ -30,3 +30,4 @@ export * from "./updateStatusBody";
 export * from "./uploadImageBody";
 export * from "./uploadResponse";
 export * from "./user";
+export * from "./userCount";

@@ -37,6 +37,7 @@ import type {
   UploadImageBody,
   UploadResponse,
   User,
+  UserCount,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -432,6 +433,82 @@ export function useGetMe<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetMeQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns the live total of registered platform users. Used by the home header live pill.
+ * @summary Total number of registered users
+ */
+export const getGetUserCountUrl = () => {
+  return `/api/users/count`;
+};
+
+export const getUserCount = async (
+  options?: RequestInit,
+): Promise<UserCount> => {
+  return customFetch<UserCount>(getGetUserCountUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetUserCountQueryKey = () => {
+  return [`/api/users/count`] as const;
+};
+
+export const getGetUserCountQueryOptions = <
+  TData = Awaited<ReturnType<typeof getUserCount>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getUserCount>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetUserCountQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getUserCount>>> = ({
+    signal,
+  }) => getUserCount({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getUserCount>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetUserCountQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getUserCount>>
+>;
+export type GetUserCountQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Total number of registered users
+ */
+
+export function useGetUserCount<
+  TData = Awaited<ReturnType<typeof getUserCount>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getUserCount>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetUserCountQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

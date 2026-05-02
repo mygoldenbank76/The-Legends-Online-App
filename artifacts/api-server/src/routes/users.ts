@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable } from "@workspace/db";
-import { eq, ilike, and, ne } from "drizzle-orm";
+import { eq, ilike, and, ne, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -17,6 +17,16 @@ function formatUser(user: typeof usersTable.$inferSelect) {
     createdAt: user.createdAt.toISOString(),
   };
 }
+
+// Live count of every registered user. Public (no auth) so the home
+// header pill can render before the auth context is hydrated, and so
+// the count animates correctly on the very first frame after login.
+router.get("/users/count", async (_req, res): Promise<void> => {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(usersTable);
+  res.json({ count: row?.count ?? 0 });
+});
 
 router.get("/users/search", requireAuth, async (req, res): Promise<void> => {
   const q = req.query.q as string;

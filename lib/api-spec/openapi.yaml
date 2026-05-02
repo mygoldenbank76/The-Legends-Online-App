@@ -126,6 +126,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /users/count:
+    get:
+      operationId: getUserCount
+      tags: [users]
+      summary: Total number of registered users
+      description: Returns the live total of registered platform users. Used by the home header live pill.
+      responses:
+        "200":
+          description: Total user count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserCount"
+
   /users/search:
     get:
       operationId: searchUsers
@@ -511,6 +525,16 @@ components:
           type: boolean
       required:
         - success
+
+    UserCount:
+      type: object
+      properties:
+        count:
+          type: integer
+          minimum: 0
+          description: Total number of registered users on the platform.
+      required:
+        - count
 
     RegisterBody:
       type: object

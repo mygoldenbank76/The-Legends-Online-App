@@ -71,6 +71,19 @@ export const GetMeResponse = zod.object({
 });
 
 /**
+ * Returns the live total of registered platform users. Used by the home header live pill.
+ * @summary Total number of registered users
+ */
+export const getUserCountResponseCountMin = 0;
+
+export const GetUserCountResponse = zod.object({
+  count: zod
+    .number()
+    .min(getUserCountResponseCountMin)
+    .describe("Total number of registered users on the platform."),
+});
+
+/**
  * @summary Search users
  */
 export const SearchUsersQueryParams = zod.object({

@@ -17,6 +17,14 @@ export interface SuccessResponse {
   success: boolean;
 }
 
+export interface UserCount {
+  /**
+   * Total number of registered users on the platform.
+   * @minimum 0
+   */
+  count: number;
+}
+
 export interface RegisterBody {
   username: string;
   displayName: string;
