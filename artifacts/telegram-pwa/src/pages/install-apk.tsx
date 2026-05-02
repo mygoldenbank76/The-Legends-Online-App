@@ -1,9 +1,22 @@
 import { useEffect, useState } from 'react';
-import { Download, Smartphone, ShieldCheck, Sparkles, ExternalLink, Globe } from 'lucide-react';
+import { Download, Smartphone, ShieldCheck, Sparkles, ExternalLink, Globe, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AnimatedBackground } from '@/components/animated-background';
 
-const APK_URL = '/downloads/legends.apk';
+// Set this once you've connected the project to GitHub and the first
+// "Build Android APK" workflow has finished. Format: "owner/repository".
+// Leaving it null falls back to the legacy TWA APK shipped in /downloads.
+const GITHUB_REPO: string | null = null;
+
+const TWA_APK_URL = '/downloads/legends.apk';
+const NATIVE_APK_RELEASE_TAG = 'native-latest';
+const NATIVE_APK_ASSET_NAME = 'legends.apk';
+
+type ApkSource = {
+  url: string;
+  sizeMb: number | null;
+  kind: 'native' | 'twa';
+};
 
 function detectPlatform(): 'android' | 'ios' | 'desktop' {
   if (typeof navigator === 'undefined') return 'desktop';
@@ -13,37 +26,58 @@ function detectPlatform(): 'android' | 'ios' | 'desktop' {
   return 'desktop';
 }
 
+async function resolveNativeApk(): Promise<ApkSource | null> {
+  if (!GITHUB_REPO) return null;
+  try {
+    const r = await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/releases/tags/${NATIVE_APK_RELEASE_TAG}`,
+      { headers: { Accept: 'application/vnd.github+json' } },
+    );
+    if (!r.ok) return null;
+    const data: { assets?: Array<{ name: string; browser_download_url: string; size: number }> } = await r.json();
+    const asset = data.assets?.find((a) => a.name === NATIVE_APK_ASSET_NAME);
+    if (!asset) return null;
+    return { url: asset.browser_download_url, sizeMb: asset.size / (1024 * 1024), kind: 'native' };
+  } catch {
+    return null;
+  }
+}
+
+async function resolveTwaApk(): Promise<ApkSource | null> {
+  try {
+    const r = await fetch(TWA_APK_URL, { method: 'HEAD' });
+    const ct = r.headers.get('content-type') || '';
+    if (!r.ok || !ct.includes('android.package-archive')) return null;
+    const len = r.headers.get('content-length');
+    return { url: TWA_APK_URL, sizeMb: len ? Number(len) / (1024 * 1024) : null, kind: 'twa' };
+  } catch {
+    return null;
+  }
+}
+
 export default function InstallApk() {
   const [platform, setPlatform] = useState<'android' | 'ios' | 'desktop'>('desktop');
-  const [apkSize, setApkSize] = useState<string | null>(null);
-  const [apkAvailable, setApkAvailable] = useState<boolean | null>(null);
+  const [apk, setApk] = useState<ApkSource | null | 'loading'>('loading');
 
   useEffect(() => {
     setPlatform(detectPlatform());
-    // HEAD request to learn the file size and confirm the APK is uploaded.
-    // We also check the content-type because in dev (Vite) the SPA
-    // catch-all returns 200 with HTML for any unknown path — a naive
-    // `r.ok` check would falsely report the APK as available and the
-    // user would download a 1 KB index.html renamed `.apk.html`.
-    fetch(APK_URL, { method: 'HEAD' })
-      .then((r) => {
-        const ct = r.headers.get('content-type') || '';
-        const isApk = r.ok && ct.includes('android.package-archive');
-        if (!isApk) {
-          setApkAvailable(false);
-          return;
-        }
-        setApkAvailable(true);
-        const len = r.headers.get('content-length');
-        if (len) {
-          const mb = Number(len) / (1024 * 1024);
-          setApkSize(`${mb.toFixed(1)} Mo`);
-        }
-      })
-      .catch(() => setApkAvailable(false));
+    // Try the GitHub-built native APK first (if configured), fall back to
+    // the in-repo TWA APK so the page always offers something installable.
+    (async () => {
+      const native = await resolveNativeApk();
+      if (native) {
+        setApk(native);
+        return;
+      }
+      const twa = await resolveTwaApk();
+      setApk(twa);
+    })();
   }, []);
 
   const isAndroid = platform === 'android';
+  const apkSize = apk && apk !== 'loading' && apk.sizeMb ? `${apk.sizeMb.toFixed(1)} Mo` : null;
+  const apkAvailable = apk === 'loading' ? null : apk !== null;
+  const isNative = apk && apk !== 'loading' && apk.kind === 'native';
 
   return (
     <div className="min-h-[100dvh] flex flex-col relative overflow-hidden text-foreground">
@@ -75,18 +109,25 @@ export default function InstallApk() {
             </div>
           ) : (
             <>
+              {isNative && (
+                <div className="flex items-center justify-center gap-1.5 mb-3 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 mx-auto w-fit">
+                  <Zap className="w-3 h-3 text-emerald-400" />
+                  <span className="text-[11px] font-semibold text-emerald-400">Version native</span>
+                </div>
+              )}
               <Button
                 asChild
                 size="lg"
                 className="w-full text-base font-semibold gap-2 h-14"
               >
-                <a href={APK_URL} download>
+                <a href={apk && apk !== 'loading' ? apk.url : '#'} download={NATIVE_APK_ASSET_NAME}>
                   <Download className="w-5 h-5" />
                   Télécharger l'APK{apkSize ? ` (${apkSize})` : ''}
                 </a>
               </Button>
               <p className="text-[11px] text-muted-foreground text-center mt-3">
-                Android 7.0 ou plus récent · ~{apkSize ?? '5 Mo'}
+                Android 7.0 ou plus récent{apkSize ? ` · ${apkSize}` : ''}
+                {isNative && ' · Storage isolé · Aucune barre URL'}
               </p>
             </>
           )}

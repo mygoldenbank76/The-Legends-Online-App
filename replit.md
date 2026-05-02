@@ -46,6 +46,43 @@ A full-stack, real-time messaging Progressive Web App inspired by Telegram. Buil
 - `artifacts/telegram-pwa` — React Vite frontend (previewPath: `/`)
 - `artifacts/api-server` — Express API server (previewPath: `/api`, also `/socket.io`)
 
+## Native Android packaging (Capacitor)
+
+The app ships in 3 forms, all from the same codebase:
+
+1. **Web PWA** at `https://thelegendsonline.social` (live)
+2. **TWA APK** at `/downloads/legends.apk` (legacy — Chrome wrapper, shares browser session)
+3. **Native APK** built by GitHub Actions (Capacitor WebView wrapper, isolated storage, no URL bar)
+
+### Capacitor setup
+
+- Config: `artifacts/telegram-pwa/capacitor.config.ts`
+- Package id: `social.thelegendsonline.app` (different from TWA `social.thelegendsonline.twa` so both can coexist)
+- Mode: `server.url` points to `https://thelegendsonline.social` → APK is a thin wrapper, web bundle stays small, all updates are live
+- Android project: `artifacts/telegram-pwa/android/` (committed except `.gradle/`, `app/build/`, generated assets — see `.gitignore`)
+- Plugins: `@capacitor/app`, `@capacitor/splash-screen`, `@capacitor/status-bar`
+
+### Build pipeline
+
+`.github/workflows/build-android-apk.yml` runs on every push touching `artifacts/telegram-pwa/**` or the workflow itself:
+
+1. Setup pnpm + Node 20 + Java 21 + Android SDK 35
+2. Cache `~/.android/debug.keystore` so APK signature is stable across runs (users can update in-place)
+3. `pnpm install` → `pnpm --filter @workspace/telegram-pwa run build` → `npx cap sync android`
+4. `./gradlew assembleDebug` → output APK
+5. Publishes to GitHub release tagged `native-latest` as asset `legends.apk` (replaces the existing release every build)
+
+### Hooking the install page to GitHub releases
+
+In `src/pages/install-apk.tsx`, set `GITHUB_REPO = "owner/repo"` once the workflow has produced the first release. The page calls `https://api.github.com/repos/{REPO}/releases/tags/native-latest` and serves the asset URL. Until set, the page falls back to the in-repo TWA APK at `/downloads/legends.apk`.
+
+### One-time setup for the user
+
+1. In Replit, open the **Version Control** pane and connect this project to a GitHub repo (push the `main` branch)
+2. Wait ~10 minutes for the first GitHub Actions run to complete
+3. Tell the agent (me) the GitHub repo URL so I can fill in `GITHUB_REPO` in `install-apk.tsx`
+4. Republish — `/install-apk` now serves the native APK
+
 ## DB Schema
 
 - `users` — id, username, display_name, password_hash, avatar, is_online, last_seen

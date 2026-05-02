@@ -1,0 +1,109 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'artifacts/telegram-pwa/src/**'
+      - 'artifacts/telegram-pwa/public/**'
+      - 'artifacts/telegram-pwa/index.html'
+      - 'artifacts/telegram-pwa/capacitor.config.ts'
+      - 'artifacts/telegram-pwa/android/**'
+      - 'artifacts/telegram-pwa/package.json'
+      - '.github/workflows/build-android-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build & publish APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Setup Java 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+
+      - name: Cache debug keystore
+        id: cache-keystore
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: android-debug-keystore-legends-v1
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build web bundle (Vite)
+        run: pnpm --filter @workspace/telegram-pwa run build
+
+      - name: Sync Capacitor (copy web + plugins into android project)
+        working-directory: artifacts/telegram-pwa
+        run: npx cap sync android
+
+      - name: Make gradlew executable
+        working-directory: artifacts/telegram-pwa/android
+        run: chmod +x ./gradlew
+
+      - name: Bump versionCode to monotonic build number
+        working-directory: artifacts/telegram-pwa/android/app
+        run: |
+          sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/" build.gradle
+          sed -i "s/versionName \"1.0\"/versionName \"1.0.${{ github.run_number }}\"/" build.gradle
+          grep -E 'versionCode|versionName' build.gradle
+
+      - name: Build debug APK (signed with cached debug keystore — same key across runs, so updates work in-place)
+        working-directory: artifacts/telegram-pwa/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Rename APK to legends.apk
+        run: |
+          mkdir -p _release
+          cp artifacts/telegram-pwa/android/app/build/outputs/apk/debug/app-debug.apk _release/legends.apk
+          ls -la _release/
+
+      - name: Publish to "native-latest" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: native-latest
+          name: 'Native APK (latest build)'
+          body: |
+            **Native Capacitor build** — APK packagé avec WebView Android isolée.
+
+            - Storage indépendant du navigateur Chrome
+            - Aucune barre URL au démarrage
+            - Compilé automatiquement à chaque modification
+            - Build #${{ github.run_number }} · commit ${{ github.sha }}
+
+            👉 Télécharge `legends.apk` ci-dessous et installe sur Android 7.0+.
+          files: _release/legends.apk
+          make_latest: 'true'
+          prerelease: false

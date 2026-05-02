@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">The Legends Online</string>
+    <string name="title_activity_main">The Legends Online</string>
+    <string name="package_name">social.thelegendsonline.app</string>
+    <string name="custom_url_scheme">social.thelegendsonline.app</string>
+</resources>

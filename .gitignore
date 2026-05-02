@@ -8,6 +8,19 @@ out-tsc
 .expo
 .expo-shared
 
+# Capacitor / Android build outputs (we keep the project sources, ignore build artifacts)
+artifacts/*/android/.gradle/
+artifacts/*/android/app/build/
+artifacts/*/android/build/
+artifacts/*/android/captures/
+artifacts/*/android/local.properties
+artifacts/*/android/app/release/
+artifacts/*/android/app/src/main/assets/public/
+artifacts/*/android/app/src/main/assets/capacitor.config.json
+artifacts/*/android/app/src/main/assets/capacitor.plugins.json
+artifacts/*/android/capacitor-cordova-android-plugins/build/
+*.apk.idsig
+
 # dependencies
 node_modules
 
