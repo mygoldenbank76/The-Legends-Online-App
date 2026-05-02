@@ -2829,6 +2829,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     <span className="text-[12px] text-foreground/85 font-medium truncate">{label}</span>
                     <span className="text-[11px] text-muted-foreground flex-shrink-0">·</span>
                     <span className="text-[11px] text-muted-foreground flex-shrink-0">{detail}</span>
+                    {isPinned && <Pin className="w-2.5 h-2.5 text-muted-foreground/60 flex-shrink-0 ml-1" aria-label="Épinglé" />}
                     <span className="text-[10px] text-muted-foreground/60 ml-1 font-mono flex-shrink-0">{msgTime}</span>
                   </button>
                 </div>
@@ -2935,12 +2936,12 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       Telegram's native dissolve where the entire message
                       block dissolves as one unit). */}
                   <div className={isDusting ? 'dust-bubble-mask' : ''}>
-                  {/* Pinned label */}
-                  {isPinned && (
-                    <div className={`flex items-center gap-0.5 mb-0.5 text-[10px] text-primary ${isMine ? 'justify-end' : 'justify-start'}`}>
-                      <Pin className="w-2.5 h-2.5" /><span>épinglé</span>
-                    </div>
-                  )}
+                  {/* The "épinglé" indicator now lives INSIDE the bubble,
+                      to the left of the time (see msgTime sites below).
+                      It's a single Pin glyph — no text — so it never
+                      pushes the bubble wider than the message itself
+                      and reads as a quiet status badge rather than a
+                      label hovering above the message. */}
 
                   {/* Sender name (group) — clickable to view profile */}
                   {showSenderName && (
@@ -3076,6 +3077,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                             the time moves out to the bottom row like a regular message. */}
                         {!msg.content && !hasReactions && (
                           <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/55 backdrop-blur-sm text-white text-[11px] flex items-center gap-1 pointer-events-none">
+                            {isPinned && <Pin className="w-2.5 h-2.5" aria-label="Épinglé" />}
                             {msg.editedAt && <span className="italic opacity-80">modifié</span>}
                             <span>{msgTime}</span>
                           </div>
@@ -3181,6 +3183,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                               the time moves out to the bottom row like a regular message. */}
                           {!msg.content && !hasReactions && (
                             <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/55 backdrop-blur-sm text-white text-[11px] flex items-center gap-1 pointer-events-none">
+                              {isPinned && <Pin className="w-2.5 h-2.5" aria-label="Épinglé" />}
                               {msg.editedAt && <span className="italic opacity-80">modifié</span>}
                               <span>{msgTime}</span>
                             </div>
@@ -3352,6 +3355,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                           Hidden for media-only messages (overlaid on media). */}
                       {!isMediaOnly && (
                       <div className={`text-[11px] flex items-center gap-1 flex-shrink-0 ${isMine ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>
+                        {isPinned && <Pin className="w-2.5 h-2.5" aria-label="Épinglé" />}
                         {msg.editedAt && <span className="italic opacity-80">modifié</span>}
                         <span>{msgTime}</span>
                       </div>
