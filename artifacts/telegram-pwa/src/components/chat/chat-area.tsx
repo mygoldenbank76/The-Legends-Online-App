@@ -839,11 +839,19 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // ── Scroll ─────────────────────────────────────────────────
   const [scrollReady, setScrollReady] = useState(false);
   const scrollReadyConvRef = useRef<number | null>(null);
-  // During the "settle" period after initial load, images/videos are still loading
-  // and their heights change — we re-scroll to bottom each time.
+  // The "settle" window after initial load is now PASSIVE: we no longer
+  // forcibly snap-to-bottom on every height change. Instead we rely on
+  // the browser's native scroll anchoring (CSS `overflow-anchor: auto`
+  // on `.scroll-container`) to keep the visible content rock-stable
+  // when subresources (YouTube iframes, audio waveforms, late-decoded
+  // images) finish loading and grow their bubbles. The previous
+  // ResizeObserver-driven re-pin was the actual cause of the
+  // "messages get pushed when I arrive in a conversation" report —
+  // every iframe handshake or image fade-in fired a `scrollTop =
+  // scrollHeight` that visibly nudged the stack. Native anchoring
+  // achieves the goal (you stay where you are, content above you can
+  // grow freely) without ever moving a pixel of what you can see.
   const msgsWrapRef   = useRef<HTMLDivElement>(null);
-  const settlingRef   = useRef(false);
-  const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Reset visibility when conversation changes
   useEffect(() => {
     setScrollReady(false);
@@ -859,27 +867,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
     setScrollReady(true);
-    // Start the settle period — images/videos haven't rendered yet,
-    // their heights will grow as they load, pushing the bottom further down.
-    // The ResizeObserver below will re-scroll to bottom on each height change.
-    settlingRef.current = true;
-    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
-    settleTimerRef.current = setTimeout(() => { settlingRef.current = false; }, 5000);
   });
-
-  // Re-scroll to bottom whenever the messages wrapper grows in height
-  // (e.g. images/GIFs loading) — but only during the settle window.
-  useEffect(() => {
-    const wrap = msgsWrapRef.current;
-    if (!wrap || !scrollReady) return;
-    const ro = new ResizeObserver(() => {
-      if (settlingRef.current && scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }
-    });
-    ro.observe(wrap);
-    return () => ro.disconnect();
-  }, [scrollReady, conversationId]);
 
   const scrollBottom = useCallback((delay = 0) => {
     setTimeout(() => {
@@ -2612,8 +2600,14 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             on the first frame the correct child is shown — no swap,
             no flicker, no shift. The slot stays in the layout even
             while the conversation is still loading or empty, which
-            is what makes the entry rock-solid stable. */}
-        <div className="h-6 flex items-center justify-center">
+            is what makes the entry rock-solid stable.
+            `scroll-anchor-skip` opts this slot out of being picked
+            as the browser's scroll anchor — that role belongs to the
+            individual message bubbles below, so growth above the
+            viewport (e.g. an iframe completing its handshake) shifts
+            scrollTop the matching delta and keeps what you see
+            pixel-locked. */}
+        <div className="scroll-anchor-skip h-6 flex items-center justify-center">
           {!isLoading && messages.length > 0 && (
             hasMore ? (
               <button

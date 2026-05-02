@@ -696,13 +696,28 @@ html:not(.dark) .surface-header {
 .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
-/* Scroll container — hides scrollbar + prevents scroll-chaining to the parent */
+/* Scroll container — hides scrollbar + prevents scroll-chaining to the parent.
+ * `overflow-anchor: auto` is the browser-native scroll-anchoring API: when
+ * any element above the user's current viewport changes size (a YouTube
+ * embed finishing its handshake, a CachedImg fading in, a generated audio
+ * waveform replacing its placeholder), the browser silently shifts
+ * scrollTop by exactly the same delta so the visible content does not
+ * move a single pixel. This is what eliminates the "messages get pushed"
+ * sensation on conversation entry — without it, every late-loading
+ * subresource visibly nudged the entire message stack downward. */
 .scroll-container {
   scrollbar-width: none;
   -ms-overflow-style: none;
   overscroll-behavior-y: contain;
+  overflow-anchor: auto;
 }
 .scroll-container::-webkit-scrollbar { display: none; }
+/* Opt the top-marker slot OUT of being chosen as the scroll anchor.
+ * It sits above all the messages and is empty/short — if the browser
+ * picked it as the anchor, growth below it would still shove the
+ * content. Each message bubble is the right anchor candidate, which
+ * is the default `overflow-anchor: auto`. */
+.scroll-anchor-skip { overflow-anchor: none; }
 
 /* GPU-accelerated layer for elements that animate via transform */
 .gpu-layer { transform: translateZ(0); }
