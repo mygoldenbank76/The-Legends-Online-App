@@ -1,25 +1,43 @@
 {
+  "id": "/?source=pwa",
   "name": "The Legends Online",
-  "short_name": "The Legends Online",
-  "description": "The Legends Online — messagerie communautaire",
+  "short_name": "Legends",
+  "description": "The Legends Online — messagerie communautaire francophone en temps réel.",
+  "lang": "fr",
+  "dir": "ltr",
   "theme_color": "#0c1019",
   "background_color": "#0c1019",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
   "scope": "/",
-  "start_url": "/",
+  "start_url": "/?source=pwa",
+  "categories": ["social", "communication"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
