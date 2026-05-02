@@ -492,6 +492,52 @@ html:not(.dark) .ambient-blobs::after {
   }
 }
 
+/* ── Pinned-message flash: pronounced glow pulse on the actual
+   bubble (not a 1px ring around the row). Used after tapping
+   the pinned banner to draw the eye to the target message. ── */
+@keyframes pinned-flash {
+  /* 0% and 100% intentionally omit box-shadow so the keyframe
+     interpolates FROM / TO the bubble's underlying box-shadow
+     (set in .bubble-sent / .bubble-received). This avoids a
+     1-frame flicker where the natural shadow would otherwise
+     vanish before the flash halo grows in. */
+  0% {
+    transform: scale(1);
+  }
+  15% {
+    box-shadow:
+      0 0 0 6px hsl(263 95% 70% / 0.55),
+      0 10px 40px -4px hsl(263 95% 65% / 0.85);
+    transform: scale(1.04);
+  }
+  45% {
+    box-shadow:
+      0 0 0 3px hsl(263 95% 70% / 0.35),
+      0 8px 32px -6px hsl(263 95% 65% / 0.55);
+    transform: scale(1.015);
+  }
+  75% {
+    box-shadow:
+      0 0 0 5px hsl(263 95% 70% / 0.3),
+      0 8px 28px -6px hsl(263 95% 65% / 0.45);
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.pinned-flash {
+  animation: pinned-flash 1.6s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: center;
+  will-change: transform, box-shadow;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pinned-flash {
+    animation: none;
+    box-shadow: 0 0 0 3px hsl(263 95% 70% / 0.5);
+  }
+}
+
 /* ── Futuristic continuous halo around the Profil tab icon ── */
 @keyframes profile-tab-aura-pulse {
   0%, 100% {

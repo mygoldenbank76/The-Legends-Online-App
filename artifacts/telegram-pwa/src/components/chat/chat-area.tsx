@@ -2416,11 +2416,20 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
   const scrollToPinnedMsg = (msgId: number) => {
     const el = document.getElementById(`msg-${msgId}`);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      el.classList.add('ring-2', 'ring-primary', 'ring-offset-0', 'rounded-2xl');
-      setTimeout(() => el.classList.remove('ring-2', 'ring-primary', 'ring-offset-0', 'rounded-2xl'), 1500);
-    }
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Target the actual bubble (not the full-width row wrapper) so
+    // the highlight glow hugs the message content instead of drawing
+    // an ugly outline around the empty side of the row. Re-trigger
+    // the animation by removing then re-adding the class on the next
+    // frame in case the same pin is tapped twice in a row.
+    const bubble =
+      (el.querySelector('.bubble-sent, .bubble-received') as HTMLElement | null) ?? el;
+    bubble.classList.remove('pinned-flash');
+    // Force reflow so the animation restarts.
+    void bubble.offsetWidth;
+    bubble.classList.add('pinned-flash');
+    setTimeout(() => bubble.classList.remove('pinned-flash'), 1700);
   };
 
   const handlePinnedBannerClick = () => {
