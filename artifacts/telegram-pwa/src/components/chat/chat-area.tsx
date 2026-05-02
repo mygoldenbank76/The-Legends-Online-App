@@ -2851,58 +2851,93 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     // of how wide the time string happens to be — fixes the
                     // "they're not the same length" jitter the user spotted
                     // when several missed calls stack vertically.
-                    className={`min-w-[240px] max-w-[80%] rounded-[14px] pl-3 pr-3.5 py-2 flex items-center gap-3 text-left transition-colors active:scale-[0.99]
+                    className={`min-w-[240px] max-w-[80%] rounded-[14px] pl-3 pr-3.5 py-2 flex flex-col items-stretch gap-1.5 text-left transition-colors active:scale-[0.99]
                       ${isMine
                         ? `bubble-sent rounded-br-[4px] ${isSameAuthor ? 'rounded-tr-[4px]' : ''}`
                         : `bubble-received rounded-tl-[4px] ${!isLastInGroup ? 'rounded-bl-[4px]' : ''}`
                       }`}
                   >
-                    {/* LEFT — circular icon. Tinted red when missed/declined,
-                        otherwise the bubble's own foreground tone. */}
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0
-                        ${isMine ? 'bg-primary-foreground/15' : 'bg-foreground/10'}`}
-                    >
-                      <Icon
-                        className={`w-[18px] h-[18px] ${
-                          isMissed
-                            ? 'text-rose-400'
-                            : isMine
-                              ? 'text-primary-foreground'
-                              : 'text-foreground/85'
-                        }`}
-                      />
-                    </div>
-                    {/* MIDDLE — title + subtitle stacked. min-w-0 + truncate
-                        so long detail strings (e.g. "Appuyez pour rappeler")
-                        don't blow the bubble past 80% width. */}
-                    <div className="flex flex-col items-start min-w-0 flex-1">
-                      <span
-                        className={`text-[14.5px] font-medium leading-tight truncate w-full
-                          ${isMine ? 'text-primary-foreground' : 'text-foreground'}`}
+                    {/* Top row: icon + text + time. Wrapped so the reactions
+                        row below can sit on its own line inside the bubble. */}
+                    <div className="flex items-center gap-3 w-full">
+                      {/* LEFT — circular icon. Tinted red when missed/declined,
+                          otherwise the bubble's own foreground tone. */}
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0
+                          ${isMine ? 'bg-primary-foreground/15' : 'bg-foreground/10'}`}
                       >
-                        {label}
-                      </span>
-                      {detail && (
+                        <Icon
+                          className={`w-[18px] h-[18px] ${
+                            isMissed
+                              ? 'text-rose-400'
+                              : isMine
+                                ? 'text-primary-foreground'
+                                : 'text-foreground/85'
+                          }`}
+                        />
+                      </div>
+                      {/* MIDDLE — title + subtitle stacked. min-w-0 + truncate
+                          so long detail strings (e.g. "Appuyez pour rappeler")
+                          don't blow the bubble past 80% width. */}
+                      <div className="flex flex-col items-start min-w-0 flex-1">
                         <span
-                          className={`text-[12px] leading-tight mt-0.5 truncate w-full
-                            ${isMine ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}
+                          className={`text-[14.5px] font-medium leading-tight truncate w-full
+                            ${isMine ? 'text-primary-foreground' : 'text-foreground'}`}
                         >
-                          {detail}
+                          {label}
                         </span>
-                      )}
+                        {detail && (
+                          <span
+                            className={`text-[12px] leading-tight mt-0.5 truncate w-full
+                              ${isMine ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}
+                          >
+                            {detail}
+                          </span>
+                        )}
+                      </div>
+                      {/* RIGHT — time + optional pin, anchored to bottom so it
+                          sits under the subtitle level rather than dead-centre.
+                          tabular-nums forces uniform digit widths so a "21:00"
+                          bubble doesn't render wider than a "19:47" bubble. */}
+                      <div
+                        className={`text-[11px] tabular-nums flex items-center gap-1 flex-shrink-0 self-end ml-1
+                          ${isMine ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}
+                      >
+                        {isPinned && <Pin className="w-2.5 h-2.5" aria-label="Épinglé" />}
+                        <span>{msgTime}</span>
+                      </div>
                     </div>
-                    {/* RIGHT — time + optional pin, anchored to bottom so it
-                        sits under the subtitle level rather than dead-centre.
-                        tabular-nums forces uniform digit widths so a "21:00"
-                        bubble doesn't render wider than a "19:47" bubble. */}
-                    <div
-                      className={`text-[11px] tabular-nums flex items-center gap-1 flex-shrink-0 self-end ml-1
-                        ${isMine ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}
-                    >
-                      {isPinned && <Pin className="w-2.5 h-2.5" aria-label="Épinglé" />}
-                      <span>{msgTime}</span>
-                    </div>
+
+                    {/* Reactions row — same pill design as regular bubbles.
+                        e.stopPropagation on each pill so tapping a reaction
+                        toggles it without ALSO triggering the call-tap on
+                        the surrounding button. */}
+                    {hasReactions && (
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(reactionCounts).map(([emoji, count]) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, emoji); }}
+                            className={`rounded-full px-1.5 py-0.5 text-xs flex items-center gap-0.5 border transition-colors
+                              ${hasReacted(emoji)
+                                ? 'bg-white/25 border-white/40 text-white'
+                                : 'bg-white/10 border-white/20 text-white/80 hover:bg-white/15'}`}
+                          >
+                            <span>{emoji}</span>
+                            <motion.span
+                              key={`${emoji}-${count}`}
+                              initial={{ y: -6, opacity: 0 }}
+                              animate={{ y: 0, opacity: 1 }}
+                              transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                              className="font-bold text-[10px]"
+                            >
+                              {count as number}
+                            </motion.span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </button>
                 </div>
               );
