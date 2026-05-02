@@ -2667,6 +2667,12 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   }}
                 >
                   {isDusting && <DustEffect variant={isMine ? 'sent' : 'received'} />}
+                  {/* Inner wrapper holds pin label + sender name + bubble in
+                      ONE shared mask coordinate space, so the dust wipe
+                      crosses all of them as a single contiguous edge (matches
+                      Telegram's native dissolve where the entire message
+                      block dissolves as one unit). */}
+                  <div className={isDusting ? 'dust-bubble-mask' : ''}>
                   {/* Pinned label */}
                   {isPinned && (
                     <div className={`flex items-center gap-0.5 mb-0.5 text-[10px] text-primary ${isMine ? 'justify-end' : 'justify-start'}`}>
@@ -3023,6 +3029,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     </div>
                       );
                     })()}
+                  </div>
                   </div>
                 </div>
               </div>

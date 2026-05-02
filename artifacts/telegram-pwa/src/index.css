@@ -881,54 +881,175 @@ html:not(.dark) .composer-pill {
 .send-circle:active { transform: scale(0.96); }
 
 /* ── Telegram-style dust dissolve effect for deleted messages ─────────────
-   A vertical sweep mask travels LEFT → RIGHT across the bubble. The
-   bubble itself stays crisp (no blur, no scale) and is simply cut by
-   the moving mask. At each column the sweep reaches, ~20 small
-   particles burst outward (mostly LEFTWARD and VERTICALLY) — they
-   trail the wipe in a wide cloud that overflows the bubble bounds.
-   The bubble's div remains mounted for ~1200ms while the API delete
-   runs in the background; the dustingIds entry is only cleared once
-   the message is gone from the messages list, so the bubble never
-   pops back into view. */
-@keyframes dust-fly {
-  0% {
-    opacity: 0;
-    transform: translate(0, 0) rotate(0deg) scale(1);
-  }
-  10% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    transform: translate(var(--dust-dx, -60px), var(--dust-dy, 0px)) rotate(var(--dust-rot, 0deg)) scale(0.5);
-  }
-}
-@keyframes dust-fade {
-  0% {
-    /* Sweep boundary just past the LEFT edge → bubble fully visible. */
-    -webkit-mask-image: linear-gradient(90deg, transparent -10%, #000 -2%, #000 100%);
-            mask-image: linear-gradient(90deg, transparent -10%, #000 -2%, #000 100%);
-  }
-  100% {
-    /* Sweep boundary past the RIGHT edge → bubble fully wiped from
-       left to right. The mask transition is sharp (only 8% of width
-       transitions from transparent → opaque) for a clean Telegram
-       wipe rather than a soft cross-fade. */
-    -webkit-mask-image: linear-gradient(90deg, transparent 100%, #000 108%, #000 120%);
-            mask-image: linear-gradient(90deg, transparent 100%, #000 108%, #000 120%);
-  }
-}
+   Faithful port of Telegram's spoiler/dust technique: a pre-baked
+   turbulence texture (raw asset from telegram-tt) is tiled in 3 layers
+   to form a dense dust grain. A linear-gradient mask travels LEFT → RIGHT
+   across the bubble, dissolving it in place. A second, narrower
+   gradient mask exposes the dust texture only in a TRAILING BAND that
+   follows the wipe boundary — exactly like the native mobile clients.
+   Both the bubble and the dust band animate `mask-position-x` in lock
+   step (same duration / easing) so the dust always sits at the wipe
+   edge. The bubble remains mounted for ~1100ms while the API delete
+   completes in the background; the dustingIds entry only clears once
+   the message is gone from the messages list, so the bubble never pops
+   back into view. */
+
+/* The wipe mask: bubble (and any sibling that isn't .dust-overlay) is
+   masked individually with a horizontal linear-gradient. The gradient
+   itself is fixed; we slide it via mask-position-x. With mask-size 200%
+   and gradient `transparent 0–45%, black 55–100%`:
+     pos 100% → visible portion = mask 50–100% = mostly black → bubble
+                fully visible.
+     pos 0%   → visible portion = mask 0–50% = mostly transparent →
+                bubble fully hidden. The wipe boundary travels left → right.
+*/
 .dust-fading {
-  animation: dust-fade 900ms cubic-bezier(.42,.01,.45,1) forwards;
   pointer-events: none;
-  will-change: opacity, mask-image;
-  /* Allow particles to overflow the bubble bounds. */
   overflow: visible !important;
 }
-.dust-fading > .dust-overlay {
-  animation: none;
+/* The inner mask wrapper (added by chat-area.tsx around pin label, sender
+   name, and the bubble div) gets the wipe mask. Putting all three pieces
+   inside ONE masked element gives them a single shared mask coordinate
+   space, so the wipe edge stays contiguous across pin/sender/bubble —
+   exactly like Telegram's native dissolve, which treats the whole
+   message block as one unit. */
+.dust-bubble-mask {
+  -webkit-mask-image: linear-gradient(90deg,
+    transparent 0%,
+    transparent 45%,
+    #000 55%,
+    #000 100%);
+          mask-image: linear-gradient(90deg,
+    transparent 0%,
+    transparent 45%,
+    #000 55%,
+    #000 100%);
+  -webkit-mask-size: 200% 100%;
+          mask-size: 200% 100%;
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-position: 100% 0;
+          mask-position: 100% 0;
+  animation: dust-wipe 1100ms cubic-bezier(.42,.01,.45,1) forwards;
+  will-change: mask-position;
 }
+/* Animate full mask-position (not just mask-position-x) for the broadest
+   browser engine support. mask-position is well-supported across
+   WebKit/Blink and modern Firefox; mask-position-x animation is more
+   spotty in some engines. */
+@keyframes dust-wipe {
+  from { -webkit-mask-position: 100% 0; mask-position: 100% 0; }
+  to   { -webkit-mask-position: 0% 0;   mask-position: 0% 0; }
+}
+
+/* Dust overlay container. Sits over the bubble area and gets its OWN
+   mask — a narrow gradient band that travels in sync with the wipe.
+   Black region of the band sits at mask 35–55% (10% wider on the LEFT
+   than the bubble wipe boundary at 45–55%) so the dust trails over
+   the area that has just dissolved. */
+.dust-overlay {
+  position: absolute;
+  inset: -6px;
+  pointer-events: none;
+  z-index: 5;
+  -webkit-mask-image: linear-gradient(90deg,
+    transparent 0%,
+    transparent 25%,
+    rgba(0, 0, 0, 0.45) 32%,
+    #000 42%,
+    #000 55%,
+    transparent 65%,
+    transparent 100%);
+          mask-image: linear-gradient(90deg,
+    transparent 0%,
+    transparent 25%,
+    rgba(0, 0, 0, 0.45) 32%,
+    #000 42%,
+    #000 55%,
+    transparent 65%,
+    transparent 100%);
+  -webkit-mask-size: 200% 100%;
+          mask-size: 200% 100%;
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-position: 100% 0;
+          mask-position: 100% 0;
+  animation: dust-wipe 1100ms cubic-bezier(.42,.01,.45,1) forwards;
+  will-change: mask-position;
+}
+
+/* Each dust layer reuses Telegram's turbulence_2x.png (white pixels on
+   black) as a CSS mask, with a solid white fill behind it. Black mask
+   pixels become transparent, white mask pixels reveal the white fill —
+   yielding crisp white dust grains. Three layers at different offsets
+   triple the apparent density and break up tiling. Each layer drifts
+   slightly LEFT during the animation to suggest particles being pushed
+   away from the advancing wipe edge. */
+.dust-layer {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.95);
+  -webkit-mask-image: var(--dust-tex);
+          mask-image: var(--dust-tex);
+  -webkit-mask-size: 128px 128px;
+          mask-size: 128px 128px;
+  -webkit-mask-repeat: repeat;
+          mask-repeat: repeat;
+  will-change: transform, opacity;
+  animation: dust-fade-out 1100ms ease-out forwards;
+}
+.dust-layer-1 {
+  -webkit-mask-position: 0 0;
+          mask-position: 0 0;
+  opacity: 0.95;
+  animation: dust-fade-out 1100ms ease-out forwards,
+             dust-drift-1 1100ms cubic-bezier(.25,.1,.4,1) forwards;
+}
+.dust-layer-2 {
+  -webkit-mask-position: 64px 32px;
+          mask-position: 64px 32px;
+  opacity: 0.75;
+  animation: dust-fade-out 1100ms ease-out forwards,
+             dust-drift-2 1100ms cubic-bezier(.25,.1,.4,1) forwards;
+}
+.dust-layer-3 {
+  -webkit-mask-position: 32px 80px;
+          mask-position: 32px 80px;
+  opacity: 0.55;
+  animation: dust-fade-out 1100ms ease-out forwards,
+             dust-drift-3 1100ms cubic-bezier(.25,.1,.4,1) forwards;
+}
+@keyframes dust-fade-out {
+  0%   { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes dust-drift-1 {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(-22px, -2px, 0) scale(1.04); }
+}
+@keyframes dust-drift-2 {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(-38px, 4px, 0) scale(1.06); }
+}
+@keyframes dust-drift-3 {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(-58px, -3px, 0) scale(1.08); }
+}
+
+/* Tint the dust slightly to match each side's bubble palette without
+   losing the white dust look. Sent (mine, indigo/violet) → cool white;
+   received (dark glass) → neutral white. */
+.dust-overlay[data-variant="sent"] .dust-layer {
+  background: rgba(245, 240, 255, 0.95);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .dust-fading { animation-duration: 250ms; }
-  .dust-particle { animation-duration: 250ms !important; }
+  .dust-bubble-mask,
+  .dust-overlay {
+    animation-duration: 280ms;
+  }
+  .dust-layer {
+    animation-duration: 280ms !important;
+  }
 }
