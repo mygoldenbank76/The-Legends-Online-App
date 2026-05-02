@@ -2621,54 +2621,121 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       {/* ── Mini call banner (visible only when a call is minimized) ── */}
       <CallBanner />
 
-      {/* ── Pinned messages ── */}
+      {/* ── Pinned messages — Telegram-style floating card ────────
+          Rounded card with glass blur, soft shadow, vertical accent
+          bar on the left, optional thumbnail for media, and a
+          stacked "Message épinglé" / preview pair. Sits above the
+          messages area with margin so it visually floats. */}
       {pinnedMessageIds.length > 0 && pinnedMsg && !pinnedMsg.isDeleted && (() => {
-        // Build a short, type-aware preview for the pinned banner. The
-        // previous fallback was the literal string "📷 Image", which
-        // mis-labelled every non-text message (calls, audio, polls,
-        // videos, documents…) as a photo.
         const m = pinnedMsg as Msg & {
           mediaAlbum?: unknown[]; videoUrl?: string; documentUrl?: string;
         };
-        let preview: string;
+
+        // ── Thumbnail resolution ──
+        // Prefer the first album item, then the single image/video.
+        // Detect videos via extension and pull the cached first-frame
+        // poster (same helper the bubbles use); fall back to nothing
+        // for audio/poll/call/text — which then render with just an
+        // icon in the title row.
+        const videoExtRe = /\.(mp4|webm|mov|avi|mkv)$/i;
+        const albumFirst = Array.isArray(m.mediaAlbum) && m.mediaAlbum.length > 0
+          ? (m.mediaAlbum[0] as string | { url?: string })
+          : null;
+        const albumFirstUrl = typeof albumFirst === 'string'
+          ? albumFirst
+          : albumFirst?.url ?? null;
+        const mediaUrl: string | null = albumFirstUrl ?? m.imageUrl ?? null;
+        const mediaIsVideo = mediaUrl ? videoExtRe.test(mediaUrl) : false;
+        const thumbSrc: string | null = mediaUrl
+          ? (mediaIsVideo ? (getVideoPoster(mediaUrl) ?? null) : mediaUrl)
+          : null;
+
+        // ── Label/preview text + leading icon ──
+        let label = 'Message';
+        let preview = '';
+        let LeadIcon: typeof Pin | null = null;
         if (m.callType) {
           const isVideo = m.callType === 'video';
           const isMissed = m.callStatus === 'missed' || m.callStatus === 'declined';
           const base = isVideo ? 'Appel vidéo' : 'Appel vocal';
-          preview = `${isVideo ? '📹' : '📞'} ${isMissed ? `${base} manqué` : base}`;
+          label = isMissed ? `${base} manqué` : base;
+          LeadIcon = isVideo ? VideoIcon : Phone;
         } else if (m.poll) {
-          preview = `📊 Sondage${m.poll.question ? ` · ${m.poll.question}` : ''}`;
+          label = 'Sondage';
+          preview = m.poll.question ?? '';
         } else if (m.audioUrl) {
-          preview = '🎤 Message vocal';
+          label = 'Message vocal';
         } else if (Array.isArray(m.mediaAlbum) && m.mediaAlbum.length > 0) {
-          preview = `📷 Album · ${m.mediaAlbum.length} média${m.mediaAlbum.length > 1 ? 's' : ''}`;
-        } else if (m.videoUrl) {
-          preview = `🎥 Vidéo${m.content ? ` · ${m.content}` : ''}`;
+          label = `Album · ${m.mediaAlbum.length} média${m.mediaAlbum.length > 1 ? 's' : ''}`;
+          preview = m.content ?? '';
+        } else if (mediaIsVideo) {
+          label = 'Vidéo';
+          preview = m.content ?? '';
         } else if (m.imageUrl) {
-          preview = `📷 Photo${m.content ? ` · ${m.content}` : ''}`;
+          label = 'Photo';
+          preview = m.content ?? '';
         } else if (m.documentUrl) {
-          preview = `📎 Fichier${m.content ? ` · ${m.content}` : ''}`;
+          label = 'Fichier';
+          preview = m.content ?? '';
         } else {
-          preview = m.content || 'Message';
+          label = 'Message épinglé';
+          preview = m.content ?? '';
         }
+
         return (
-          <div
-            onClick={handlePinnedBannerClick}
-            className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-primary/10 border-b border-primary/20 text-xs cursor-pointer hover:bg-primary/15 transition-colors"
-          >
-            <Pin className="w-3 h-3 text-primary flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <span className="text-primary font-medium">
-                Message épinglé{pinnedMessageIds.length > 1 ? ` ${safePinnedIdx + 1}/${pinnedMessageIds.length}` : ''} · 
-              </span>
-              <span className="text-muted-foreground"> {preview}</span>
-            </div>
-            <button
-              onClick={(e) => { e.stopPropagation(); handlePin(pinnedMsg); }}
-              className="text-muted-foreground hover:text-foreground p-1 flex-shrink-0"
+          <div className="flex-shrink-0 px-2 pt-2">
+            <div
+              onClick={handlePinnedBannerClick}
+              className="flex items-stretch gap-0 rounded-xl overflow-hidden cursor-pointer
+                         bg-card/80 backdrop-blur-md border border-foreground/10
+                         shadow-[0_4px_16px_-6px_rgba(0,0,0,0.35)]
+                         hover:bg-card/90 transition-colors"
             >
-              <X className="w-3 h-3" />
-            </button>
+              {/* Vertical accent bar — Telegram's signature pinned-quote stripe */}
+              <div className="w-[3px] flex-shrink-0 bg-primary" />
+
+              {/* Thumbnail — only for media. 36×36 square, rounded, with a
+                  small play badge overlaid on videos. */}
+              {thumbSrc && (
+                <div className="flex-shrink-0 self-center ml-2 my-2 w-9 h-9 rounded-md overflow-hidden bg-foreground/10 relative">
+                  <InstantImg src={thumbSrc} alt="" className="w-full h-full object-cover" />
+                  {mediaIsVideo && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+                      <VideoIcon className="w-3.5 h-3.5 text-white" />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Label + preview */}
+              <div className="flex-1 min-w-0 py-2 pl-3 pr-2 flex flex-col justify-center">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {LeadIcon && (
+                    <LeadIcon className="w-3 h-3 text-primary flex-shrink-0" />
+                  )}
+                  <span className="text-[12.5px] font-semibold text-primary truncate">
+                    Message épinglé
+                    {pinnedMessageIds.length > 1 && (
+                      <span className="font-normal text-primary/60 ml-1">
+                        {safePinnedIdx + 1}/{pinnedMessageIds.length}
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <span className="text-[12.5px] text-muted-foreground truncate leading-tight">
+                  {preview || label}
+                </span>
+              </div>
+
+              {/* Unpin / dismiss */}
+              <button
+                onClick={(e) => { e.stopPropagation(); handlePin(pinnedMsg); }}
+                className="flex-shrink-0 self-stretch px-3 text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors flex items-center"
+                aria-label="Désépingler"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         );
       })()}
