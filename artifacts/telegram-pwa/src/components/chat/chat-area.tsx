@@ -184,7 +184,7 @@ function MediaThumb({
 }
 
 // ── Album grid (Telegram-style multi-media layout) ────────────────────────
-function AlbumGrid({ urls, onItemClick }: { urls: string[]; onItemClick: (i: number) => void }) {
+function AlbumGrid({ urls, onItemClick, tightBottom = false }: { urls: string[]; onItemClick: (i: number) => void; tightBottom?: boolean }) {
   const count = urls.length;
   const shown = urls.slice(0, Math.min(count, 6));
   const gap = 2;
@@ -193,9 +193,15 @@ function AlbumGrid({ urls, onItemClick }: { urls: string[]; onItemClick: (i: num
   const r = (tl: boolean, tr: boolean, bl: boolean, br: boolean) =>
     `${tl ? 10 : 1}px ${tr ? 10 : 1}px ${br ? 10 : 1}px ${bl ? 10 : 1}px`;
 
+  // Symmetric 4px visible border on every side of the album when the
+  // bubble is media-only (time-overlay variant): bubble pads 6px T/B
+  // and 10px L/R, the album wrapper pulls -2px / -6px → 4px gap on
+  // every edge. When a caption / reactions / link-preview row sits
+  // below the album, fall back to mb-1.5 so the next row keeps its
+  // breathing room.
   const wrap = (content: React.ReactNode) => (
     <div
-      className="mb-1.5 -mx-1.5 -mt-0.5 overflow-hidden rounded-[10px]"
+      className={`${tightBottom ? '-mb-0.5' : 'mb-1.5'} -mx-1.5 -mt-0.5 overflow-hidden rounded-[10px]`}
       onClick={e => e.stopPropagation()}
     >
       {content}
@@ -1807,7 +1813,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         <div className="max-w-[80%] relative">
           <div className={`rounded-[14px] px-2.5 py-[6px] text-[14.5px] leading-[1.3] bubble-sent rounded-br-[4px] ${isSameAuthor ? 'rounded-tr-[4px]' : ''}`}>
             {!isAlbum ? (
-              <div className="mb-1.5 -mx-1.5 -mt-0.5 overflow-hidden rounded-[10px] bg-foreground/5 relative">
+              <div className="-mb-0.5 -mx-1.5 -mt-0.5 overflow-hidden rounded-[10px] bg-foreground/5 relative">
                 {(() => {
                   const hasDims = !!(items[0].width && items[0].height);
                   const ar = hasDims
@@ -1885,7 +1891,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
               </div>
             ) : (
               <div
-                className="mb-1.5 -mx-1.5 -mt-0.5 overflow-hidden rounded-[10px] grid gap-[2px] relative"
+                className="-mb-0.5 -mx-1.5 -mt-0.5 overflow-hidden rounded-[10px] grid gap-[2px] relative"
                 style={{
                   gridTemplateColumns: items.length === 2 ? '1fr 1fr' : '1fr 1fr',
                   gridAutoRows: items.length <= 2 ? '180px' : '120px',
@@ -2924,6 +2930,12 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       <div className="relative">
                         <AlbumGrid
                           urls={(msg as any).mediaAlbum}
+                          // Same condition that decides whether to overlay
+                          // the time on the album below — keeps the four
+                          // visible margins around the album grid identical
+                          // (4px on every side) when no caption/reactions
+                          // are present.
+                          tightBottom={!msg.content && !hasReactions}
                           onItemClick={(i) => {
                             if (Date.now() - conversationOpenedAt.current < 900) return;
                             setMediaViewer({ urls: (msg as any).mediaAlbum, index: i });
@@ -2963,9 +2975,19 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                           />
                         );
                       }
+                      // Symmetric 4px visible border on every side of the
+                      // photo/video bubble when there's no caption / no
+                      // reactions (time-overlay variant). Bubble pads
+                      // 6px T/B + 10px L/R; the wrapper pulls -2px /
+                      // -6px → 4px gap on every edge. When a caption or
+                      // reactions row sits below the media, fall back
+                      // to mb-1.5 so that next row keeps its breathing
+                      // room. Same condition is used at line 3030 to
+                      // decide whether to overlay the time on the media.
+                      const tightBottom = !msg.content && !hasReactions;
                       return (
                         <div
-                          className="mb-1.5 -mx-1.5 -mt-0.5 overflow-hidden rounded-[10px] bg-foreground/5 relative"
+                          className={`${tightBottom ? '-mb-0.5' : 'mb-1.5'} -mx-1.5 -mt-0.5 overflow-hidden rounded-[10px] bg-foreground/5 relative`}
                           onClick={(e) => e.stopPropagation()}
                         >
                           {isVideoMsg ? (
