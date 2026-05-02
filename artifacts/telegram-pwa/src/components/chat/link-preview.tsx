@@ -186,14 +186,18 @@ function YouTubeEmbed({ preview, isMine }: { preview: LinkPreviewData; isMine: b
   );
 }
 
-// Generic image using CachedImg — no skeleton flash, instant from cache
+// Generic image using CachedImg — no skeleton flash, instant from cache.
+// Sizing follows Telegram's WebPagePreview spec: image fills the card
+// width and is bounded by ~224 px tall (matches the iOS/Android max-h
+// for landscape og-images while letting portrait images crop nicely
+// instead of dwarfing the rest of the card).
 function GenericImage({ src, alt }: { src: string; alt: string }) {
   return (
     <CachedImg
       src={src}
       alt={alt}
       loading="eager"
-      className="w-full object-cover max-h-40 block"
+      className="w-full object-cover max-h-56 block"
     />
   );
 }

@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { CachedImg } from './cached-img';
+import { isDocumentUrl, stripDocPrefix } from './file-card';
 import {
   useListConversations,
   getListConversationsQueryKey,
@@ -129,8 +130,15 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
     if (!allConvs.length) return;
     allConvs.forEach(conv => {
       const lm = (conv as any).lastMessage;
-      if (lm?.imageUrl && !lm.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i)) {
+      if (lm?.imageUrl
+          && !lm.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i)
+          && !isDocumentUrl(lm.imageUrl)) {
         preloadMedia(lm.imageUrl);
+      }
+      // Voice notes from the last message — pre-warm so opening the conv
+      // can start playback instantly without re-streaming.
+      if (lm?.audioUrl) {
+        preloadMedia(lm.audioUrl);
       }
       // Preload avatar pour les DMs
       if (conv.otherUser?.avatar) {
@@ -372,32 +380,61 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
                             <span className="text-muted-foreground"> · Appel en cours</span>
                           </span>
                         </button>
-                      ) : (
-                        <p className="text-xs text-muted-foreground truncate" style={{ pointerEvents: 'none' }}>
-                          {lastMsg ? (
-                            <>
-                              {lastMsg.senderId === user.id && (
-                                <span className="text-primary/70 mr-1">{t.conversations.you}:</span>
+                      ) : (() => {
+                          // Mini-vignette Telegram-style: petit aperçu carré 28x28
+                          // pour les derniers messages photo (et vidéo, montré avec
+                          // une icône play). Doc / audio / appel restent en texte
+                          // pur pour ne pas surcharger la liste.
+                          const lmAny = lastMsg as any;
+                          const lmUrl: string | undefined = lastMsg?.imageUrl ?? undefined;
+                          const lmAlbumFirst: string | undefined = Array.isArray(lmAny?.mediaAlbum) && lmAny.mediaAlbum.length > 0
+                            ? lmAny.mediaAlbum[0]
+                            : undefined;
+                          const thumbUrl = lmUrl ?? lmAlbumFirst;
+                          const isDoc = !!lmUrl && isDocumentUrl(lmUrl);
+                          const isVideoThumb = !!thumbUrl && /\.(mp4|webm|mov|avi|mkv|m4v)$/i.test(thumbUrl);
+                          const showThumb = !!thumbUrl && !isDoc && !isVideoThumb && !lmAny?.callType;
+
+                          return (
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1" style={{ pointerEvents: 'none' }}>
+                              {showThumb && (
+                                <div className="w-7 h-7 rounded-md overflow-hidden flex-shrink-0 bg-foreground/10">
+                                  <CachedImg
+                                    src={thumbUrl!}
+                                    alt=""
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
                               )}
-                              {(lastMsg as any).callType ? (
-                                (lastMsg as any).callStatus === 'missed'
-                                  ? ((lastMsg as any).callType === 'video' ? '📹 Appel vidéo manqué' : '📞 Appel vocal manqué')
-                                  : ((lastMsg as any).callType === 'video' ? '📹 Appel vidéo' : '📞 Appel vocal')
-                              ) : lastMsg.content
-                                ? plainPreview(lastMsg.content)
-                                : (lastMsg as any).audioUrl
-                                ? t.conversations.voiceMessage
-                                : (lastMsg as any).pollId
-                                ? t.conversations.poll
-                                : lastMsg.imageUrl
-                                ? t.conversations.image
-                                : ''}
-                            </>
-                          ) : (
-                            <span className="italic">{t.conversations.noMessage}</span>
-                          )}
-                        </p>
-                      )}
+                              <p className="text-xs text-muted-foreground truncate min-w-0">
+                                {lastMsg ? (
+                                  <>
+                                    {lastMsg.senderId === user.id && (
+                                      <span className="text-primary/70 mr-1">{t.conversations.you}:</span>
+                                    )}
+                                    {lmAny.callType ? (
+                                      lmAny.callStatus === 'missed'
+                                        ? (lmAny.callType === 'video' ? '📹 Appel vidéo manqué' : '📞 Appel vocal manqué')
+                                        : (lmAny.callType === 'video' ? '📹 Appel vidéo' : '📞 Appel vocal')
+                                    ) : lmUrl && isDoc
+                                      ? `📎 ${stripDocPrefix(lastMsg.content) || 'Document'}`
+                                      : lastMsg.content
+                                      ? plainPreview(lastMsg.content)
+                                      : lmAny.audioUrl
+                                      ? t.conversations.voiceMessage
+                                      : lmAny.pollId
+                                      ? t.conversations.poll
+                                      : lmUrl
+                                      ? (isVideoThumb ? '🎬 Vidéo' : t.conversations.image)
+                                      : ''}
+                                  </>
+                                ) : (
+                                  <span className="italic">{t.conversations.noMessage}</span>
+                                )}
+                              </p>
+                            </div>
+                          );
+                        })()}
                       {conv.unreadCount > 0 && (
                         <span className="flex-shrink-0 gradient-primary text-white text-[10px] font-bold rounded-full min-w-5 h-5 flex items-center justify-center px-1.5 pulse-glow">
                           {conv.unreadCount > 99 ? '99+' : conv.unreadCount}

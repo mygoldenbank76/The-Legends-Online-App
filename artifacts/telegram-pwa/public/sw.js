@@ -1,6 +1,6 @@
-const CACHE_NAME = 'legends-v8';
-const STATIC_CACHE = 'legends-static-v8';
-const MEDIA_CACHE = 'legends-media-v8';
+const CACHE_NAME = 'legends-v9';
+const STATIC_CACHE = 'legends-static-v9';
+const MEDIA_CACHE = 'legends-media-v9';
 
 // ── Install ──────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
@@ -35,10 +35,15 @@ self.addEventListener('activate', (event) => {
 /** URLs that should be served Cache-First (media files) */
 function isMediaRequest(url) {
   const pathname = url.pathname;
-  // Our own GCS media proxy
+  // Our own GCS media proxy — covers every uploaded media (image, video,
+  // audio, document) so even PDFs and voice notes are cached for offline
+  // re-visits and instant re-opens.
   if (pathname.startsWith('/api/uploads/gcs/')) return true;
-  // Static image/video extensions
-  if (/\.(png|jpe?g|gif|webp|svg|mp4|webm|mov|ico|woff2?)(\?|$)/i.test(pathname)) return true;
+  // Static media extensions (images / video / audio / fonts).
+  // The audio formats here matter so voice messages and music attachments
+  // hit the same cache-first path as images and don't re-stream every
+  // time the user navigates away and back.
+  if (/\.(png|jpe?g|gif|webp|avif|svg|bmp|heic|heif|ico|mp4|webm|mov|m4v|mp3|m4a|ogg|wav|opus|aac|weba|woff2?)(\?|$)/i.test(pathname)) return true;
   return false;
 }
 

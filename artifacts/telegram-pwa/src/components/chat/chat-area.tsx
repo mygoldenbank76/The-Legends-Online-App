@@ -48,6 +48,7 @@ import { uploadFileWithProgress, UploadAbortError } from '@/lib/upload-with-prog
 import { preloadMedia } from '@/lib/media-cache';
 import { prewarmIframe } from '@/lib/iframe-pool';
 import { VideoThumbnail, cacheVideoPosterBlob, cacheVideoAspect, getVideoPoster } from './video-thumbnail';
+import { FileCard, isDocumentUrl, stripDocPrefix } from './file-card';
 import { useCall } from '@/lib/call-context';
 import { CallBanner } from './call-modal';
 
@@ -478,15 +479,24 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // Preload all media in the current conversation into memory the moment messages arrive
   useEffect(() => {
     for (const m of messages) {
-      if (m.imageUrl && !m.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i)) {
+      // Photos: pull into RAM. Videos and documents are skipped here (videos
+      // because they're large and loaded on-demand by the player; documents
+      // because they're only fetched on tap and don't need a poster).
+      if (m.imageUrl && !m.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) && !isDocumentUrl(m.imageUrl)) {
         preloadMedia(m.imageUrl);
+      }
+      // Voice notes / music: cache the blob in RAM so playback is instant
+      // on revisit and there's no re-streaming when the user navigates away
+      // and comes back.
+      if (m.audioUrl) {
+        preloadMedia(m.audioUrl);
       }
       if ((m as any).mediaAlbum) {
         for (const url of (m as any).mediaAlbum) {
-          if (!url.match(/\.(mp4|webm|mov|avi|mkv)$/i)) preloadMedia(url);
+          if (!url.match(/\.(mp4|webm|mov|avi|mkv)$/i) && !isDocumentUrl(url)) preloadMedia(url);
         }
       }
-      if (m.replyTo?.imageUrl && !m.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i)) {
+      if (m.replyTo?.imageUrl && !m.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) && !isDocumentUrl(m.replyTo.imageUrl)) {
         preloadMedia(m.replyTo.imageUrl);
       }
       // Preload link preview images + pre-warm embeds (Spotify, YouTube)
@@ -2803,12 +2813,18 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                             {msg.replyTo.audioUrl
                               ? 'Message vocal'
                               : msg.replyTo.imageUrl
-                              ? (msg.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? 'Vidéo' : 'Photo')
+                              ? (msg.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i)
+                                  ? 'Vidéo'
+                                  : isDocumentUrl(msg.replyTo.imageUrl)
+                                    ? (stripDocPrefix(msg.replyTo.content) || 'Document')
+                                    : 'Photo')
                               : msg.replyTo.content || ''}
                           </p>
                         </div>
                         {/* Thumbnail if image/video */}
-                        {msg.replyTo.imageUrl && !msg.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) && (
+                        {msg.replyTo.imageUrl
+                          && !msg.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i)
+                          && !isDocumentUrl(msg.replyTo.imageUrl) && (
                           <CachedImg
                             src={msg.replyTo.imageUrl}
                             alt="reply"
@@ -2880,59 +2896,84 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       </div>
                     )}
 
-                    {/* Single Image or Video */}
-                    {msg.imageUrl && !(msg as any).mediaAlbum && !isPoll && (
-                      <div
-                        className="mb-1.5 -mx-1.5 -mt-0.5 overflow-hidden rounded-[10px] bg-foreground/5 relative"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {msg.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? (
-                          // Static thumbnail tile (first frame + centered
-                          // play button). Tapping it opens the full-screen
-                          // MediaViewer where the actual playback happens
-                          // with native controls — same UX as Telegram.
-                          <VideoThumbnail
-                            src={msg.imageUrl}
-                            thumbnailUrl={(msg as any).thumbnailUrl ?? null}
-                            className="w-full rounded-[10px]"
-                            intrinsicWidth={msg.mediaWidth ?? undefined}
-                            intrinsicHeight={msg.mediaHeight ?? undefined}
-                            onClick={() => {
-                              if (Date.now() - conversationOpenedAt.current < 900) return;
-                              setMediaViewer({ urls: [msg.imageUrl!], index: 0 });
-                            }}
+                    {/* Single Image / Video / Document */}
+                    {msg.imageUrl && !(msg as any).mediaAlbum && !isPoll && (() => {
+                      const isVideoMsg = !!msg.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i);
+                      const isDocMsg = !isVideoMsg && isDocumentUrl(msg.imageUrl);
+                      // Documents render as a flat file card (no aspect-ratio
+                      // wrapper, no time overlay — the time follows the regular
+                      // bottom-row layout because there's nothing to overlay
+                      // on top of the card).
+                      if (isDocMsg) {
+                        return (
+                          <FileCard
+                            url={msg.imageUrl}
+                            name={stripDocPrefix(msg.content) || (msg.imageUrl.split('/').pop() ?? 'Document')}
+                            isMine={isMine}
                           />
-                        ) : (
-                          // Reserve the bubble's exact aspect ratio when the
-                          // server gave us the dimensions — prevents the brief
-                          // height-jump we used to see when portrait photos
-                          // loaded into a flat-default container.
-                          <CachedImg
-                            src={msg.imageUrl}
-                            alt="attached"
-                            className="max-w-full max-h-64 object-cover rounded-[10px] cursor-pointer active:opacity-80 transition-opacity"
-                            style={
-                              msg.mediaWidth && msg.mediaHeight
-                                ? { aspectRatio: `${msg.mediaWidth} / ${msg.mediaHeight}` }
-                                : undefined
-                            }
-                            onClick={() => {
-                              if (Date.now() - conversationOpenedAt.current < 900) return;
-                              setMediaViewer({ urls: [msg.imageUrl!], index: 0 });
-                            }}
-                          />
-                        )}
-                        {/* Time overlay on the media — only when no caption AND no reactions.
-                            As soon as a reaction is added (or a caption appears via edit),
-                            the time moves out to the bottom row like a regular message. */}
-                        {!msg.content && !hasReactions && (
-                          <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/55 backdrop-blur-sm text-white text-[11px] flex items-center gap-1 pointer-events-none">
-                            {msg.editedAt && <span className="italic opacity-80">modifié</span>}
-                            <span>{msgTime}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                        );
+                      }
+                      return (
+                        <div
+                          className="mb-1.5 -mx-1.5 -mt-0.5 overflow-hidden rounded-[10px] bg-foreground/5 relative"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {isVideoMsg ? (
+                            // Static thumbnail tile (first frame + centered
+                            // play button). Tapping it opens the full-screen
+                            // MediaViewer where the actual playback happens
+                            // with native controls — same UX as Telegram.
+                            <VideoThumbnail
+                              src={msg.imageUrl}
+                              thumbnailUrl={(msg as any).thumbnailUrl ?? null}
+                              className="w-full rounded-[10px]"
+                              intrinsicWidth={msg.mediaWidth ?? undefined}
+                              intrinsicHeight={msg.mediaHeight ?? undefined}
+                              onClick={() => {
+                                if (Date.now() - conversationOpenedAt.current < 900) return;
+                                setMediaViewer({ urls: [msg.imageUrl!], index: 0 });
+                              }}
+                            />
+                          ) : (
+                            // Photo bubble — Telegram-style sizing:
+                            //   • portrait/square: width clamped to ~min 240
+                            //     and ~max 360 (one bubble worth), height
+                            //     follows aspect ratio up to 70vh.
+                            //   • landscape: same width clamps, height
+                            //     follows aspect ratio.
+                            // The aspectRatio style reserves the right shape
+                            // on the very first paint (no portrait→landscape
+                            // flash, no height-jump on decode).
+                            <CachedImg
+                              src={msg.imageUrl}
+                              alt="attached"
+                              className="block w-full object-cover rounded-[10px] cursor-pointer active:opacity-80 transition-opacity"
+                              style={{
+                                minWidth: 240,
+                                maxWidth: 360,
+                                maxHeight: '70vh',
+                                ...(msg.mediaWidth && msg.mediaHeight
+                                  ? { aspectRatio: `${msg.mediaWidth} / ${msg.mediaHeight}` }
+                                  : {}),
+                              }}
+                              onClick={() => {
+                                if (Date.now() - conversationOpenedAt.current < 900) return;
+                                setMediaViewer({ urls: [msg.imageUrl!], index: 0 });
+                              }}
+                            />
+                          )}
+                          {/* Time overlay on the media — only when no caption AND no reactions.
+                              As soon as a reaction is added (or a caption appears via edit),
+                              the time moves out to the bottom row like a regular message. */}
+                          {!msg.content && !hasReactions && (
+                            <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/55 backdrop-blur-sm text-white text-[11px] flex items-center gap-1 pointer-events-none">
+                              {msg.editedAt && <span className="italic opacity-80">modifié</span>}
+                              <span>{msgTime}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* Audio message */}
                     {isAudio && (
@@ -3022,8 +3063,18 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       );
                     })()}
 
-                    {/* Text */}
-                    {msg.content && !isPoll && (
+                    {/* Text — hidden ONLY when content is the synthetic
+                        "📎 <filename>" payload our doc-upload path emits
+                        (single line, leading 📎 + space). Real captions
+                        that happen to start with 📎 (or are multi-line)
+                        are still rendered so user-typed content never
+                        gets eaten by the doc-card collapse. */}
+                    {msg.content && !isPoll && !(
+                      msg.imageUrl
+                      && isDocumentUrl(msg.imageUrl)
+                      && /^📎\s+\S/.test(msg.content)
+                      && !msg.content.includes('\n')
+                    ) && (
                       <div className="whitespace-pre-wrap break-words leading-snug">
                         <RichText text={msg.content} isMine={isMine} />
                       </div>

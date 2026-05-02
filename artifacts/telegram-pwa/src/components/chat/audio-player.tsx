@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Play, Pause, Volume2, AlertCircle, Loader2 } from 'lucide-react';
+import { getCachedSrc, isCached, onCached } from '@/lib/media-cache';
 
 type Props = {
   url: string;
@@ -41,6 +42,18 @@ export function AudioPlayer({ url, duration, isMine, senderAvatar, senderInitial
   const [dragging, setDragging] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Resolve to the cached blob URL when available — voice notes and music
+  // attachments go through the same in-memory cache as images so revisiting
+  // a conversation doesn't re-stream them. The original URL is the fallback.
+  const [resolvedUrl, setResolvedUrl] = useState<string>(() => getCachedSrc(url));
+
+  useEffect(() => {
+    setResolvedUrl(getCachedSrc(url));
+    if (isCached(url)) return;
+    const unsub = onCached(url, (objUrl) => setResolvedUrl(objUrl));
+    return unsub;
+  }, [url]);
 
   const bars = generateBars(url, 40);
 
@@ -156,7 +169,7 @@ export function AudioPlayer({ url, duration, isMine, senderAvatar, senderInitial
       style={{ minWidth: 220, maxWidth: 270 }}
       onMouseLeave={() => setDragging(false)}
     >
-      <audio ref={audioRef} src={url} preload="metadata" />
+      <audio ref={audioRef} src={resolvedUrl} preload="metadata" />
 
       {/* Play / Pause */}
       <button

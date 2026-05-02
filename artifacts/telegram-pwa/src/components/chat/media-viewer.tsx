@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { getCachedSrc, isCached, onCached } from '@/lib/media-cache';
 
 interface Props {
   urls: string[];
@@ -10,6 +11,20 @@ interface Props {
 
 function isVideo(url: string) {
   return /\.(mp4|webm|mov|avi|mkv)$/i.test(url);
+}
+
+/** Resolve an URL to its in-memory cached blob URL when available so the
+ *  full-screen viewer paints instantly from RAM instead of triggering a
+ *  fresh network/SW round-trip when the user already saw the bubble. */
+function useCachedUrl(url: string): string {
+  const [resolved, setResolved] = useState<string>(() => getCachedSrc(url));
+  useEffect(() => {
+    setResolved(getCachedSrc(url));
+    if (isCached(url)) return;
+    const unsub = onCached(url, (objUrl) => setResolved(objUrl));
+    return unsub;
+  }, [url]);
+  return resolved;
 }
 
 export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
@@ -30,6 +45,7 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
   const url = urls[idx] ?? '';
   const isVid = isVideo(url);
   const count = urls.length;
+  const cachedUrl = useCachedUrl(url);
 
   useEffect(() => { scaleRef.current = scale; }, [scale]);
 
@@ -214,7 +230,7 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
               <>
                 {/* Blurred background fill — eliminates black bars, no distortion */}
                 <video
-                  src={url}
+                  src={cachedUrl}
                   muted playsInline
                   aria-hidden
                   preload="metadata"
@@ -232,7 +248,7 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
                 {/* Main video — fills the viewport, centered, respects aspect ratio */}
                 <video
                   ref={videoRef}
-                  src={url}
+                  src={cachedUrl}
                   controls playsInline autoPlay
                   onClick={e => e.stopPropagation()}
                   style={{
@@ -250,7 +266,7 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
               <>
                 {/* Blurred background fill — eliminates black bars, no distortion */}
                 <img
-                  src={url}
+                  src={cachedUrl}
                   alt=""
                   aria-hidden
                   draggable={false}
@@ -269,7 +285,7 @@ export function MediaViewer({ urls, startIndex = 0, onClose }: Props) {
                 {/* Main image — fills full viewport, always contain (no distortion) */}
                 <img
                   ref={imgRef}
-                  src={url}
+                  src={cachedUrl}
                   alt=""
                   draggable={false}
                   style={{
