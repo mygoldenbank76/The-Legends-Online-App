@@ -2622,26 +2622,56 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       <CallBanner />
 
       {/* ── Pinned messages ── */}
-      {pinnedMessageIds.length > 0 && pinnedMsg && !pinnedMsg.isDeleted && (
-        <div
-          onClick={handlePinnedBannerClick}
-          className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-primary/10 border-b border-primary/20 text-xs cursor-pointer hover:bg-primary/15 transition-colors"
-        >
-          <Pin className="w-3 h-3 text-primary flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <span className="text-primary font-medium">
-              Message épinglé{pinnedMessageIds.length > 1 ? ` ${safePinnedIdx + 1}/${pinnedMessageIds.length}` : ''} · 
-            </span>
-            <span className="text-muted-foreground"> {pinnedMsg.content || '📷 Image'}</span>
-          </div>
-          <button
-            onClick={(e) => { e.stopPropagation(); handlePin(pinnedMsg); }}
-            className="text-muted-foreground hover:text-foreground p-1 flex-shrink-0"
+      {pinnedMessageIds.length > 0 && pinnedMsg && !pinnedMsg.isDeleted && (() => {
+        // Build a short, type-aware preview for the pinned banner. The
+        // previous fallback was the literal string "📷 Image", which
+        // mis-labelled every non-text message (calls, audio, polls,
+        // videos, documents…) as a photo.
+        const m = pinnedMsg as Msg & {
+          mediaAlbum?: unknown[]; videoUrl?: string; documentUrl?: string;
+        };
+        let preview: string;
+        if (m.callType) {
+          const isVideo = m.callType === 'video';
+          const isMissed = m.callStatus === 'missed' || m.callStatus === 'declined';
+          const base = isVideo ? 'Appel vidéo' : 'Appel vocal';
+          preview = `${isVideo ? '📹' : '📞'} ${isMissed ? `${base} manqué` : base}`;
+        } else if (m.poll) {
+          preview = `📊 Sondage${m.poll.question ? ` · ${m.poll.question}` : ''}`;
+        } else if (m.audioUrl) {
+          preview = '🎤 Message vocal';
+        } else if (Array.isArray(m.mediaAlbum) && m.mediaAlbum.length > 0) {
+          preview = `📷 Album · ${m.mediaAlbum.length} média${m.mediaAlbum.length > 1 ? 's' : ''}`;
+        } else if (m.videoUrl) {
+          preview = `🎥 Vidéo${m.content ? ` · ${m.content}` : ''}`;
+        } else if (m.imageUrl) {
+          preview = `📷 Photo${m.content ? ` · ${m.content}` : ''}`;
+        } else if (m.documentUrl) {
+          preview = `📎 Fichier${m.content ? ` · ${m.content}` : ''}`;
+        } else {
+          preview = m.content || 'Message';
+        }
+        return (
+          <div
+            onClick={handlePinnedBannerClick}
+            className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-primary/10 border-b border-primary/20 text-xs cursor-pointer hover:bg-primary/15 transition-colors"
           >
-            <X className="w-3 h-3" />
-          </button>
-        </div>
-      )}
+            <Pin className="w-3 h-3 text-primary flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <span className="text-primary font-medium">
+                Message épinglé{pinnedMessageIds.length > 1 ? ` ${safePinnedIdx + 1}/${pinnedMessageIds.length}` : ''} · 
+              </span>
+              <span className="text-muted-foreground"> {preview}</span>
+            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); handlePin(pinnedMsg); }}
+              className="text-muted-foreground hover:text-foreground p-1 flex-shrink-0"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        );
+      })()}
 
       {/* ── Messages ── */}
       <div className="flex-1 min-h-0 relative">
