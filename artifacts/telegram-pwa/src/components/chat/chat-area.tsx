@@ -2704,10 +2704,13 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           <div className="flex-shrink-0 px-2 pt-2">
             <div
               onClick={handlePinnedBannerClick}
-              className="flex items-stretch gap-0 rounded-xl overflow-hidden cursor-pointer
-                         bg-card/80 backdrop-blur-md border border-foreground/10
+              /* `glass` matches the chat header's exact glass-morphism
+                 recipe (background, blur, border, inset highlight) so
+                 the floating banner reads as a continuation of the
+                 header strip instead of a foreign card. */
+              className="glass flex items-stretch gap-0 rounded-xl overflow-hidden cursor-pointer
                          shadow-[0_4px_16px_-6px_rgba(0,0,0,0.35)]
-                         hover:bg-card/90 transition-colors"
+                         hover:brightness-110 transition-[filter]"
             >
               {/* Vertical accent bar — Telegram's signature pinned-quote stripe */}
               <div className="w-[3px] flex-shrink-0 bg-primary" />
