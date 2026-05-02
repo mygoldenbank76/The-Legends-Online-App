@@ -2581,7 +2581,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
               <div
                 key={msg.id}
                 id={`msg-${msg.id}`}
-                className={`flex items-end gap-2 w-full ${isMine ? 'justify-end' : 'justify-start'} ${isSameAuthor ? 'mt-0.5' : 'mt-3'} ${(isSearchMatch || isDusting) ? 'relative' : ''} ${isDusting ? 'dust-fading' : ''}`}
+                className={`flex items-end gap-2 w-full ${isMine ? 'justify-end' : 'justify-start'} ${isSameAuthor ? 'mt-0.5' : 'mt-3'} ${isSearchMatch ? 'relative' : ''}`}
                 style={{ userSelect: 'none', WebkitUserSelect: 'none', contain: 'layout style', ...(isCurrentMatch ? { outline: '2px solid hsl(263,90%,65%)', outlineOffset: 4, borderRadius: 12 } : {}) } as React.CSSProperties}
                 onContextMenu={(e) => openCtxMenu(e, msg)}
                 onClick={(e) => {
@@ -2656,13 +2656,14 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
                 {/* Bubble wrapper — only handles the slide animation */}
                 <div
-                  className="max-w-[80%] relative"
+                  className={`max-w-[80%] relative ${isDusting ? 'dust-fading' : ''}`}
                   style={{
                     transform: `translateX(${swipeOffset}px)`,
                     transition: swipingId === msg.id ? 'none' : 'transform 0.2s ease-out',
                     willChange: swipeOffset !== 0 ? 'transform' : undefined,
                   }}
                 >
+                  {isDusting && <DustEffect variant={isMine ? 'sent' : 'received'} />}
                   {/* Pinned label */}
                   {isPinned && (
                     <div className={`flex items-center gap-0.5 mb-0.5 text-[10px] text-primary ${isMine ? 'justify-end' : 'justify-start'}`}>
@@ -3021,7 +3022,6 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     })()}
                   </div>
                 </div>
-                {isDusting && <DustEffect variant={isMine ? 'sent' : 'received'} />}
               </div>
             );
           })}
