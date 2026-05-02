@@ -839,6 +839,15 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // ── Scroll ─────────────────────────────────────────────────
   const [scrollReady, setScrollReady] = useState(false);
   const scrollReadyConvRef = useRef<number | null>(null);
+  // Forward-declared here (used to gate the initial-snap layout
+  // effect below, but the ResizeObserver wiring lives further
+  // down with the rest of the composer plumbing). `null` means
+  // "not yet measured" — see the long comment near the
+  // composerRef block below for why we MUST wait on a real
+  // measurement before snapping.
+  const composerRef = useRef<HTMLDivElement>(null);
+  const [composerHeight, setComposerHeight] = useState<number | null>(null);
+  const prevComposerHeightRef = useRef(0);
   // The "settle" window after initial load is now PASSIVE: we no longer
   // forcibly snap-to-bottom on every height change. Instead we rely on
   // the browser's native scroll anchoring (CSS `overflow-anchor: auto`
@@ -878,6 +887,55 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     setScrollReady(true);
   });
 
+  // Settle-window re-pinning — kept in a SEPARATE effect, keyed
+  // on stable scalars `[scrollReady, conversationId]`, so the
+  // timers can't be cancelled by incidental re-renders. The
+  // snap effect above derives a fresh `messages` array every
+  // render (the parent does `.filter(...)` on each pass), so
+  // adding `messages` to a deps array still flagged the effect
+  // as "changed" every render and the cleanup would clear all
+  // timers before any could fire — silently turning the fix
+  // into a no-op. Keying purely on `scrollReady` (which flips
+  // false→true exactly once per conversation, see the reset
+  // effect above) and `conversationId` avoids that whole class
+  // of bugs.
+  //
+  // Why we need this at all: chats with media (images / videos
+  // / link previews / GIFs) paint their bubbles at a reserved
+  // aspect-ratio height first, then grow once the asset
+  // decodes. Native `overflow-anchor` keeps the visible
+  // content stable while that happens, which is the WRONG
+  // behaviour right after entering a chat — it would leave
+  // the user looking at older media in the middle of the
+  // viewport instead of the latest message at the bottom
+  // (the user's report: "j'ouvre la conversation et ça me
+  // monte vers les média alors que je devrais être en bas").
+  // We re-pin to the bottom a handful of times over ~1.5 s
+  // to stay glued there as media bubbles finish growing.
+  // Each re-pin guards on `wasAtBottomRef` so a user who
+  // has already scrolled up to read history is never yanked.
+  useEffect(() => {
+    if (!scrollReady) return;
+    const targetConv = conversationId;
+    const repin = () => {
+      if (scrollReadyConvRef.current !== targetConv) return;
+      if (!wasAtBottomRef.current) return;
+      const el = scrollRef.current;
+      if (!el) return;
+      el.scrollTop = el.scrollHeight;
+    };
+    const t1 = window.setTimeout(repin, 50);
+    const t2 = window.setTimeout(repin, 200);
+    const t3 = window.setTimeout(repin, 500);
+    const t4 = window.setTimeout(repin, 1000);
+    const t5 = window.setTimeout(repin, 1500);
+    return () => {
+      window.clearTimeout(t1); window.clearTimeout(t2);
+      window.clearTimeout(t3); window.clearTimeout(t4);
+      window.clearTimeout(t5);
+    };
+  }, [scrollReady, conversationId]);
+
   const scrollBottom = useCallback((delay = 0) => {
     setTimeout(() => {
       if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -905,9 +963,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // settling-window pin and adding overflow-anchor: it wasn't anything
   // INSIDE the messages stack, it was the container's bottom padding
   // changing AFTER the snap.
-  const composerRef = useRef<HTMLDivElement>(null);
-  const [composerHeight, setComposerHeight] = useState<number | null>(null);
-  const prevComposerHeightRef = useRef(0);
+  // composerRef / composerHeight / prevComposerHeightRef are
+  // forward-declared above (next to the scroll state) so the
+  // initial-snap useLayoutEffect can list `composerHeight` in
+  // its dep array without a TDZ TypeScript error.
   useLayoutEffect(() => {
     const el = composerRef.current;
     if (!el) return;
