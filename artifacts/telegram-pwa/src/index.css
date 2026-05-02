@@ -492,49 +492,88 @@ html:not(.dark) .ambient-blobs::after {
   }
 }
 
-/* ── Pinned-message flash: pronounced glow pulse on the actual
-   bubble (not a 1px ring around the row). Used after tapping
-   the pinned banner to draw the eye to the target message. ── */
-@keyframes pinned-flash {
-  /* 0% and 100% intentionally omit box-shadow so the keyframe
-     interpolates FROM / TO the bubble's underlying box-shadow
-     (set in .bubble-sent / .bubble-received). This avoids a
-     1-frame flicker where the natural shadow would otherwise
-     vanish before the flash halo grows in. */
-  0% {
-    transform: scale(1);
-  }
-  15% {
-    box-shadow:
-      0 0 0 6px hsl(263 95% 70% / 0.55),
-      0 10px 40px -4px hsl(263 95% 65% / 0.85);
-    transform: scale(1.04);
-  }
-  45% {
-    box-shadow:
-      0 0 0 3px hsl(263 95% 70% / 0.35),
-      0 8px 32px -6px hsl(263 95% 65% / 0.55);
-    transform: scale(1.015);
-  }
-  75% {
-    box-shadow:
-      0 0 0 5px hsl(263 95% 70% / 0.3),
-      0 8px 28px -6px hsl(263 95% 65% / 0.45);
-    transform: scale(1.02);
-  }
-  100% {
-    transform: scale(1);
-  }
+/* ── Pinned-message flash: a glowing "comet" trail that orbits
+   the bubble twice. Used after tapping the pinned banner to
+   draw the eye to the target message. Same primary purple as
+   the rest of the brand. ── */
+
+/* Register the angle as a real CSS <angle> so it can interpolate
+   smoothly inside the conic-gradient. Without @property, the
+   custom property would be a string and the snake would jump
+   instead of rotating fluidly. */
+@property --pinned-snake-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
 }
+
+@keyframes pinned-snake-rotate {
+  to { --pinned-snake-angle: 720deg; }
+}
+@keyframes pinned-snake-fade {
+  0%   { opacity: 0; }
+  8%   { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes pinned-flash-pop {
+  0%, 100% { transform: scale(1); }
+  18%      { transform: scale(1.025); }
+}
+
 .pinned-flash {
-  animation: pinned-flash 1.6s cubic-bezier(0.22, 1, 0.36, 1);
+  /* Establish a positioning context for the ::before snake ring. */
+  position: relative;
+  animation: pinned-flash-pop 1.6s cubic-bezier(0.22, 1, 0.36, 1);
   transform-origin: center;
-  will-change: transform, box-shadow;
+  will-change: transform;
 }
+
+.pinned-flash::before {
+  content: '';
+  position: absolute;
+  /* Extend 3 px beyond the bubble in every direction, then mask
+     out the inner content area so only the 3 px ring remains
+     visible — that ring sits exactly OUTSIDE the bubble's edge. */
+  inset: -3px;
+  border-radius: inherit;
+  padding: 3px;
+  background: conic-gradient(
+    from var(--pinned-snake-angle, 0deg),
+    transparent 0deg 220deg,
+    hsl(263 95% 70% / 0.25) 255deg,
+    hsl(263 95% 75% / 0.55) 300deg,
+    hsl(263 100% 80% / 0.95) 342deg,
+    hsl(280 100% 95%) 358deg,
+    hsl(263 100% 80% / 0.95) 360deg
+  );
+  /* Two-layer mask (outer minus inner = ring) so the conic
+     gradient only paints the border ring. */
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  /* Soft glow around the comet head/tail, picks up the alpha
+     from the masked ring so the glow follows the snake. */
+  filter:
+    drop-shadow(0 0 4px hsl(263 100% 75% / 0.95))
+    drop-shadow(0 0 10px hsl(263 95% 60% / 0.65));
+  animation:
+    pinned-snake-rotate 1.6s linear,
+    pinned-snake-fade   1.6s linear;
+  pointer-events: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .pinned-flash {
-    animation: none;
-    box-shadow: 0 0 0 3px hsl(263 95% 70% / 0.5);
+  .pinned-flash,
+  .pinned-flash::before { animation: none !important; }
+  .pinned-flash::before {
+    background: none;
+    box-shadow:
+      0 0 0 2px hsl(263 95% 70% / 0.65),
+      0 0 12px hsl(263 95% 65% / 0.55);
+    opacity: 1;
   }
 }
 
