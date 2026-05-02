@@ -49,10 +49,7 @@ export default defineConfig({
     allowedHosts: true,
     fs: {
       strict: true,
-      // Deny dotfiles by default (security), but explicitly allow
-      // `.well-known/` so Android's TWA verifier can reach
-      // `/.well-known/assetlinks.json` even from the dev server.
-      deny: ["**/.*", "!**/.well-known/**"],
+      deny: ["**/.*"],
     },
   },
   preview: {

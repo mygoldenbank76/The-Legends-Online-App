@@ -12,6 +12,35 @@ if (_metaThemeColor) {
   _metaThemeColor.setAttribute("content", "#0e121c");
 }
 
+// ── Persistent storage request ────────────────────────────────────────
+// Without this, Chrome's default storage quota for a site is "best
+// effort": under disk pressure the browser is allowed to evict our
+// MEDIA_CACHE / STATIC_CACHE entries even though the user installed
+// the app and expects native-app behaviour. With persistent storage
+// granted, caches survive until the user manually clears site data —
+// which is the behaviour Telegram, WhatsApp, etc. native apps have.
+//
+// For installed PWAs and Trusted Web Activities (our APK), Chrome
+// auto-grants this without a user prompt. For regular browser tabs
+// it may be denied silently — that's fine, the cache still works,
+// it's just evictable. Either way, calling persist() is harmless.
+//
+// Runs in PROD only (dev unregisters the SW entirely below) and is
+// fire-and-forget — we never want to block app startup on this.
+async function requestPersistentStorage() {
+  if (!navigator.storage?.persist) return;
+  try {
+    const already = await navigator.storage.persisted();
+    if (already) return;
+    const granted = await navigator.storage.persist();
+    if (granted) {
+      console.info('[storage] persistent storage granted — cache survives eviction');
+    }
+  } catch {
+    /* non-fatal */
+  }
+}
+
 if ("serviceWorker" in navigator) {
   if (import.meta.env.PROD) {
     window.addEventListener("load", () => {
@@ -30,6 +59,9 @@ if ("serviceWorker" in navigator) {
               }
             });
           });
+          // Once the SW is registered, lock our caches into persistent
+          // storage so the browser doesn't evict media under pressure.
+          requestPersistentStorage();
         })
         .catch((err) => {
           console.log("ServiceWorker registration failed: ", err);
