@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { CachedImg } from './cached-img';
-import { isDocumentUrl, isDocumentMessage, stripDocPrefix } from './file-card';
+import { isDocumentUrl, isDocumentMessage } from './file-card';
 import {
   useListConversations,
   getListConversationsQueryKey,
@@ -31,7 +31,9 @@ const dateFnsLocaleMap: Record<string, Locale> = {
  * Supprime toute la syntaxe markdown et extrait le label des liens.
  * → [Banger](https://...) devient "Banger"
  * → **texte** devient "texte"
- * → https://... devient "🔗 Lien"
+ * Les URLs nues sont conservées telles quelles (le cas "message = URL
+ * pure" est intercepté en amont et rendu sous la forme "a partagé un
+ * lien" via les phrases d'action localisées).
  */
 function plainPreview(text: string): string {
   return text
@@ -42,9 +44,21 @@ function plainPreview(text: string): string {
     .replace(/~~([^~]+)~~/g, '$1')                          // ~~strike~~
     .replace(/\|\|([^|]+)\|\|/g, '$1')                     // ||spoiler||
     .replace(/`([^`]+)`/g, '$1')                            // `code`
-    .replace(/https?:\/\/\S+/g, '🔗 Lien')                // URLs seules → "🔗 Lien"
     .trim();
 }
+
+// Detect a message whose entire content is a single URL (after stripping
+// markdown link syntax). These get the "a partagé un lien" action phrase
+// in the conversation list.
+const URL_ONLY_RE = /^https?:\/\/\S+$/i;
+const MARKDOWN_URL_ONLY_RE = /^\[[^\]]+\]\(https?:\/\/\S+\)$/i;
+function isLinkOnlyContent(content: string): boolean {
+  const trimmed = content.trim();
+  return URL_ONLY_RE.test(trimmed) || MARKDOWN_URL_ONLY_RE.test(trimmed);
+}
+
+const VIDEO_EXT_RE = /\.(mp4|webm|mov|avi|mkv|m4v)(\?|$)/i;
+const GIF_RE = /\.gif(\?|$)|tenor\.com|giphy\.com|media\.tenor\./i;
 
 const SWIPE_REVEAL_PX = -72;
 const LONG_PRESS_MS = 450;
@@ -381,55 +395,61 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
                           </span>
                         </button>
                       ) : (() => {
-                          // Mini-vignette Telegram-style: petit aperçu carré 28x28
-                          // pour les derniers messages photo (et vidéo, montré avec
-                          // une icône play). Doc / audio / appel restent en texte
-                          // pur pour ne pas surcharger la liste.
+                          // Action-phrase preview: every non-text last
+                          // message ("a envoyé une photo", "a créé un
+                          // sondage", "a partagé un lien", …) instead
+                          // of the previous icon+noun mini-thumbnail
+                          // pattern. Plain text still wins when the
+                          // message has actual prose content; URLs are
+                          // intercepted only when the entire message
+                          // body is a single link.
                           const lmAny = lastMsg as any;
                           const lmUrl: string | undefined = lastMsg?.imageUrl ?? undefined;
                           const lmAlbumFirst: string | undefined = Array.isArray(lmAny?.mediaAlbum) && lmAny.mediaAlbum.length > 0
                             ? lmAny.mediaAlbum[0]
                             : undefined;
-                          const thumbUrl = lmUrl ?? lmAlbumFirst;
-                          // Use the content-aware detector so image-typed files
-                          // sent through the Document picker still get the
-                          // "📎 Document" preview, not a thumbnail.
+                          const mediaUrl = lmUrl ?? lmAlbumFirst;
+                          // Content-aware document detector — image-typed
+                          // files sent via the Document picker still get
+                          // the "fichier" phrase, not "photo".
                           const isDoc = isDocumentMessage(lastMsg ?? undefined);
-                          const isVideoThumb = !!thumbUrl && /\.(mp4|webm|mov|avi|mkv|m4v)$/i.test(thumbUrl);
-                          const showThumb = !!thumbUrl && !isDoc && !isVideoThumb && !lmAny?.callType;
+
+                          // Resolve the action label. The text content
+                          // takes priority when present and is NOT a
+                          // bare URL (since a URL alone reads better as
+                          // "a partagé un lien" than as raw text).
+                          let actionLabel: string | null = null;
+                          if (lastMsg) {
+                            if (lmAny.callType) {
+                              actionLabel = lmAny.callStatus === 'missed'
+                                ? (lmAny.callType === 'video' ? 'Appel vidéo manqué' : 'Appel vocal manqué')
+                                : (lmAny.callType === 'video' ? 'Appel vidéo' : 'Appel vocal');
+                            } else if (isDoc) {
+                              actionLabel = t.conversations.file;
+                            } else if (lmAny.pollId) {
+                              actionLabel = t.conversations.poll;
+                            } else if (lmAny.audioUrl) {
+                              actionLabel = t.conversations.voiceMessage;
+                            } else if (lastMsg.content && !isLinkOnlyContent(lastMsg.content)) {
+                              actionLabel = plainPreview(lastMsg.content);
+                            } else if (lastMsg.content && isLinkOnlyContent(lastMsg.content)) {
+                              actionLabel = t.conversations.link;
+                            } else if (mediaUrl) {
+                              if (GIF_RE.test(mediaUrl)) actionLabel = t.conversations.gif;
+                              else if (VIDEO_EXT_RE.test(mediaUrl)) actionLabel = t.conversations.video;
+                              else actionLabel = t.conversations.photo;
+                            }
+                          }
 
                           return (
                             <div className="flex items-center gap-1.5 min-w-0 flex-1" style={{ pointerEvents: 'none' }}>
-                              {showThumb && (
-                                <div className="w-7 h-7 rounded-md overflow-hidden flex-shrink-0 bg-foreground/10">
-                                  <CachedImg
-                                    src={thumbUrl!}
-                                    alt=""
-                                    className="w-full h-full object-cover"
-                                  />
-                                </div>
-                              )}
                               <p className="text-xs text-muted-foreground truncate min-w-0">
                                 {lastMsg ? (
                                   <>
                                     {lastMsg.senderId === user.id && (
                                       <span className="text-primary/70 mr-1">{t.conversations.you}:</span>
                                     )}
-                                    {lmAny.callType ? (
-                                      lmAny.callStatus === 'missed'
-                                        ? (lmAny.callType === 'video' ? '📹 Appel vidéo manqué' : '📞 Appel vocal manqué')
-                                        : (lmAny.callType === 'video' ? '📹 Appel vidéo' : '📞 Appel vocal')
-                                    ) : isDoc
-                                      ? `📎 ${stripDocPrefix(lastMsg.content) || 'Document'}`
-                                      : lastMsg.content
-                                      ? plainPreview(lastMsg.content)
-                                      : lmAny.audioUrl
-                                      ? t.conversations.voiceMessage
-                                      : lmAny.pollId
-                                      ? t.conversations.poll
-                                      : lmUrl
-                                      ? (isVideoThumb ? '🎬 Vidéo' : t.conversations.image)
-                                      : ''}
+                                    {actionLabel ?? ''}
                                   </>
                                 ) : (
                                   <span className="italic">{t.conversations.noMessage}</span>

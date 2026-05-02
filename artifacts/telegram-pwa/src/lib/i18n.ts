@@ -127,7 +127,11 @@ type Dict = {
     noConversationDesc: string;
     voiceMessage: string;
     poll: string;
-    image: string;
+    photo: string;
+    video: string;
+    gif: string;
+    file: string;
+    link: string;
     you: string;
     noMessage: string;
   };
@@ -315,9 +319,13 @@ export const i18n: Record<AppLang, Dict> = {
     conversations: {
       noConversation: 'Aucune conversation',
       noConversationDesc: 'Utilise la recherche pour démarrer',
-      voiceMessage: '🎤 Message vocal',
-      poll: '📊 Sondage',
-      image: '📷 Image',
+      voiceMessage: 'a envoyé un message vocal',
+      poll: 'a créé un sondage',
+      photo: 'a envoyé une photo',
+      video: 'a envoyé une vidéo',
+      gif: 'a envoyé un gif',
+      file: 'a envoyé un fichier',
+      link: 'a partagé un lien',
       you: 'Vous',
       noMessage: 'Aucun message',
     },
@@ -504,9 +512,13 @@ export const i18n: Record<AppLang, Dict> = {
     conversations: {
       noConversation: 'No conversation',
       noConversationDesc: 'Use the search to start',
-      voiceMessage: '🎤 Voice message',
-      poll: '📊 Poll',
-      image: '📷 Image',
+      voiceMessage: 'sent a voice message',
+      poll: 'created a poll',
+      photo: 'sent a photo',
+      video: 'sent a video',
+      gif: 'sent a GIF',
+      file: 'sent a file',
+      link: 'shared a link',
       you: 'You',
       noMessage: 'No message',
     },
@@ -696,9 +708,13 @@ export const i18n: Record<AppLang, Dict> = {
     conversations: {
       noConversation: 'Sin conversación',
       noConversationDesc: 'Usa la búsqueda para empezar',
-      voiceMessage: '🎤 Mensaje de voz',
-      poll: '📊 Encuesta',
-      image: '📷 Imagen',
+      voiceMessage: 'envió un mensaje de voz',
+      poll: 'creó una encuesta',
+      photo: 'envió una foto',
+      video: 'envió un vídeo',
+      gif: 'envió un GIF',
+      file: 'envió un archivo',
+      link: 'compartió un enlace',
       you: 'Tú',
       noMessage: 'Sin mensajes',
     },
@@ -888,9 +904,13 @@ export const i18n: Record<AppLang, Dict> = {
     conversations: {
       noConversation: 'لا توجد محادثة',
       noConversationDesc: 'استخدم البحث للبدء',
-      voiceMessage: '🎤 رسالة صوتية',
-      poll: '📊 استطلاع',
-      image: '📷 صورة',
+      voiceMessage: 'أرسل رسالة صوتية',
+      poll: 'أنشأ استطلاعًا',
+      photo: 'أرسل صورة',
+      video: 'أرسل مقطع فيديو',
+      gif: 'أرسل صورة متحركة',
+      file: 'أرسل ملفًا',
+      link: 'شارك رابطًا',
       you: 'أنت',
       noMessage: 'لا توجد رسالة',
     },
@@ -1080,9 +1100,13 @@ export const i18n: Record<AppLang, Dict> = {
     conversations: {
       noConversation: 'Nenhuma conversa',
       noConversationDesc: 'Use a busca para começar',
-      voiceMessage: '🎤 Mensagem de voz',
-      poll: '📊 Enquete',
-      image: '📷 Imagem',
+      voiceMessage: 'enviou uma mensagem de voz',
+      poll: 'criou uma enquete',
+      photo: 'enviou uma foto',
+      video: 'enviou um vídeo',
+      gif: 'enviou um GIF',
+      file: 'enviou um arquivo',
+      link: 'compartilhou um link',
       you: 'Você',
       noMessage: 'Nenhuma mensagem',
     },
@@ -1272,9 +1296,13 @@ export const i18n: Record<AppLang, Dict> = {
     conversations: {
       noConversation: 'Keine Unterhaltung',
       noConversationDesc: 'Suche verwenden, um zu beginnen',
-      voiceMessage: '🎤 Sprachnachricht',
-      poll: '📊 Umfrage',
-      image: '📷 Bild',
+      voiceMessage: 'hat eine Sprachnachricht gesendet',
+      poll: 'hat eine Umfrage erstellt',
+      photo: 'hat ein Foto gesendet',
+      video: 'hat ein Video gesendet',
+      gif: 'hat ein GIF gesendet',
+      file: 'hat eine Datei gesendet',
+      link: 'hat einen Link geteilt',
       you: 'Sie',
       noMessage: 'Keine Nachricht',
     },
