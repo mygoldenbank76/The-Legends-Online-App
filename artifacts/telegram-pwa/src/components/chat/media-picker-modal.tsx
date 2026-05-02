@@ -21,40 +21,73 @@ interface Props {
   addMoreInputRef: React.RefObject<HTMLInputElement>;
 }
 
-// Compress an image file using canvas
+// Compress an image file using canvas. Hardened so it can NEVER
+// hang the send flow: every failure path resolves with the
+// original file instead of leaving the promise pending.
 async function compressImage(file: File, quality: MediaQuality): Promise<File> {
   return new Promise((resolve) => {
     const img = new Image();
     const objUrl = URL.createObjectURL(file);
+    let settled = false;
 
-    img.onload = () => {
-      const maxDim = quality === 'SD' ? 1280 : 4096;
-      const q = quality === 'SD' ? 0.72 : 0.92;
-      let { width: w, height: h } = img;
+    // Hard 8 s ceiling — if the browser silently fails to decode
+    // a very large image, fail open with the original file
+    // instead of leaving the user staring at a frozen spinner.
+    const watchdog = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      URL.revokeObjectURL(objUrl);
+      resolve(file);
+    }, 8000);
 
-      if (Math.max(w, h) > maxDim) {
-        const ratio = maxDim / Math.max(w, h);
-        w = Math.round(w * ratio);
-        h = Math.round(h * ratio);
-      }
-
-      const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
-
-      canvas.toBlob(
-        (blob) => {
-          URL.revokeObjectURL(objUrl);
-          if (!blob) { resolve(file); return; }
-          resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
-        },
-        'image/jpeg',
-        q,
-      );
+    const finish = (out: File) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(watchdog);
+      URL.revokeObjectURL(objUrl);
+      resolve(out);
     };
 
-    img.onerror = () => { URL.revokeObjectURL(objUrl); resolve(file); };
+    img.onload = () => {
+      try {
+        const maxDim = quality === 'SD' ? 1280 : 4096;
+        const q = quality === 'SD' ? 0.72 : 0.92;
+        let { width: w, height: h } = img;
+
+        if (Math.max(w, h) > maxDim) {
+          const ratio = maxDim / Math.max(w, h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { finish(file); return; }
+        ctx.drawImage(img, 0, 0, w, h);
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) { finish(file); return; }
+            finish(new File(
+              [blob],
+              file.name.replace(/\.[^.]+$/, '.jpg'),
+              { type: 'image/jpeg' },
+            ));
+          },
+          'image/jpeg',
+          q,
+        );
+      } catch {
+        // drawImage / toBlob can throw on mobile for very large
+        // canvases (out-of-memory, max-canvas-size). Fall back
+        // to the uncompressed original.
+        finish(file);
+      }
+    };
+
+    img.onerror = () => finish(file);
     img.src = objUrl;
   });
 }
@@ -250,13 +283,25 @@ export function MediaPickerModal({ initialFiles, onClose, onSend, addMoreInputRe
     if (!mediaFiles.length || sending) return;
     setSending(true);
     try {
+      // Process each file independently so a single failing
+      // compression can't poison the whole batch. Each promise
+      // is wrapped to fall back to the original file on any
+      // throw — combined with compressImage's own 8 s
+      // watchdog, this guarantees the await below always
+      // resolves and the spinner never spins forever.
       const processedFiles = await Promise.all(
-        mediaFiles.map(async (m) => {
-          if (m.type === 'image') return compressImage(m.file, quality);
-          return m.file; // videos sent as-is
-        })
+        mediaFiles.map((m) =>
+          m.type === 'image'
+            ? compressImage(m.file, quality).catch(() => m.file)
+            : Promise.resolve(m.file), // videos sent as-is
+        ),
       );
       await onSend(processedFiles, caption.trim(), quality);
+    } catch (err) {
+      // Surface the failure in the console for diagnostics —
+      // without this, a thrown onSend would just look like
+      // "the button does nothing".
+      console.error('[MediaPickerModal] send failed', err);
     } finally {
       setSending(false);
     }
@@ -468,7 +513,12 @@ export function MediaPickerModal({ initialFiles, onClose, onSend, addMoreInputRe
           className="flex-shrink-0 w-10 h-10 rounded-xl gradient-primary glow-primary-sm text-white transition-all flex items-center justify-center hover:opacity-95 active:scale-95 disabled:opacity-60"
         >
           {sending ? (
-            <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            // Spinner border was `border-primary` (purple) on a
+            // purple `gradient-primary` button — invisible. Use
+            // white so the user actually sees that the send is
+            // in progress instead of a "filled-purple-blob"
+            // button that looks broken.
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
           ) : (
             <Send className="w-4 h-4" />
           )}
