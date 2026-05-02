@@ -835,10 +835,23 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const msgsWrapRef   = useRef<HTMLDivElement>(null);
   const settlingRef   = useRef(false);
   const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Top markers (the "Afficher les messages précédents" button and the
+  // "— début de la conversation —" pill) are gated behind a short delay
+  // so they don't render at all during the entry-time settle window.
+  // Reason: those two have different intrinsic heights (the button is
+  // ~44 px tall, the pill is ~24 px) and the `hasMore` flag flips from
+  // its initial `true` to `false` as soon as the messages payload
+  // resolves. If we render them right away, the user sees the gap
+  // between the header and the first message visibly grow/shrink as
+  // those states settle — which is exactly the layout shift the user
+  // reported.
+  const [topMarkerReady, setTopMarkerReady] = useState(false);
+  const topMarkerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Reset visibility when conversation changes
   useEffect(() => {
     setScrollReady(false);
+    setTopMarkerReady(false);
     scrollReadyConvRef.current = null;
   }, [conversationId]);
 
@@ -857,7 +870,19 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     settlingRef.current = true;
     if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
     settleTimerRef.current = setTimeout(() => { settlingRef.current = false; }, 5000);
+    // Reveal the top markers (button / "début" pill) only after the
+    // first wave of layout-shifting work has had time to settle. 700 ms
+    // is enough for `hasMore` to be derived from the message payload
+    // (sub-frame), for the link-preview iframes to compute their final
+    // height, and for any in-cache photos to finish decoding.
+    if (topMarkerTimerRef.current) clearTimeout(topMarkerTimerRef.current);
+    topMarkerTimerRef.current = setTimeout(() => setTopMarkerReady(true), 700);
   });
+
+  // Cleanup the deferred-reveal timer if the component unmounts mid-flight.
+  useEffect(() => () => {
+    if (topMarkerTimerRef.current) clearTimeout(topMarkerTimerRef.current);
+  }, []);
 
   // Re-scroll to bottom whenever the messages wrapper grows in height
   // (e.g. images/GIFs loading) — but only during the settle window.
@@ -2594,11 +2619,17 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             IntersectionObserver. Older messages are now fetched
             explicitly via the button below — no auto-load on scroll. */}
         <div ref={sentinelRef} className="h-1" />
-        {/* Manual "show previous messages" pill — only appears once the
-            conversation has rendered (avoids the entry-time flash) and
-            only while there are still older messages to fetch. */}
-        {hasMore && !isLoading && messages.length > 0 && (
-          <div className="flex justify-center py-2">
+        {/* Top marker slot — fixed height so the button (taller) and
+            the "début de la conversation" pill (shorter) take the
+            exact same vertical space. Without a fixed height, the
+            `hasMore` flag flipping from true → false right after the
+            first paint visibly resized the gap between the header and
+            the first message, which is what the user was seeing as
+            "the messages move when I arrive in a conversation".
+            Both children are gated on `topMarkerReady` so the slot
+            stays empty during the ~700 ms settling window. */}
+        <div className="h-11 flex items-center justify-center">
+          {topMarkerReady && hasMore && !isLoading && messages.length > 0 && (
             <button
               type="button"
               onClick={loadMore}
@@ -2614,14 +2645,11 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                 <span>Afficher les messages précédents</span>
               )}
             </button>
-          </div>
-        )}
-        {/* Subtle "start of conversation" marker once everything is loaded. */}
-        {!hasMore && !isLoading && messages.length > 0 && (
-          <div className="flex justify-center py-2">
+          )}
+          {topMarkerReady && !hasMore && !isLoading && messages.length > 0 && (
             <span className="text-[10px] text-muted-foreground/50 select-none">— début de la conversation —</span>
-          </div>
-        )}
+          )}
+        </div>
         {isLoading && <MessagesSkeleton />}
         {!isLoading && messages.length === 0 && (
           <EmptyConversation title={uiT.chat.emptyTitle} subtitle={uiT.chat.emptySubtitle} />
