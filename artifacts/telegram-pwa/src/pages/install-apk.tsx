@@ -6,7 +6,7 @@ import { AnimatedBackground } from '@/components/animated-background';
 // Set this once you've connected the project to GitHub and the first
 // "Build Android APK" workflow has finished. Format: "owner/repository".
 // Leaving it null falls back to the legacy TWA APK shipped in /downloads.
-const GITHUB_REPO: string | null = null;
+const GITHUB_REPO: string | null = 'mygoldenbank76/the-legends-online';
 
 const TWA_APK_URL = '/downloads/legends.apk';
 const NATIVE_APK_RELEASE_TAG = 'native-latest';
