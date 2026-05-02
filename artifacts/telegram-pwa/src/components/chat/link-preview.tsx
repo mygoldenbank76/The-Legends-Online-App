@@ -240,10 +240,11 @@ export function LinkPreviewCard({ preview, isMine }: Props) {
   const platform = preview.platform ?? null;
   const cfg = platform ? PLATFORM_CONFIG[platform] : null;
 
-  // Edge-to-edge inside the message bubble (matches the negative-margin
-  // treatment used for images/videos so the preview sits flush with the
-  // bubble's inner edges and uses a matching rounded-[10px] corner radius).
-  const containerClass = `mt-1.5 -mx-1.5 rounded-[10px] overflow-hidden text-xs transition-all
+  // Edge-to-edge inside the message bubble — matches the photo/video
+  // wrapper's 2px visible-margin treatment. Bubble pads 6px T/B + 10px
+  // L/R; the card pulls -8px L/R → 2px visible. Top margin is the
+  // gap to the URL/text above (mt-1 = 4px breathing room).
+  const containerClass = `mt-1 -mx-2 rounded-[10px] overflow-hidden text-xs transition-all
     ${isMine
       ? 'bg-black/15 border border-white/10 hover:border-white/25'
       : 'bg-background/60 border border-border hover:border-primary/40 hover:glow-primary-sm'}`;

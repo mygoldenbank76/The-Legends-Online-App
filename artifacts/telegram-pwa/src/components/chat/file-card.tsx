@@ -92,7 +92,7 @@ export function FileCard({ url, name, isMine }: Props) {
 
   return (
     <div
-      className={`mb-1.5 -mx-1.5 -mt-0.5 flex items-center gap-3 px-2.5 py-2 rounded-[10px] cursor-pointer active:scale-[0.99] transition-all select-none ${containerClass}`}
+      className={`-mb-1 -mx-2 -mt-1 flex items-center gap-3 px-2.5 py-2 rounded-[10px] cursor-pointer active:scale-[0.99] transition-all select-none ${containerClass}`}
       onClick={handleDownload}
       role="button"
       aria-label={`Télécharger ${name}`}
