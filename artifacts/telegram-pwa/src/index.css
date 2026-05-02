@@ -564,8 +564,12 @@ html:not(.dark) .ambient-blobs::after {
   filter:
     drop-shadow(0 0 4px hsl(263 100% 75% / 0.95))
     drop-shadow(0 0 10px hsl(263 95% 60% / 0.65));
+  /* Rotation eases out so the comet head decelerates as it
+     fades, instead of moving at full speed up to the very last
+     frame and then snapping to a stop. The fade keeps a linear
+     curve so the dissolve itself stays smooth. */
   animation:
-    pinned-snake-rotate 1.6s linear,
+    pinned-snake-rotate 1.6s cubic-bezier(0.18, 0.6, 0.25, 1),
     pinned-snake-fade   1.6s linear;
   pointer-events: none;
 }
