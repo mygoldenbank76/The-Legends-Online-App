@@ -2424,6 +2424,15 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   };
 
   const handlePinnedBannerClick = () => {
+    // Guard against the synthetic ghost-click that the mobile browser
+    // dispatches after the user taps a conversation in the list: that
+    // same touch can land on whatever ends up under the finger once
+    // navigation completes — and the floating pinned banner sits very
+    // close to where conversation-list items used to be. Without this
+    // guard, opening a conversation that has a pinned message would
+    // immediately ring/scroll-to that message as if the user had
+    // tapped the banner. Same 900 ms window the context-menu uses.
+    if (Date.now() - conversationOpenedAt.current < 900) return;
     if (!pinnedMessageIds.length) return;
     const currentMsgId = pinnedMessageIds[safePinnedIdx];
     scrollToPinnedMsg(currentMsgId);
@@ -2729,7 +2738,15 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
               {/* Unpin / dismiss */}
               <button
-                onClick={(e) => { e.stopPropagation(); handlePin(pinnedMsg); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // Same ghost-click guard as handlePinnedBannerClick:
+                  // unpinning is destructive (removes the pin for
+                  // everyone), so a synthetic tap right after opening
+                  // the conversation must NOT trigger it.
+                  if (Date.now() - conversationOpenedAt.current < 900) return;
+                  handlePin(pinnedMsg);
+                }}
                 className="flex-shrink-0 self-stretch px-3 text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors flex items-center"
                 aria-label="Désépingler"
               >
