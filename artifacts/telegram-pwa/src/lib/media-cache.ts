@@ -106,3 +106,70 @@ export function onCached(src: string, cb: (objectUrl: string) => void): () => vo
   preloadMedia(src);
   return () => listeners.get(src)?.delete(cb);
 }
+
+// Video extensions: skipped because <video> streams progressively and
+// caching the full file in RAM would explode memory budget.
+const VIDEO_EXT_RE = /\.(mp4|webm|mov|avi|mkv|m4v)(\?|$)/i;
+
+/**
+ * Loose shape of a chat message — only fields we read for media URLs.
+ * Permissive on purpose so this helper works against the Msg type from
+ * chat-area.tsx, the API client's generated Message type, and the
+ * lastMessage summary on the conversation list, without an exhaustive
+ * type union.
+ */
+type MessageLikeForMedia = {
+  imageUrl?: string | null;
+  audioUrl?: string | null;
+  mediaAlbum?: string[] | null;
+  content?: string | null;
+  replyTo?: { imageUrl?: string | null; content?: string | null } | null;
+  linkPreview?: { image?: string | null } | null;
+};
+
+// Documents (PDFs, .docx…) sent through the file picker land in
+// `imageUrl` but render as a tap-to-download card, not as an image.
+// Their content is prefixed with "📎 " by the upload pipeline. We
+// detect it without importing from chat/file-card to keep this helper
+// dependency-free and reusable from any module.
+function looksLikeDocumentMessage(m: MessageLikeForMedia): boolean {
+  return typeof m.content === 'string' && m.content.startsWith('📎 ');
+}
+
+/**
+ * Pre-warm the in-memory blob cache for every photo, voice note, album
+ * tile, reply preview and link-preview thumbnail in a list of messages.
+ *
+ * Called from the conversation-list code paths that already prefetch
+ * the messages JSON (top-5 background prefetch + pointerDown predictive
+ * prefetch). The result is that by the time the user actually enters
+ * the conversation, every <CachedImg> finds its blob already in RAM
+ * and paints with `opacity: 1` on the very first frame — no empty
+ * coloured rectangles, no fade-in flash.
+ *
+ * Videos are deliberately skipped (handled lazily by the player) and
+ * document attachments are skipped (rendered as cards, not images).
+ */
+export function prewarmMessageMedia(messages: readonly MessageLikeForMedia[]): void {
+  for (const m of messages) {
+    if (m.imageUrl && !VIDEO_EXT_RE.test(m.imageUrl) && !looksLikeDocumentMessage(m)) {
+      preloadMedia(m.imageUrl);
+    }
+    if (m.audioUrl) {
+      preloadMedia(m.audioUrl);
+    }
+    if (Array.isArray(m.mediaAlbum)) {
+      for (const url of m.mediaAlbum) {
+        if (url && !VIDEO_EXT_RE.test(url)) preloadMedia(url);
+      }
+    }
+    if (m.replyTo?.imageUrl
+        && !VIDEO_EXT_RE.test(m.replyTo.imageUrl)
+        && !looksLikeDocumentMessage(m.replyTo)) {
+      preloadMedia(m.replyTo.imageUrl);
+    }
+    if (m.linkPreview?.image) {
+      preloadMedia(m.linkPreview.image);
+    }
+  }
+}

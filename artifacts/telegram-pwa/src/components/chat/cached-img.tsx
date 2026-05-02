@@ -48,7 +48,12 @@ export function CachedImg({ src, className, style, ...props }: CachedImgProps) {
       style={{
         ...style,
         opacity: loaded ? 1 : 0,
-        transition: 'opacity 0.22s ease',
+        // Snappier than a fade — once the image is in (whether from RAM,
+        // SW cache or network) it appears in 80 ms instead of 220 ms.
+        // Combined with the conversation-list pre-warming this means most
+        // photos render with `loaded === true` on the very first frame
+        // and skip the transition entirely.
+        transition: 'opacity 0.08s linear',
       }}
       {...props}
     />

@@ -19,7 +19,7 @@ import { getAuthHeaders } from '@/lib/auth-fetch';
 
 import { usePreferences } from '@/lib/preferences-context';
 import { translateGroupName } from '@/lib/i18n';
-import { preloadMedia } from '@/lib/media-cache';
+import { preloadMedia, prewarmMessageMedia } from '@/lib/media-cache';
 import { useSocket } from '@/lib/socket-context';
 
 const dateFnsLocaleMap: Record<string, Locale> = {
@@ -115,8 +115,10 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
   }, [allConvs, queryClient]);
 
   // ── Optimisation 2 : prefetch auto des 5 conversations les plus récentes ──
-  // Dès que la liste charge, on pré-charge les messages des 5 premières convs en
-  // arrière-plan. Résultat : premier tap toujours instantané, même sans avoir touché.
+  // Dès que la liste charge, on pré-charge les messages des 5 premières convs
+  // en arrière-plan ET les blobs de leurs médias. Résultat : premier tap
+  // instantané, et les photos/audios sont déjà décodés en RAM avant l'entrée
+  // dans la conversation — plus aucun rectangle vide qui se remplit.
   useEffect(() => {
     if (!allConvs.length) return;
     const top5 = allConvs.slice(0, 5);
@@ -124,14 +126,27 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
       const key = getListMessagesQueryKey(conv.id);
       const state = queryClient.getQueryState(key);
       const isStale = !state?.dataUpdatedAt || Date.now() - state.dataUpdatedAt > 1000 * 60 * 5;
-      if (!isStale) return;
-      // Delay chaque prefetch pour ne pas bloquer le thread
+      const cachedData = queryClient.getQueryData(key) as readonly any[] | undefined;
+      // Delay chaque prefetch pour ne pas bloquer le thread, mais on garde
+      // l'ordre (la 1ʳᵉ conv est warmée en premier — c'est celle que
+      // l'utilisateur ouvre le plus souvent).
       setTimeout(() => {
-        queryClient.prefetchQuery({
-          queryKey: key,
-          queryFn: () => listMessages(conv.id),
-          staleTime: 1000 * 60 * 5,
-        });
+        if (isStale) {
+          queryClient
+            .prefetchQuery({
+              queryKey: key,
+              queryFn: () => listMessages(conv.id),
+              staleTime: 1000 * 60 * 5,
+            })
+            .then(() => {
+              const fresh = queryClient.getQueryData(key) as readonly any[] | undefined;
+              if (fresh?.length) prewarmMessageMedia(fresh);
+            });
+        } else if (cachedData?.length) {
+          // JSON déjà frais — on warme quand même les blobs au cas où le
+          // cache RAM aurait été vidé (rechargement de la page, eviction).
+          prewarmMessageMedia(cachedData);
+        }
       }, idx * 300);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -162,20 +177,34 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allConvs.length]);
 
-  // ── Optimisation 4 : prefetch messages dès le pointerDown ──
-  // Le doigt commence à appuyer → on démarre le chargement des messages immédiatement.
-  // Quand le doigt se lève (~100-200ms plus tard), les messages sont déjà en cache.
+  // ── Optimisation 4 : prefetch messages + médias dès le pointerDown ──
+  // Le doigt commence à appuyer → on démarre le chargement des messages
+  // immédiatement, ET on pré-décode tous les blobs photo/audio dans le cache
+  // RAM. Quand le doigt se lève (~100-200 ms plus tard) puis que la
+  // conversation s'ouvre, les <CachedImg> trouvent déjà leur blob en mémoire
+  // et peignent les photos sur la toute première frame — fini les rectangles
+  // vides qui se remplissent un par un.
   const prefetchMessages = useCallback((convId: number) => {
     const key = getListMessagesQueryKey(convId);
     const state = queryClient.getQueryState(key);
-    // Prefetch seulement si le cache est vide ou périmé (> 5 min)
     const isStale = !state?.dataUpdatedAt || Date.now() - state.dataUpdatedAt > 1000 * 60 * 5;
     if (isStale) {
-      queryClient.prefetchQuery({
-        queryKey: key,
-        queryFn: () => listMessages(convId),
-        staleTime: 1000 * 60 * 5,
-      });
+      queryClient
+        .prefetchQuery({
+          queryKey: key,
+          queryFn: () => listMessages(convId),
+          staleTime: 1000 * 60 * 5,
+        })
+        .then(() => {
+          const fresh = queryClient.getQueryData(key) as readonly any[] | undefined;
+          if (fresh?.length) prewarmMessageMedia(fresh);
+        });
+    } else {
+      // Données fraîches : warmer immédiatement les blobs (le JSON est en
+      // cache mais le cache RAM des images peut avoir été vidé par
+      // l'éviction FIFO ou un hard-reload).
+      const cachedData = queryClient.getQueryData(key) as readonly any[] | undefined;
+      if (cachedData?.length) prewarmMessageMedia(cachedData);
     }
   }, [queryClient]);
 
