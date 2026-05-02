@@ -48,7 +48,7 @@ import { uploadFileWithProgress, UploadAbortError } from '@/lib/upload-with-prog
 import { preloadMedia } from '@/lib/media-cache';
 import { prewarmIframe } from '@/lib/iframe-pool';
 import { VideoThumbnail, cacheVideoPosterBlob, cacheVideoAspect, getVideoPoster } from './video-thumbnail';
-import { FileCard, isDocumentUrl, stripDocPrefix } from './file-card';
+import { FileCard, isDocumentUrl, isDocumentMessage, stripDocPrefix } from './file-card';
 import { useCall } from '@/lib/call-context';
 import { CallBanner } from './call-modal';
 
@@ -481,8 +481,11 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     for (const m of messages) {
       // Photos: pull into RAM. Videos and documents are skipped here (videos
       // because they're large and loaded on-demand by the player; documents
-      // because they're only fetched on tap and don't need a poster).
-      if (m.imageUrl && !m.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) && !isDocumentUrl(m.imageUrl)) {
+      // because they're only fetched on tap and don't need a poster). Use
+      // isDocumentMessage so a JPG/PNG sent through the Document picker (📎
+      // prefix in content) is also skipped — otherwise we'd waste RAM on a
+      // file that renders as a tap-to-download card, not as a photo.
+      if (m.imageUrl && !m.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) && !isDocumentMessage(m)) {
         preloadMedia(m.imageUrl);
       }
       // Voice notes / music: cache the blob in RAM so playback is instant
@@ -496,7 +499,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           if (!url.match(/\.(mp4|webm|mov|avi|mkv)$/i) && !isDocumentUrl(url)) preloadMedia(url);
         }
       }
-      if (m.replyTo?.imageUrl && !m.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) && !isDocumentUrl(m.replyTo.imageUrl)) {
+      if (m.replyTo?.imageUrl && !m.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) && !isDocumentMessage(m.replyTo)) {
         preloadMedia(m.replyTo.imageUrl);
       }
       // Preload link preview images + pre-warm embeds (Spotify, YouTube)
@@ -1924,6 +1927,23 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const handleDocumentChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // If the user picked an image/video through the Document picker, reroute
+    // it to the gallery pipeline so they still get the preview + caption +
+    // add-more screen and the optimistic upload bubble — instead of a silent
+    // doc upload that ends with a duplicated "📎 filename" row under the
+    // photo. Telegram does the same routing on Android/iOS.
+    //
+    // Some browsers (older iOS Safari for HEIC, Android pickers exposing
+    // raw filesystem URIs) leave file.type empty, so we fall back to a
+    // filename-extension sniff before deciding it's not a media file.
+    const t = file.type || '';
+    const isMediaMime = t.startsWith('image/') || t.startsWith('video/');
+    const isMediaExt = !t && /\.(jpe?g|png|gif|webp|avif|bmp|heic|heif|mp4|webm|mov|avi|mkv|m4v)$/i.test(file.name);
+    if (isMediaMime || isMediaExt) {
+      setMediaPicker([file]);
+      if (e.target) e.target.value = '';
+      return;
+    }
     try {
       setUploadingImg(true);
       const formData = new FormData();
@@ -2812,19 +2832,17 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                             ${isMine ? 'text-white/75' : 'text-foreground/70'}`}>
                             {msg.replyTo.audioUrl
                               ? 'Message vocal'
+                              : isDocumentMessage(msg.replyTo)
+                              ? (stripDocPrefix(msg.replyTo.content) || 'Document')
                               : msg.replyTo.imageUrl
-                              ? (msg.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i)
-                                  ? 'Vidéo'
-                                  : isDocumentUrl(msg.replyTo.imageUrl)
-                                    ? (stripDocPrefix(msg.replyTo.content) || 'Document')
-                                    : 'Photo')
+                              ? (msg.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? 'Vidéo' : 'Photo')
                               : msg.replyTo.content || ''}
                           </p>
                         </div>
                         {/* Thumbnail if image/video */}
                         {msg.replyTo.imageUrl
                           && !msg.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i)
-                          && !isDocumentUrl(msg.replyTo.imageUrl) && (
+                          && !isDocumentMessage(msg.replyTo) && (
                           <CachedImg
                             src={msg.replyTo.imageUrl}
                             alt="reply"
@@ -2899,7 +2917,12 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     {/* Single Image / Video / Document */}
                     {msg.imageUrl && !(msg as any).mediaAlbum && !isPoll && (() => {
                       const isVideoMsg = !!msg.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i);
-                      const isDocMsg = !isVideoMsg && isDocumentUrl(msg.imageUrl);
+                      // Prefer the message-level detector over the URL-only one
+                      // so an image-typed file uploaded through the Document
+                      // picker (e.g. a JPG with our 📎 content prefix) still
+                      // renders as a file card, not as an image bubble with
+                      // a duplicated filename row.
+                      const isDocMsg = !isVideoMsg && isDocumentMessage(msg);
                       // Documents render as a flat file card (no aspect-ratio
                       // wrapper, no time overlay — the time follows the regular
                       // bottom-row layout because there's nothing to overlay
@@ -3063,18 +3086,14 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       );
                     })()}
 
-                    {/* Text — hidden ONLY when content is the synthetic
+                    {/* Text — hidden ONLY when this is the synthetic
                         "📎 <filename>" payload our doc-upload path emits
-                        (single line, leading 📎 + space). Real captions
-                        that happen to start with 📎 (or are multi-line)
-                        are still rendered so user-typed content never
-                        gets eaten by the doc-card collapse. */}
-                    {msg.content && !isPoll && !(
-                      msg.imageUrl
-                      && isDocumentUrl(msg.imageUrl)
-                      && /^📎\s+\S/.test(msg.content)
-                      && !msg.content.includes('\n')
-                    ) && (
+                        (isDocumentMessage already enforces single-line +
+                        leading 📎 + non-empty name). Real captions that
+                        happen to start with 📎 or that are multi-line are
+                        still rendered, so user-typed content never gets
+                        eaten by the doc-card collapse. */}
+                    {msg.content && !isPoll && !isDocumentMessage(msg) && (
                       <div className="whitespace-pre-wrap break-words leading-snug">
                         <RichText text={msg.content} isMine={isMine} />
                       </div>

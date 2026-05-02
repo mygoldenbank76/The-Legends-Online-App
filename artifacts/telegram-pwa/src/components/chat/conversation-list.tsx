@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { CachedImg } from './cached-img';
-import { isDocumentUrl, stripDocPrefix } from './file-card';
+import { isDocumentUrl, isDocumentMessage, stripDocPrefix } from './file-card';
 import {
   useListConversations,
   getListConversationsQueryKey,
@@ -132,7 +132,7 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
       const lm = (conv as any).lastMessage;
       if (lm?.imageUrl
           && !lm.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i)
-          && !isDocumentUrl(lm.imageUrl)) {
+          && !isDocumentMessage(lm)) {
         preloadMedia(lm.imageUrl);
       }
       // Voice notes from the last message — pre-warm so opening the conv
@@ -391,7 +391,10 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
                             ? lmAny.mediaAlbum[0]
                             : undefined;
                           const thumbUrl = lmUrl ?? lmAlbumFirst;
-                          const isDoc = !!lmUrl && isDocumentUrl(lmUrl);
+                          // Use the content-aware detector so image-typed files
+                          // sent through the Document picker still get the
+                          // "📎 Document" preview, not a thumbnail.
+                          const isDoc = isDocumentMessage(lastMsg ?? undefined);
                           const isVideoThumb = !!thumbUrl && /\.(mp4|webm|mov|avi|mkv|m4v)$/i.test(thumbUrl);
                           const showThumb = !!thumbUrl && !isDoc && !isVideoThumb && !lmAny?.callType;
 
@@ -416,7 +419,7 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
                                       lmAny.callStatus === 'missed'
                                         ? (lmAny.callType === 'video' ? '📹 Appel vidéo manqué' : '📞 Appel vocal manqué')
                                         : (lmAny.callType === 'video' ? '📹 Appel vidéo' : '📞 Appel vocal')
-                                    ) : lmUrl && isDoc
+                                    ) : isDoc
                                       ? `📎 ${stripDocPrefix(lastMsg.content) || 'Document'}`
                                       : lastMsg.content
                                       ? plainPreview(lastMsg.content)

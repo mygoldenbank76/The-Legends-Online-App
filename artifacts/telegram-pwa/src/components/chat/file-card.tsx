@@ -151,3 +151,29 @@ export function stripDocPrefix(content: string | null | undefined): string {
   if (!content) return '';
   return content.replace(/^📎\s*/, '').trim();
 }
+
+/**
+ * Whether a message should be rendered as a document (file card) rather than
+ * an image / video bubble. Two independent signals:
+ *
+ *  • Primary: the synthetic "📎 <filename>" content payload our /uploads/document
+ *    path emits. This catches the case where the user attached an image-typed
+ *    file (jpg/png) through the Document picker — we still want a file card,
+ *    not a photo bubble + duplicated filename row.
+ *
+ *  • Fallback: URL extension is non-image / non-video. This catches messages
+ *    sent without our 📎 prefix, e.g. legacy data or future API additions.
+ *
+ * The 📎 detector requires a leading "📎 ", at least one non-space char, and
+ * a single line — so a real user caption that happens to start with 📎 is
+ * never collapsed.
+ */
+export function isDocumentMessage(
+  msg: { content?: string | null; imageUrl?: string | null } | null | undefined,
+): boolean {
+  if (!msg || !msg.imageUrl) return false;
+  if (msg.content && /^📎\s+\S/.test(msg.content) && !msg.content.includes('\n')) {
+    return true;
+  }
+  return isDocumentUrl(msg.imageUrl);
+}
