@@ -1,13 +1,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Service Worker v10 — true app-shell precache + stale-while-revalidate
+// Service Worker — app-shell + network-first navigation
 //
-// Goal: when the user re-opens the APK / installed PWA, the app boots
-// INSTANTLY from cache without a network round-trip — exactly like a
-// native app. Network is only used in the background to refresh the
-// shell for the next launch.
+// VERSION is replaced at build time with a per-deploy unique ID by the
+// `swBuildIdPlugin` Vite plugin. This guarantees that every deploy ships
+// a byte-different sw.js → the browser detects an updatefound → installs
+// the new SW → broadcasts SW_UPDATED → the page reloads with fresh code.
+// Without this, the same `v11` string would persist across deploys and
+// installed APKs / PWAs would never receive UI updates without a manual
+// reinstall.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const VERSION = 'v11';
+const VERSION = '__SW_BUILD_ID__';
 const CACHE_NAME = `legends-${VERSION}`;
 const STATIC_CACHE = `legends-static-${VERSION}`;
 const MEDIA_CACHE = `legends-media-${VERSION}`;
@@ -163,28 +166,35 @@ self.addEventListener('fetch', (event) => {
   // Skip cross-origin non-media
   if (url.origin !== self.location.origin) return;
 
-  // ── 3. Navigation requests — Stale-while-revalidate (instant app boot) ──
-  // BEFORE: every app launch hit the network for the HTML, so the user
-  // saw a 200-800 ms blank screen on every cold open — exactly the
-  // "web feel" they complained about.
-  // NOW: serve the cached shell immediately (boot < 50 ms, native feel)
-  // and refresh the cache in the background so the next launch already
-  // has the latest deploy. The SW broadcasts SW_UPDATED on the new
-  // activate cycle, which the client uses to reload only when the
-  // bundle hash actually changes — so this is safe against stale
-  // HTML pointing to deleted /assets/ bundles.
+  // ── 3. Navigation requests — Network-first with fast-cache fallback ──
+  // The HTML shell is the *only* file that controls which JS/CSS bundle
+  // hashes the page loads. If we serve a stale cached shell, the user
+  // boots into old code and never sees any deploy until the SW happens
+  // to update. To guarantee fresh code on every launch with online
+  // connectivity — while still giving an instant boot when offline or
+  // the network is slow — we race the network against a 1.5 s timer
+  // that falls back to the cache. The cache is also refreshed in the
+  // background on every successful network response.
   if (request.mode === 'navigate') {
     event.respondWith((async () => {
       const cache = await caches.open(SHELL_CACHE);
       const cached = await cache.match('/');
-      const networkPromise = fetch(request).then((res) => {
+      const networkFetch = fetch(request).then((res) => {
         if (res && res.ok) cache.put('/', res.clone());
         return res;
       }).catch(() => null);
-      // Cache-first; if no cache exists yet (first ever visit), fall back
-      // to network. After that first visit, every subsequent launch is
-      // instant.
-      return cached || (await networkPromise) || new Response('', { status: 504 });
+
+      // If we have a cached shell, race network vs a 1.5s timeout so
+      // boot is instant on poor connections. Without cache, await the
+      // network indefinitely (first ever visit).
+      if (cached) {
+        const winner = await Promise.race([
+          networkFetch,
+          new Promise((resolve) => setTimeout(() => resolve(null), 1500)),
+        ]);
+        return winner || cached;
+      }
+      return (await networkFetch) || new Response('', { status: 504 });
     })());
     return;
   }

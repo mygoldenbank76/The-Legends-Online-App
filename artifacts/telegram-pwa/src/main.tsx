@@ -46,7 +46,7 @@ if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
       const basePath = import.meta.env.BASE_URL || '/';
       navigator.serviceWorker
-        .register(`${basePath}sw.js`)
+        .register(`${basePath}sw.js`, { updateViaCache: 'none' })
         .then((reg) => {
           // Auto-reload as soon as a new SW takes control of this page.
           if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
@@ -58,6 +58,16 @@ if ("serviceWorker" in navigator) {
                 sw.postMessage({ type: 'SKIP_WAITING' });
               }
             });
+          });
+          // Actively poll for SW updates: on every cold launch + each time
+          // the app comes back into the foreground. Without this, the
+          // browser only checks for SW updates every 24h, so the user
+          // could keep booting old code for a full day after a deploy.
+          reg.update().catch(() => {});
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+              reg.update().catch(() => {});
+            }
           });
           // Once the SW is registered, lock our caches into persistent
           // storage so the browser doesn't evict media under pressure.
