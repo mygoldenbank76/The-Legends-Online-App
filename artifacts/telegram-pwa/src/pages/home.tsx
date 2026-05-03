@@ -915,8 +915,16 @@ function SettingsPage({
                     </div>
                     <div className="w-10 h-10" />
                   </div>
-                  {/* Content */}
-                  <div className="flex-1 overflow-y-auto p-4">
+                  {/* Content — bottom padding clears the Android system
+                      navigation bar / gesture handle so the last user
+                      row's "Bannir / Admin / Supprimer" buttons stay
+                      tappable. */}
+                  <div
+                    className="flex-1 overflow-y-auto p-4 overscroll-contain"
+                    style={{
+                      paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))',
+                    }}
+                  >
                     <AdminPanel />
                   </div>
                 </motion.div>

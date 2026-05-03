@@ -1631,9 +1631,30 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // the message action menu).
   useEffect(() => {
     if (!useNativeComposer) return;
-    const anyModalOpen = !!ctxMenu || attachmentSheetOpen;
+    // Any fullscreen overlay that visually covers the composer must
+    // hide the native EditText, otherwise its placeholder ("Écrire un
+    // message…") and typed text bleed through the modal — the native
+    // view is parented to the activity root and always paints above
+    // the WebView. User-reported leaks: action menu, attachment sheet,
+    // poll creator, group info sheet, user profile sheet, media
+    // viewer / lightbox.
+    const anyModalOpen =
+      !!ctxMenu ||
+      attachmentSheetOpen ||
+      pollCreatorOpen ||
+      groupInfoOpen ||
+      !!profileUser ||
+      !!mediaViewer;
     void NativeComposer.setOverlayVisible({ visible: !anyModalOpen });
-  }, [useNativeComposer, ctxMenu, attachmentSheetOpen]);
+  }, [
+    useNativeComposer,
+    ctxMenu,
+    attachmentSheetOpen,
+    pollCreatorOpen,
+    groupInfoOpen,
+    profileUser,
+    mediaViewer,
+  ]);
 
   // Bounds sync: keep the native EditText overlay glued to the HTML
   // textarea's on-screen rect. ResizeObserver covers content-driven
