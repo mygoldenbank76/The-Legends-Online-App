@@ -1238,8 +1238,17 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
   // ── Send text ─────────────────────────────────────────────
   const handleSend = useCallback(async () => {
+    // Source-of-truth fix for emoji-only / IME-inserted text:
+    // Samsung Keyboard (and several other Android IMEs) insert emojis and
+    // some accented characters via the IME `setComposingText` / `commitText`
+    // bridge. In a Capacitor WebView these calls update the underlying
+    // <textarea> DOM value but do NOT always fire React's synthetic
+    // `onChange`, so `content` state can stay stale (often empty) even
+    // though the user clearly sees their text + emojis in the field.
+    // Reading directly from the ref guarantees we send what the user sees.
+    const liveValue = textareaRef.current?.value ?? content;
     if (editState) {
-      const trimmed = content.trim();
+      const trimmed = liveValue.trim();
       if (!trimmed) return;
       setContent('');
       const id = editState.id;
@@ -1248,7 +1257,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       catch (e) { console.error(e); }
       return;
     }
-    const trimmed = content.trim();
+    const trimmed = liveValue.trim();
     if (!trimmed || sending) return;
     const replyId = replyTo?.id;
     // Detect URL in the outgoing message and decide whether the backend
@@ -4238,6 +4247,18 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   ref={textareaRef}
                   value={content}
                   onChange={handleContentChange}
+                  // Belt-and-braces sync for Android IME emoji insertion:
+                  // some keyboards (Samsung, GBoard glide) commit text via
+                  // the IME bridge in a way that updates the DOM value but
+                  // doesn't always fire React's synthetic onChange in a
+                  // Capacitor WebView. Mirroring the raw `input` event into
+                  // state keeps `content` in sync with what the user sees,
+                  // so the send button + mention/typing logic don't read
+                  // a stale empty string.
+                  onInput={(e) => {
+                    const v = (e.target as HTMLTextAreaElement).value;
+                    if (v !== content) setContent(v);
+                  }}
                   onKeyDown={handleKeyDown}
                   onSelect={handleTextSelect}
                   onBlur={() => { if (!linkMode) setTimeout(() => setSelectionRange(null), 150); }}

@@ -73,7 +73,9 @@ export default function InstallApk() {
             </div>
             <div className="flex-1 min-w-0">
               <h2 className="text-base font-bold">Application Android</h2>
-              <p className="text-[11px] text-muted-foreground">Application native officielle · Android 7.0+</p>
+              <p className="text-[11px] text-muted-foreground">
+                Application native officielle · Android 7.0+{apkSize ? ` · ${apkSize}` : ''}
+              </p>
             </div>
             {isNative && (
               <span className="text-[10px] font-semibold text-emerald-400 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-1">
@@ -91,7 +93,7 @@ export default function InstallApk() {
             <Button asChild size="lg" className="w-full text-base font-semibold gap-2 h-14">
               <a href={apk && apk !== 'loading' ? apk.url : '#'} download={NATIVE_APK_ASSET_NAME}>
                 <Download className="w-5 h-5" />
-                Télécharger l'APK{apkSize ? ` (${apkSize})` : ''}
+                Télécharger l'application
               </a>
             </Button>
           )}
