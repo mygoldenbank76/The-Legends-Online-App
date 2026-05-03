@@ -13,8 +13,24 @@
 const VERSION = '__SW_BUILD_ID__';
 const CACHE_NAME = `legends-${VERSION}`;
 const STATIC_CACHE = `legends-static-${VERSION}`;
-const MEDIA_CACHE = `legends-media-${VERSION}`;
+// IMPORTANT: MEDIA_CACHE name is intentionally VERSION-INDEPENDENT.
+// Photos, videos, voice notes, and external thumbnails are immutable
+// (the URL itself contains a content-hashed object id, or it's an
+// external CDN with its own cache headers), so they remain valid
+// across every app deploy. Keeping the same cache name across deploys
+// means an APK update never wipes the user's already-downloaded media
+// — fixing the "after closing/reopening the app, photos reload from
+// scratch" complaint. The shell/static caches still version-bump so
+// code updates roll out instantly.
+const MEDIA_CACHE = `legends-media-v1`;
 const SHELL_CACHE = `legends-shell-${VERSION}`;
+// Max entries in MEDIA_CACHE before we trim the oldest 20%. Without
+// this, a heavy user can exceed the browser's storage quota and the
+// SW silently fails to cache new media. Telegram-style: keep ~2000
+// most recently fetched items on disk (covers months of typical use
+// at ~200 KB average per cached item ≈ 400 MB ceiling).
+const MEDIA_CACHE_MAX_ENTRIES = 2000;
+const MEDIA_CACHE_TRIM_TO = 1600;
 
 // App-shell URLs precached at install time. These are the bare minimum
 // the browser needs to paint the first frame from cache without any
@@ -112,6 +128,44 @@ function isExternalMedia(url) {
   return EXTERNAL_MEDIA_HOSTS.some((h) => url.hostname === h || url.hostname.endsWith('.' + h));
 }
 
+// ── MEDIA_CACHE LRU trim ─────────────────────────────────────────────────────
+// The Cache Storage API's `keys()` returns Request objects in insertion
+// order — i.e. oldest first. We exploit that to drop the oldest N
+// entries whenever the cache exceeds MEDIA_CACHE_MAX_ENTRIES. This is
+// the same FIFO approximation Workbox uses for its ExpirationPlugin
+// "maxEntries" strategy: it's not a strict per-access LRU (we'd need
+// our own metadata for that, costing one IDB write per fetch), but it
+// reliably keeps the cache from growing unbounded without burning
+// quota on metadata bookkeeping. Trim is rate-limited so we don't
+// re-walk the entire keys() list on every single put.
+let trimInFlight = false;
+let lastTrimAt = 0;
+async function trimMediaCacheIfNeeded(cache) {
+  // Run at most once every 30 s under load — trims happen async, so a
+  // burst of puts only needs one trim pass to bring the cache back to
+  // MEDIA_CACHE_TRIM_TO.
+  const now = Date.now();
+  if (trimInFlight || now - lastTrimAt < 30_000) return;
+  trimInFlight = true;
+  try {
+    const keys = await cache.keys();
+    if (keys.length <= MEDIA_CACHE_MAX_ENTRIES) {
+      lastTrimAt = now;
+      return;
+    }
+    const toDelete = keys.length - MEDIA_CACHE_TRIM_TO;
+    // keys() is insertion-ordered → first N are oldest.
+    for (let i = 0; i < toDelete; i++) {
+      await cache.delete(keys[i]);
+    }
+    lastTrimAt = Date.now();
+  } catch {
+    // Best-effort — quota errors etc. are silently ignored
+  } finally {
+    trimInFlight = false;
+  }
+}
+
 // ── Fetch ─────────────────────────────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event;
@@ -127,7 +181,11 @@ self.addEventListener('fetch', (event) => {
         const cached = await cache.match(request);
         if (cached) return cached;
         const response = await fetch(request);
-        if (response.ok) cache.put(request, response.clone());
+        if (response.ok) {
+          await cache.put(request, response.clone());
+          // Fire-and-forget trim — never blocks the response.
+          event.waitUntil(trimMediaCacheIfNeeded(cache));
+        }
         return response;
       })
     );
@@ -144,7 +202,8 @@ self.addEventListener('fetch', (event) => {
           // no-cors gives opaque response — still cacheable and displayable
           const response = await fetch(request, { mode: 'no-cors' });
           if (response.type === 'opaque' || response.ok) {
-            cache.put(request, response.clone());
+            await cache.put(request, response.clone());
+            event.waitUntil(trimMediaCacheIfNeeded(cache));
           }
           return response;
         } catch {

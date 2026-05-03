@@ -2,11 +2,26 @@
  * In-memory media cache using object URLs.
  * Once a media file has been fetched once, subsequent renders are truly instant
  * (no network, no SW lookup, no re-decode) because the blob is kept alive in RAM.
+ *
+ * Eviction is true LRU (move-to-front on every read). The previous FIFO
+ * scheme dropped frequently-revisited photos (the user's own avatar,
+ * the 3 most-recent images they keep scrolling back to) the moment
+ * they fell off the front of insertion order, even though they were
+ * still being touched on every conversation open.
+ *
+ * Capacity bumped from 300 → 1500: covers ~4–5 conversations of
+ * heavy chat history without eviction churn (a typical messenger
+ * user opens the same handful of conversations dozens of times per
+ * day), at a memory cost of a few MB of object-URL bookkeeping
+ * (the actual blob bytes live in the browser's blob store, not the
+ * JS heap).
  */
 
-const MAX_ENTRIES = 300;
+const MAX_ENTRIES = 1500;
 
-// src URL → blob objectURL
+// src URL → blob objectURL. Map insertion order doubles as our LRU
+// recency order: every access moves the entry to the back via a
+// delete+set pair, so the FRONT of the iterator is the LRU end.
 const cache = new Map<string, string>();
 
 // URLs currently being fetched (prevent duplicate requests)
@@ -15,6 +30,14 @@ const pending = new Set<string>();
 // Listeners notified when a src is cached (src → Set of callbacks)
 const listeners = new Map<string, Set<(objectUrl: string) => void>>();
 
+// GIF URLs are deliberately NOT pulled into the in-memory blob cache.
+// Animated GIFs served via blob: URLs can lose their animation on
+// certain Android WebView builds (Capacitor APK), and the SW already
+// gives us cache-first persistence for them, so the second-paint cost
+// is identical to a RAM hit. Bypassing the blob layer guarantees
+// native browser rendering with full animation on every platform.
+const GIF_RE = /\.gif(\?|$)|tenor\.com|giphy\.com/i;
+
 function notify(src: string, objectUrl: string) {
   listeners.get(src)?.forEach(fn => fn(objectUrl));
   listeners.delete(src);
@@ -22,8 +45,9 @@ function notify(src: string, objectUrl: string) {
 
 function evictIfNeeded() {
   if (cache.size < MAX_ENTRIES) return;
-  // FIFO: revoke and remove the oldest entries
-  const toDelete = Math.ceil(MAX_ENTRIES * 0.2); // evict 20%
+  // True LRU: drop oldest 20% from the front of the Map (least
+  // recently moved-to-back via touch()).
+  const toDelete = Math.ceil(MAX_ENTRIES * 0.2);
   let count = 0;
   for (const [key, val] of cache) {
     URL.revokeObjectURL(val);
@@ -32,9 +56,25 @@ function evictIfNeeded() {
   }
 }
 
+/**
+ * Move an entry to the back of the Map (most-recently-used position).
+ * No-op if the key is not in the cache. Cheap: one delete + one set.
+ */
+function touch(src: string): void {
+  const v = cache.get(src);
+  if (v === undefined) return;
+  cache.delete(src);
+  cache.set(src, v);
+}
+
 /** Returns the cached objectURL if available, otherwise the original src */
 export function getCachedSrc(src: string): string {
-  return cache.get(src) ?? src;
+  const v = cache.get(src);
+  if (v !== undefined) {
+    touch(src);
+    return v;
+  }
+  return src;
 }
 
 /** Returns true if the src is already cached */
@@ -48,6 +88,11 @@ export function isCached(src: string): boolean {
  */
 export function preloadMedia(src: string): void {
   if (!src || src.startsWith('blob:') || src.startsWith('data:')) return;
+  // GIFs bypass the in-memory blob layer — see GIF_RE comment above.
+  // The SW still serves them cache-first, so the network cost is the
+  // same on second view; the only thing skipped is the blob wrapping
+  // that can break animation in some Android WebView builds.
+  if (GIF_RE.test(src)) return;
   if (cache.has(src) || pending.has(src)) return;
 
   pending.add(src);
