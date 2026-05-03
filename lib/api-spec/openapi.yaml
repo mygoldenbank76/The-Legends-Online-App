@@ -668,6 +668,29 @@ components:
       required:
         - userId
 
+    AlbumItem:
+      description: |
+        One entry in a multi-attachment album. Either a bare URL string
+        (legacy senders) OR a rich object carrying intrinsic dimensions,
+        a tiny inline LQIP, and an optional video poster URL — same
+        Telegram-style fields the single-image bubble already uses.
+      oneOf:
+        - type: string
+        - type: object
+          properties:
+            url:
+              type: string
+            w:
+              type: ["integer", "null"]
+            h:
+              type: ["integer", "null"]
+            lqip:
+              type: ["string", "null"]
+            thumbnailUrl:
+              type: ["string", "null"]
+          required:
+            - url
+
     Message:
       type: object
       properties:
@@ -683,12 +706,29 @@ components:
           type: ["string", "null"]
         imageUrl:
           type: ["string", "null"]
+        mediaWidth:
+          type: ["integer", "null"]
+        mediaHeight:
+          type: ["integer", "null"]
         thumbnailUrl:
           type: ["string", "null"]
+        mediaPreview:
+          type: ["string", "null"]
+          description: Tiny base64 LQIP data URL (~700–1500 B JPEG/PNG/WebP).
+        mediaAlbum:
+          type: ["array", "null"]
+          items:
+            $ref: "#/components/schemas/AlbumItem"
+        audioUrl:
+          type: ["string", "null"]
+        audioDuration:
+          type: ["integer", "null"]
         linkPreview:
           $ref: "#/components/schemas/LinkPreview"
         replyTo:
           $ref: "#/components/schemas/Message"
+        replyToId:
+          type: ["integer", "null"]
         editedAt:
           type: ["string", "null"]
         isDeleted:
@@ -714,8 +754,22 @@ components:
           type: ["string", "null"]
         imageUrl:
           type: ["string", "null"]
+        mediaWidth:
+          type: ["integer", "null"]
+        mediaHeight:
+          type: ["integer", "null"]
         thumbnailUrl:
           type: ["string", "null"]
+        mediaPreview:
+          type: ["string", "null"]
+        mediaAlbum:
+          type: ["array", "null"]
+          items:
+            $ref: "#/components/schemas/AlbumItem"
+        audioUrl:
+          type: ["string", "null"]
+        audioDuration:
+          type: ["integer", "null"]
         replyToId:
           type: ["integer", "null"]
       required: []

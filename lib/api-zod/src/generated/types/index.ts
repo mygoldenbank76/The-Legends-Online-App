@@ -8,6 +8,7 @@
 
 export * from "./addContactBody";
 export * from "./addReactionBody";
+export * from "./albumItem";
 export * from "./authResponse";
 export * from "./conversation";
 export * from "./conversationSummary";

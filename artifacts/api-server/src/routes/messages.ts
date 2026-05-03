@@ -9,11 +9,82 @@ import { requireAuth } from "../lib/auth";
 import { formatUser } from "./users";
 import { extractFirstUrl, fetchLinkPreview } from "../lib/linkPreview";
 import { probeImageDimensions } from "../lib/mediaProbe";
+import { probeVideo, isProbableVideo } from "../lib/videoProbe";
 import { io, userSockets, getRoomMembers } from "../app";
 import { buildPoll } from "./polls";
 import { notifyNewMessage } from "../lib/pushNotifications";
 
 const router: IRouter = Router();
+
+// ── Album payload sanitiser ──────────────────────────────────────────────
+// Album entries arrive on the wire as either a bare URL string (legacy
+// senders) or an enriched `{url, w?, h?, lqip?, thumbnailUrl?}` object
+// (Telegram-style payload). This helper:
+//
+//   • drops anything that doesn't reduce to a non-empty URL string
+//   • enforces the same LQIP shape + 4 KB cap that single-image bubbles
+//     use, so a misbehaving client can't bloat the row or smuggle an
+//     `http(s):` URL into the LQIP slot
+//   • clamps width/height to the same MAX_DIM safe-positive-integer
+//     bound used for single-image dims
+//   • returns `null` (not `[]`) when the resulting album is empty so
+//     `mediaAlbum IS NULL` queries keep working unchanged
+//
+// Output is intentionally shaped as a homogeneous array of rich objects
+// when ANY metadata is present, falling back to the bare URL form when
+// nothing extra is known. Both forms are read by the client normaliser.
+// Tightened from 4096 → 1500 to match the Telegram-grade ultra-tiny
+// LQIPs we now generate (24x24 q30 mozjpeg ~300-700 bytes). Anything
+// larger is either a misbehaving client or a regression in the LQIP
+// pipeline and we'd rather drop it than bloat the wire payload.
+const ALBUM_LQIP_MAX_BYTES = 1500;
+const ALBUM_LQIP_PATTERN = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/i;
+const ALBUM_MAX_DIM = 100_000;
+
+type SanitisedAlbumItem =
+  | string
+  | { url: string; w?: number; h?: number; lqip?: string; thumbnailUrl?: string };
+
+function sanitizeAlbum(input: unknown): SanitisedAlbumItem[] | null {
+  if (!Array.isArray(input) || input.length === 0) return null;
+  const out: SanitisedAlbumItem[] = [];
+  for (const raw of input) {
+    if (typeof raw === "string") {
+      if (raw.length > 0) out.push(raw);
+      continue;
+    }
+    if (raw && typeof raw === "object") {
+      const obj = raw as Record<string, unknown>;
+      const url = typeof obj.url === "string" ? obj.url : "";
+      if (!url) continue;
+      const w = typeof obj.w === "number" && Number.isSafeInteger(obj.w)
+        && obj.w > 0 && obj.w <= ALBUM_MAX_DIM ? obj.w : undefined;
+      const h = typeof obj.h === "number" && Number.isSafeInteger(obj.h)
+        && obj.h > 0 && obj.h <= ALBUM_MAX_DIM ? obj.h : undefined;
+      const lqip = typeof obj.lqip === "string"
+        && obj.lqip.length > 0
+        && obj.lqip.length <= ALBUM_LQIP_MAX_BYTES
+        && ALBUM_LQIP_PATTERN.test(obj.lqip)
+          ? obj.lqip : undefined;
+      const thumbnailUrl = typeof obj.thumbnailUrl === "string"
+        && obj.thumbnailUrl.length > 0 ? obj.thumbnailUrl : undefined;
+      // Keep dims paired — a lone width or height isn't useful for
+      // sizing the tile, so drop the orphan.
+      const hasDims = w !== undefined && h !== undefined;
+      if (!hasDims && !lqip && !thumbnailUrl) {
+        out.push(url);
+      } else {
+        out.push({
+          url,
+          ...(hasDims ? { w: w as number, h: h as number } : {}),
+          ...(lqip ? { lqip } : {}),
+          ...(thumbnailUrl ? { thumbnailUrl } : {}),
+        });
+      }
+    }
+  }
+  return out.length > 0 ? out : null;
+}
 
 async function buildMessage(messageId: number, requestingUserId?: number): Promise<FormattedMessage | null> {
   const [msg] = await db.select().from(messagesTable).where(eq(messagesTable.id, messageId));
@@ -39,6 +110,15 @@ async function buildMessage(messageId: number, requestingUserId?: number): Promi
         sender: replySender ? formatUser(replySender) : undefined,
         content: replyMsg.isDeleted ? null : replyMsg.content,
         imageUrl: replyMsg.isDeleted ? null : replyMsg.imageUrl,
+        // Forward the intrinsic dimensions + LQIP + server thumbnail of
+        // the quoted message so the small reply preview inside the new
+        // bubble paints a recognisable blurred preview on the very
+        // first frame instead of an empty grey square — same UX as
+        // Telegram's reply previews.
+        mediaWidth: replyMsg.isDeleted ? null : replyMsg.mediaWidth,
+        mediaHeight: replyMsg.isDeleted ? null : replyMsg.mediaHeight,
+        thumbnailUrl: replyMsg.isDeleted ? null : replyMsg.thumbnailUrl,
+        mediaPreview: replyMsg.isDeleted ? null : replyMsg.mediaPreview,
         audioUrl: replyMsg.isDeleted ? null : replyMsg.audioUrl,
         isDeleted: replyMsg.isDeleted,
         reactions: [],
@@ -63,7 +143,7 @@ async function buildMessage(messageId: number, requestingUserId?: number): Promi
     mediaHeight: msg.isDeleted ? null : msg.mediaHeight,
     thumbnailUrl: msg.isDeleted ? null : msg.thumbnailUrl,
     mediaPreview: msg.isDeleted ? null : msg.mediaPreview,
-    mediaAlbum: msg.isDeleted ? null : (msg.mediaAlbum as string[] | null),
+    mediaAlbum: msg.isDeleted ? null : (msg.mediaAlbum as SanitisedAlbumItem[] | null),
     audioUrl: msg.isDeleted ? null : msg.audioUrl,
     audioDuration: msg.isDeleted ? null : msg.audioDuration,
     poll: msg.isDeleted ? null : poll,
@@ -94,7 +174,7 @@ type FormattedMessage = {
   mediaHeight?: number | null;
   thumbnailUrl?: string | null;
   mediaPreview?: string | null;
-  mediaAlbum?: string[] | null;
+  mediaAlbum?: SanitisedAlbumItem[] | null;
   audioUrl?: string | null;
   audioDuration?: number | null;
   poll?: any;
@@ -213,6 +293,14 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
       sender: replySenderMap[replyMsg.senderId] ? formatUser(replySenderMap[replyMsg.senderId]) : undefined,
       content: replyMsg.isDeleted ? null : replyMsg.content,
       imageUrl: replyMsg.isDeleted ? null : replyMsg.imageUrl,
+      // Same Telegram-like reply preview enrichment as buildMessage above:
+      // forward dims + LQIP + server thumbnail so the small image inside
+      // the reply box paints a recognisable preview on the very first
+      // frame, no grey square waiting on a network round-trip.
+      mediaWidth: replyMsg.isDeleted ? null : replyMsg.mediaWidth,
+      mediaHeight: replyMsg.isDeleted ? null : replyMsg.mediaHeight,
+      thumbnailUrl: replyMsg.isDeleted ? null : replyMsg.thumbnailUrl,
+      mediaPreview: replyMsg.isDeleted ? null : replyMsg.mediaPreview,
       audioUrl: replyMsg.isDeleted ? null : replyMsg.audioUrl,
       isDeleted: replyMsg.isDeleted,
       reactions: [],
@@ -230,7 +318,7 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
       mediaHeight: m.isDeleted ? null : m.mediaHeight,
       thumbnailUrl: m.isDeleted ? null : m.thumbnailUrl,
       mediaPreview: m.isDeleted ? null : m.mediaPreview,
-      mediaAlbum: m.isDeleted ? null : (m.mediaAlbum as string[] | null),
+      mediaAlbum: m.isDeleted ? null : (m.mediaAlbum as SanitisedAlbumItem[] | null),
       audioUrl: m.isDeleted ? null : m.audioUrl,
       audioDuration: m.isDeleted ? null : m.audioDuration,
       poll: m.isDeleted ? null : (m.pollId ? pollsData[m.pollId] || null : null),
@@ -295,7 +383,16 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
     // very first frame instead of an empty placeholder while the
     // multi-MB original streams from object storage.
     mediaPreview?: string;
-    mediaAlbum?: string[];
+    // Album entries: each item is EITHER a bare URL string (legacy
+    // senders) OR a rich object {url, w, h, lqip, thumbnailUrl} with
+    // per-item intrinsic dimensions, LQIP, and (for videos) server
+    // thumbnail. Both shapes are validated and persisted as-is so
+    // recipients render the right preview on the very first frame
+    // without any grey-square flash.
+    mediaAlbum?: Array<
+      | string
+      | { url?: unknown; w?: unknown; h?: unknown; lqip?: unknown; thumbnailUrl?: unknown }
+    >;
     audioUrl?: string;
     audioDuration?: number;
     replyToId?: number;
@@ -326,12 +423,29 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
   // populated and every recipient still gets a bubble that paints at
   // the correct shape on the very first frame — no fallback aspect,
   // no visible reflow when the image decodes.
+  //
+  // For videos we also probe the first frame for a tiny LQIP if the
+  // client didn't send one (legacy clients, share-target uploads).
+  // Both probes are best-effort and capped (image: 64 KB read; video:
+  // 50 MB / 8 s ffmpeg timeout) so they can never delay the send.
+  let probedVideoLqip: string | null = null;
   if (imageUrl && (safeWidth === null || safeHeight === null)) {
     try {
-      const probed = await probeImageDimensions(imageUrl);
-      if (probed) {
-        safeWidth = probed.width;
-        safeHeight = probed.height;
+      if (isProbableVideo(imageUrl)) {
+        const probed = await probeVideo(imageUrl);
+        if (probed) {
+          if (probed.width > 0 && probed.height > 0) {
+            safeWidth = probed.width;
+            safeHeight = probed.height;
+          }
+          probedVideoLqip = probed.lqip;
+        }
+      } else {
+        const probed = await probeImageDimensions(imageUrl);
+        if (probed) {
+          safeWidth = probed.width;
+          safeHeight = probed.height;
+        }
       }
     } catch {
       // probe is best-effort; never fail the send because of it
@@ -344,7 +458,9 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
   // URL that recipients would render unfiltered. Anything that fails
   // the check is silently dropped — the bubble simply falls back to
   // the legacy aspect-ratio placeholder.
-  const LQIP_MAX_BYTES = 4096;
+  // Matches the album-side cap above and the server-side generator
+  // (24x24 q30 mozjpeg). See the long comment at ALBUM_LQIP_MAX_BYTES.
+  const LQIP_MAX_BYTES = 1500;
   // Strict: prefix + actual base64 character set (so a misbehaving
   // client can't smuggle non-base64 garbage past the length check).
   const LQIP_PATTERN = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/i;
@@ -357,6 +473,10 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
     LQIP_PATTERN.test(mediaPreview)
   ) {
     safeMediaPreview = mediaPreview;
+  } else if (imageUrl && probedVideoLqip && LQIP_PATTERN.test(probedVideoLqip)) {
+    // Video sender didn't supply a LQIP — use the one we just
+    // generated from the first frame above.
+    safeMediaPreview = probedVideoLqip;
   }
 
   if (content == null && imageUrl == null && mediaAlbum == null && audioUrl == null && poll == null) {
@@ -402,7 +522,7 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
     // LQIP only applies to single-image messages (album entries each
     // need their own preview, handled separately in a future change).
     mediaPreview: imageUrl ? safeMediaPreview : null,
-    mediaAlbum: (mediaAlbum && mediaAlbum.length > 0 ? mediaAlbum : null) as string[] | null,
+    mediaAlbum: sanitizeAlbum(mediaAlbum),
     audioUrl: audioUrl ?? null,
     audioDuration: audioDuration ?? null,
     pollId: pollId ?? null,

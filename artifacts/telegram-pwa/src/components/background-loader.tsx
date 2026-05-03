@@ -30,10 +30,15 @@ function preloadMessagesMedia(messages: unknown[]) {
     if (m.imageUrl && !/\.(mp4|webm|mov|avi|mkv)$/i.test(m.imageUrl)) {
       preloadMedia(m.imageUrl);
     }
-    // Album
+    // Album — entries may be bare URL strings (legacy) OR rich
+    // {url, w, h, lqip, thumbnailUrl} objects (Telegram-style enriched
+    // payload). Normalise here so the prewarm logic stays uniform.
     if (Array.isArray(m.mediaAlbum)) {
-      for (const url of m.mediaAlbum) {
-        if (!/\.(mp4|webm|mov|avi|mkv)$/i.test(url)) preloadMedia(url);
+      for (const item of m.mediaAlbum) {
+        const url: string = typeof item === 'string'
+          ? item
+          : (item?.url ?? '');
+        if (url && !/\.(mp4|webm|mov|avi|mkv)$/i.test(url)) preloadMedia(url);
       }
     }
     // Reply thumbnail
@@ -53,6 +58,14 @@ export function BackgroundLoader() {
   const queryClient = useQueryClient();
   const { data: conversations = [] } = useListConversations();
   const bootstrappedRef = useRef(false);
+
+  // Expose conversation count globally so SW quota-exceeded telemetry
+  // (in main.tsx) can include it in reports without re-fetching. This
+  // component is mounted on every authenticated app boot, so the value
+  // is reliably populated regardless of which UI shell is active.
+  useEffect(() => {
+    (window as Window & { __legendsConversationCount?: number }).__legendsConversationCount = conversations.length;
+  }, [conversations.length]);
 
   useEffect(() => {
     if (!user || conversations.length === 0) return;

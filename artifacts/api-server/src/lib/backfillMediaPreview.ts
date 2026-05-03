@@ -52,9 +52,14 @@ const MAX_SOURCE_BYTES = 12 * 1024 * 1024;
 // Same constants as the client-side helper / server-side validator —
 // keep all three in lockstep so a backfilled value passes the same
 // shape check a fresh upload would.
-const LQIP_MAX_DIM = 32;
-const LQIP_QUALITY = 40;
-const LQIP_MAX_BYTES = 4096;
+// Telegram-grade ultra-tiny placeholder: 24x24 mozjpeg q30 produces
+// ~300-700 byte JPEGs, equivalent in payload weight to Telegram's
+// strippedThumb format (~150-300 bytes once base64 inflated to ~400-900).
+// The visual blur is indistinguishable from the previous 32x32 q40
+// once Tailwind's blur-md is applied on top.
+const LQIP_MAX_DIM = 24;
+const LQIP_QUALITY = 30;
+const LQIP_MAX_BYTES = 1500;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));

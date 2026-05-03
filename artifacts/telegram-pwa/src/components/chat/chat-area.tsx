@@ -38,6 +38,8 @@ import type { FormatType } from './rich-text';
 import { GifPicker } from './gif-picker';
 import { getMediaDimensions, captureVideoFirstFrame } from '@/lib/media-dimensions';
 import { generateLqip } from '@/lib/lqip';
+import { saveScrollPosition, readScrollPosition } from '@/lib/scroll-memory';
+import { type AlbumItem, albumUrl, albumMeta, albumUrls } from '@/lib/album-item';
 import { NativeComposer, isNativeComposerAvailable } from '@/lib/native-composer';
 import type { PluginListenerHandle } from '@capacitor/core';
 import type { GifResult } from './gif-picker';
@@ -88,7 +90,11 @@ type Msg = {
   // Multi-attachment "album" payload (Telegram-style 2-6 media grid).
   // Stored separately from imageUrl so a single message can carry both
   // (legacy compat) without requiring extra type guards at the call site.
-  mediaAlbum?: string[] | null;
+  // Each entry is EITHER a bare URL string (legacy senders) OR a rich
+  // {url, w, h, lqip, thumbnailUrl} object so per-item dims and LQIP
+  // can be carried alongside the URL — same pattern as Telegram's
+  // album items, eliminating the grey-square flash for album tiles.
+  mediaAlbum?: AlbumItem[] | null;
   // Server-generated thumbnail for video messages (or a low-res preview
   // of the imageUrl for very large originals). When present, the bubble
   // paints this immediately so the user sees something while the full
@@ -118,7 +124,22 @@ type Msg = {
   createdAt: string;
 };
 
-type ChatAreaProps = { conversationId: number; onBack?: () => void; onOpenConversation?: (convId: number) => void };
+type ChatAreaProps = {
+  conversationId: number;
+  onBack?: () => void;
+  onOpenConversation?: (convId: number) => void;
+  // True when this ChatArea is the one the user is currently looking at.
+  // The keepalive scheme in home.tsx keeps up to 3 ChatArea instances
+  // mounted at once (so switching back restores composer draft, scroll
+  // position, video playback and message list instantly), and uses
+  // `display: none` to hide the inactive ones. Side-effects that would
+  // be wrong to fire from a hidden instance — mark-as-read, typing
+  // indicators, write to the global activeConversationIdRef, focus
+  // steal, in-bubble video/audio playback — are gated on this flag.
+  // Defaults to true so any caller that hasn't been updated to the
+  // multi-instance pattern keeps working unchanged.
+  isActive?: boolean;
+};
 type CtxMenu = { msgId: number } | null;
 
 // Optimistic upload entry shown as a fake outgoing bubble while files upload
@@ -165,10 +186,20 @@ async function translateText(text: string, targetLang: string): Promise<string> 
 }
 
 // ── Media thumbnail cell ────────────────────────────────────────────────
+// Used inside <AlbumGrid> for every tile of a 1-6 media album. Optional
+// `lqip` and `serverThumb` come from the rich album-item payload so the
+// tile can paint a recognisable blurred preview on the very first frame
+// (Telegram-style stripped_thumb), eliminating the grey-square flash
+// while the full media streams from object storage.
 function MediaThumb({
-  url, onClick, overlay, radius = '0px',
+  url, onClick, overlay, radius = '0px', lqip, serverThumb,
 }: {
-  url: string; onClick: () => void; overlay?: React.ReactNode; radius?: string;
+  url: string;
+  onClick: () => void;
+  overlay?: React.ReactNode;
+  radius?: string;
+  lqip?: string | null;
+  serverThumb?: string | null;
 }) {
   const vid = /\.(mp4|webm|mov|avi|mkv)$/i.test(url);
   return (
@@ -178,20 +209,31 @@ function MediaThumb({
       onClick={(e) => { e.stopPropagation(); onClick(); }}
     >
       {vid ? (
-        // Reuse the cached video poster (captured the first time the user
-        // saw the video bubble). When present, it paints the real first
-        // frame instantly with no decode round-trip — same UX as the
-        // chat bubble. Falls back to a parked <video> for cold caches.
+        // For album video tiles, prefer (in order): the server-stored
+        // first-frame thumbnail shipped in the rich album item → the
+        // locally-cached poster captured on first view → a parked
+        // <video> metadata frame. Either of the first two paints the
+        // real first frame instantly with zero decode round-trip.
         (() => {
-          const poster = getVideoPoster(url);
+          const poster = serverThumb || getVideoPoster(url);
           return poster ? (
-            <InstantImg src={poster} alt="" className="w-full h-full object-cover" />
+            <InstantImg
+              src={poster}
+              alt=""
+              className="w-full h-full object-cover"
+              placeholder={lqip ?? undefined}
+            />
           ) : (
             <video src={url} className="w-full h-full object-cover" style={{ background: '#000' }} muted playsInline preload="metadata" />
           );
         })()
       ) : (
-        <CachedImg src={url} alt="" className="w-full h-full object-cover" />
+        <CachedImg
+          src={url}
+          alt=""
+          className="w-full h-full object-cover"
+          placeholder={lqip ?? undefined}
+        />
       )}
       {vid && (
         <div className="absolute inset-0 flex items-center justify-center">
@@ -206,10 +248,33 @@ function MediaThumb({
 }
 
 // ── Album grid (Telegram-style multi-media layout) ────────────────────────
-function AlbumGrid({ urls, onItemClick, tightBottom = false }: { urls: string[]; onItemClick: (i: number) => void; tightBottom?: boolean }) {
-  const count = urls.length;
-  const shown = urls.slice(0, Math.min(count, 6));
+// Accepts the rich `AlbumItem[]` shape so each tile can paint its own
+// LQIP placeholder + server thumbnail on the very first frame, with no
+// grey-square flash while the full media streams. Bare-URL legacy items
+// still work — `albumMeta` returns all-null metadata for them.
+function AlbumGrid({ items, onItemClick, tightBottom = false }: { items: AlbumItem[]; onItemClick: (i: number) => void; tightBottom?: boolean }) {
+  const count = items.length;
+  const shown = items.slice(0, Math.min(count, 6));
   const gap = 2;
+
+  // Tiny per-cell helper so each <MediaThumb> automatically receives the
+  // url + lqip + serverThumb extracted from its rich item, instead of
+  // repeating the destructure at every call site below.
+  const cell = (idx: number, radius: string, overlay?: React.ReactNode) => {
+    const it = shown[idx];
+    const url = albumUrl(it);
+    const meta = albumMeta(it);
+    return (
+      <MediaThumb
+        url={url}
+        onClick={() => onItemClick(idx)}
+        radius={radius}
+        lqip={meta.lqip}
+        serverThumb={meta.thumbnailUrl}
+        overlay={overlay}
+      />
+    );
+  };
 
   // WhatsApp-style corner radius map (outer corners only) — match bubble radius
   const r = (tl: boolean, tr: boolean, bl: boolean, br: boolean) =>
@@ -233,35 +298,25 @@ function AlbumGrid({ urls, onItemClick, tightBottom = false }: { urls: string[];
   // ── 1 media ──────────────────────────────────────────────────────
   if (count === 1) return wrap(
     <div style={{ width: '100%', height: 260 }}>
-      <MediaThumb url={shown[0]} onClick={() => onItemClick(0)} radius="10px" />
+      {cell(0, '10px')}
     </div>
   );
 
   // ── 2 media ──────────────────────────────────────────────────────
   if (count === 2) return wrap(
     <div style={{ display: 'flex', gap, height: 210 }}>
-      <div style={{ flex: 1 }}>
-        <MediaThumb url={shown[0]} onClick={() => onItemClick(0)} radius={r(true, false, true, false)} />
-      </div>
-      <div style={{ flex: 1 }}>
-        <MediaThumb url={shown[1]} onClick={() => onItemClick(1)} radius={r(false, true, false, true)} />
-      </div>
+      <div style={{ flex: 1 }}>{cell(0, r(true, false, true, false))}</div>
+      <div style={{ flex: 1 }}>{cell(1, r(false, true, false, true))}</div>
     </div>
   );
 
   // ── 3 media — left tall + right 2 stacked ────────────────────────
   if (count === 3) return wrap(
     <div style={{ display: 'flex', gap, height: 230 }}>
-      <div style={{ flex: 1.4 }}>
-        <MediaThumb url={shown[0]} onClick={() => onItemClick(0)} radius={r(true, false, true, false)} />
-      </div>
+      <div style={{ flex: 1.4 }}>{cell(0, r(true, false, true, false))}</div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap }}>
-        <div style={{ flex: 1 }}>
-          <MediaThumb url={shown[1]} onClick={() => onItemClick(1)} radius={r(false, true, false, false)} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <MediaThumb url={shown[2]} onClick={() => onItemClick(2)} radius={r(false, false, false, true)} />
-        </div>
+        <div style={{ flex: 1 }}>{cell(1, r(false, true, false, false))}</div>
+        <div style={{ flex: 1 }}>{cell(2, r(false, false, false, true))}</div>
       </div>
     </div>
   );
@@ -270,20 +325,12 @@ function AlbumGrid({ urls, onItemClick, tightBottom = false }: { urls: string[];
   if (count === 4) return wrap(
     <div style={{ display: 'flex', flexDirection: 'column', gap, height: 240 }}>
       <div style={{ display: 'flex', gap, flex: 1 }}>
-        <div style={{ flex: 1 }}>
-          <MediaThumb url={shown[0]} onClick={() => onItemClick(0)} radius={r(true, false, false, false)} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <MediaThumb url={shown[1]} onClick={() => onItemClick(1)} radius={r(false, true, false, false)} />
-        </div>
+        <div style={{ flex: 1 }}>{cell(0, r(true, false, false, false))}</div>
+        <div style={{ flex: 1 }}>{cell(1, r(false, true, false, false))}</div>
       </div>
       <div style={{ display: 'flex', gap, flex: 1 }}>
-        <div style={{ flex: 1 }}>
-          <MediaThumb url={shown[2]} onClick={() => onItemClick(2)} radius={r(false, false, true, false)} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <MediaThumb url={shown[3]} onClick={() => onItemClick(3)} radius={r(false, false, false, true)} />
-        </div>
+        <div style={{ flex: 1 }}>{cell(2, r(false, false, true, false))}</div>
+        <div style={{ flex: 1 }}>{cell(3, r(false, false, false, true))}</div>
       </div>
     </div>
   );
@@ -293,32 +340,23 @@ function AlbumGrid({ urls, onItemClick, tightBottom = false }: { urls: string[];
     <div style={{ display: 'flex', flexDirection: 'column', gap, height: 280 }}>
       {/* Top row: 2 equal */}
       <div style={{ display: 'flex', gap, flex: 1.1 }}>
-        <div style={{ flex: 1 }}>
-          <MediaThumb url={shown[0]} onClick={() => onItemClick(0)} radius={r(true, false, false, false)} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <MediaThumb url={shown[1]} onClick={() => onItemClick(1)} radius={r(false, true, false, false)} />
-        </div>
+        <div style={{ flex: 1 }}>{cell(0, r(true, false, false, false))}</div>
+        <div style={{ flex: 1 }}>{cell(1, r(false, true, false, false))}</div>
       </div>
       {/* Bottom row: 3 equal */}
       <div style={{ display: 'flex', gap, flex: 1 }}>
+        <div style={{ flex: 1 }}>{cell(2, r(false, false, true, false))}</div>
+        <div style={{ flex: 1 }}>{cell(3, '2px')}</div>
         <div style={{ flex: 1 }}>
-          <MediaThumb url={shown[2]} onClick={() => onItemClick(2)} radius={r(false, false, true, false)} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <MediaThumb url={shown[3]} onClick={() => onItemClick(3)} radius="2px" />
-        </div>
-        <div style={{ flex: 1 }}>
-          <MediaThumb
-            url={shown[4]}
-            onClick={() => onItemClick(4)}
-            radius={r(false, false, false, true)}
-            overlay={count > 6 ? (
+          {cell(
+            4,
+            r(false, false, false, true),
+            count > 6 ? (
               <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                 <span className="text-white text-xl font-bold">+{count - 5}</span>
               </div>
-            ) : undefined}
-          />
+            ) : undefined,
+          )}
         </div>
       </div>
     </div>
@@ -487,7 +525,7 @@ function MessagesSkeleton() {
   );
 }
 
-export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAreaProps) {
+export function ChatArea({ conversationId, onBack, onOpenConversation, isActive = true }: ChatAreaProps) {
   const { user } = useAuth();
   const { socket, joinConversation, leaveConversation, emitTyping, typingUsers, presenceMap, roomPresenceMap } = useSocket();
   const { initiateCall } = useCall();
@@ -583,8 +621,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         preloadMedia(m.audioUrl);
       }
       if (m.mediaAlbum) {
-        for (const url of m.mediaAlbum) {
-          if (!url.match(/\.(mp4|webm|mov|avi|mkv)$/i) && !isDocumentUrl(url)) preloadMedia(url);
+        for (const it of m.mediaAlbum) {
+          const url = albumUrl(it);
+          if (url && !url.match(/\.(mp4|webm|mov|avi|mkv)$/i) && !isDocumentUrl(url)) preloadMedia(url);
         }
       }
       if (m.replyTo?.imageUrl && !m.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) && !isDocumentMessage(m.replyTo)) {
@@ -1015,7 +1054,36 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     if (scrollReadyConvRef.current === conversationId) return;
     scrollReadyConvRef.current = conversationId;
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      const el = scrollRef.current;
+      // Telegram-grade reopen: if we have a saved scroll position
+      // for this conversation from earlier in the session, restore
+      // it INSTEAD of snapping to the bottom — but only if the
+      // conversation hasn't grown significantly while away (any
+      // saved offset would point at content that has shifted).
+      // Within ~40 px of layout drift the offset still maps to the
+      // same visible message, so we honour it; beyond that we fall
+      // through to the normal snap-to-bottom behaviour.
+      const saved = readScrollPosition(conversationId);
+      if (saved && Math.abs(el.scrollHeight - saved.scrollHeight) < 40) {
+        el.scrollTop = saved.scrollTop;
+        // Calibrate `wasAtBottomRef` against the RESTORED position
+        // before the settle-window re-pin timers can fire. Without
+        // this, the ref keeps its initial-true value (the scroll
+        // listener that updates it isn't attached until later, after
+        // `setScrollReady(true)`), so the 50/200/500/1000/1500 ms
+        // re-pins would yank the user back down to the bottom and
+        // silently undo the whole "land where you left off" UX.
+        // Same 140 px threshold as the scroll listener uses, so the
+        // calibration matches what the listener would compute on the
+        // first real scroll event.
+        const atBottomNow =
+          el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+        wasAtBottomRef.current = atBottomNow;
+        setIsAtBottom(atBottomNow);
+      } else {
+        el.scrollTop = el.scrollHeight;
+        wasAtBottomRef.current = true;
+      }
     }
     setScrollReady(true);
   });
@@ -1168,10 +1236,32 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       wasAtBottomRef.current = atBottom;
       setIsAtBottom(atBottom);
       if (atBottom) setUnreadCount(0);
+      // Persist scroll position for the Telegram-style "reopen lands
+      // exactly where you left off" UX. Saving on every scroll is
+      // cheap (one Map.set), but if the user is at the very bottom
+      // we save scrollTop = scrollHeight so a restore on a slightly
+      // grown conversation still maps to the bottom rather than
+      // landing 40 px short.
+      saveScrollPosition(conversationId, el.scrollTop, el.scrollHeight);
     };
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
-  }, [scrollReady]);
+  }, [scrollReady, conversationId]);
+
+  // On unmount (or when switching conversation), snapshot the final
+  // scroll state so the next open of THIS conversation can restore.
+  // The scroll-event handler above already saves on every move; this
+  // belt-and-braces capture covers cases where the unmount happens
+  // without a final scroll event (programmatic navigation, route
+  // change, etc.).
+  useEffect(() => {
+    const targetConv = conversationId;
+    return () => {
+      const el = scrollRef.current;
+      if (!el) return;
+      saveScrollPosition(targetConv, el.scrollTop, el.scrollHeight);
+    };
+  }, [conversationId]);
 
   // Reset unread counter when switching conversation
   useEffect(() => { setUnreadCount(0); setIsAtBottom(true); }, [conversationId]);
@@ -1309,6 +1399,11 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // Track active conversation + zero badge immediately when entering any conversation.
   // This is a safety net; the primary zero-out happens in handleSelectConv (home.tsx).
   useEffect(() => {
+    // Only the visible ChatArea instance owns the global "currently
+    // viewed conversation" ref — otherwise a hidden keepalive instance
+    // would steal it on mount and break the new-message notification
+    // suppression logic in socket-context.tsx.
+    if (!isActive) return;
     activeConversationIdRef.current = conversationId ?? null;
     if (conversationId) {
       queryClient.setQueryData(getListConversationsQueryKey(), (old: any[]) => {
@@ -1318,14 +1413,42 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         );
       });
     }
-    return () => { activeConversationIdRef.current = null; };
-  }, [conversationId]);
+    return () => {
+      // Clear the ref ONLY if it still points to us — otherwise a
+      // racing remount of a sibling instance would have already
+      // claimed it and we'd null out its valid entry.
+      if (activeConversationIdRef.current === conversationId) {
+        activeConversationIdRef.current = null;
+      }
+    };
+  }, [conversationId, isActive]);
 
   // Call the API to update lastReadAt on the server whenever we enter a conv or new messages arrive.
+  // Gated on isActive so a hidden keepalive instance doesn't bump the
+  // server's lastReadAt when a new message lands in a background conv —
+  // that would falsely zero out the unread badge in the conv list.
   useEffect(() => {
+    if (!isActive) return;
     if (!conversationId || !messages || messages.length === 0) return;
     markRead.mutate({ conversationId });
-  }, [conversationId, messages?.length]);
+  }, [conversationId, messages?.length, isActive]);
+
+  // ── Keepalive: pause all in-bubble audio/video when this instance
+  // becomes inactive, so a video the user was watching in conv A
+  // doesn't keep playing audio while they're reading conv B. Resuming
+  // is left to the user (tap to play again) — auto-resume on return
+  // would surprise them more than it helps. Reuses the existing
+  // scrollRef defined further up — that's the container holding all
+  // message bubbles and therefore every in-flight <video>/<audio>.
+  useEffect(() => {
+    if (isActive) return;
+    const root = scrollRef.current;
+    if (!root) return;
+    root.querySelectorAll('video, audio').forEach((el) => {
+      const m = el as HTMLMediaElement;
+      if (!m.paused) m.pause();
+    });
+  }, [isActive]);
 
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: getListMessagesQueryKey(conversationId) });
@@ -1759,6 +1882,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       setMentionStartIdx(-1);
     }
     // Typing indicator — emit start, debounce stop
+    if (!isActive) return;
     emitTyping(conversationId, true);
     if (typingStopTimeout.current) clearTimeout(typingStopTimeout.current);
     typingStopTimeout.current = setTimeout(() => { emitTyping(conversationId, false); }, 2500);
@@ -2385,9 +2509,30 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           } as any,
         });
       } else {
+        // Multi-attachment album: ship the rich per-item payload so each
+        // tile carries its own intrinsic dimensions, LQIP, and (for
+        // videos) server thumbnail. Receivers paint a recognisable
+        // blurred preview on the very first frame instead of the
+        // legacy grey-square placeholder. Items where capture failed
+        // gracefully drop to bare URL — server route accepts both.
+        const richAlbum: AlbumItem[] = entries.map((e, idx) => {
+          const url = urls[idx];
+          const w = e.width;
+          const h = e.height;
+          const lqip = e.lqip ?? null;
+          const thumb = thumbUrls[idx] ?? null;
+          if (!w && !h && !lqip && !thumb) return url;
+          return {
+            url,
+            ...(w ? { w } : {}),
+            ...(h ? { h } : {}),
+            ...(lqip ? { lqip } : {}),
+            ...(thumb ? { thumbnailUrl: thumb } : {}),
+          };
+        });
         await sendMsg.mutateAsync({
           conversationId: targetConvId,
-          data: { mediaAlbum: urls, content: caption || undefined, replyToId: replyId } as any,
+          data: { mediaAlbum: richAlbum, content: caption || undefined, replyToId: replyId } as any,
         });
       }
       invalidate();
@@ -2413,7 +2558,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     for (const m of messages) {
       if (m.imageUrl) sentUrls.add(m.imageUrl);
       const album = m.mediaAlbum;
-      if (Array.isArray(album)) for (const u of album) sentUrls.add(u);
+      if (Array.isArray(album)) for (const it of album) {
+        const u = albumUrl(it);
+        if (u) sentUrls.add(u);
+      }
     }
     const toRemove = pendingUploads.filter(p =>
       p.status === 'sent' && p.uploadedUrl && sentUrls.has(p.uploadedUrl)
@@ -2439,7 +2587,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     for (const m of messages) {
       if (m.imageUrl) live.add(m.imageUrl);
       const album = m.mediaAlbum;
-      if (Array.isArray(album)) for (const u of album) live.add(u);
+      if (Array.isArray(album)) for (const it of album) {
+        const u = albumUrl(it);
+        if (u) live.add(u);
+      }
     }
     for (const p of pendingUploads) {
       if (p.uploadedUrl) live.add(p.uploadedUrl);
@@ -2500,7 +2651,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       }
       const album = m.mediaAlbum;
       if (Array.isArray(album)) {
-        for (const u of album) {
+        for (const it of album) {
+          const u = albumUrl(it);
+          if (!u) continue;
           sentUrlSet.add(u);
           const anchor = mediaSendAnchorRef.current.get(u);
           if (anchor != null && anchor < ts) ts = anchor;
@@ -4025,6 +4178,13 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                             src={msg.replyTo.imageUrl}
                             alt="reply"
                             className="w-14 h-14 object-cover flex-shrink-0"
+                            // Same Telegram-style stripped_thumb trick as
+                            // the main bubble: paint the inline base64
+                            // LQIP behind the thumbnail so the reply
+                            // preview shows a recognisable blurred shape
+                            // on the very first frame, no grey square
+                            // while the full image streams.
+                            placeholder={msg.replyTo.mediaPreview ?? undefined}
                           />
                         )}
                         {msg.replyTo.imageUrl && msg.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) && (
@@ -4074,7 +4234,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     {msg.mediaAlbum && Array.isArray(msg.mediaAlbum) && msg.mediaAlbum.length > 0 && !isPoll && (
                       <div className="relative">
                         <AlbumGrid
-                          urls={msg.mediaAlbum}
+                          items={msg.mediaAlbum}
                           // Same condition that decides whether to overlay
                           // the time on the album below — keeps the four
                           // visible margins around the album grid identical
@@ -4083,7 +4243,11 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                           tightBottom={!msg.content && !hasReactions}
                           onItemClick={(i) => {
                             if (Date.now() - conversationOpenedAt.current < 900) return;
-                            setMediaViewer({ urls: msg.mediaAlbum!, index: i });
+                            // The viewer is keyed by URL strings — flatten
+                            // any rich items down to bare URLs so it
+                            // doesn't have to know about the album-item
+                            // shape itself.
+                            setMediaViewer({ urls: albumUrls(msg.mediaAlbum), index: i });
                           }}
                         />
                         {/* Time overlay on the album — only when no caption AND no reactions.

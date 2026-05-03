@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useListConversations } from "@workspace/api-client-react";
 import { formatDistanceToNow } from "date-fns";
+import type { Locale } from 'date-fns';
 import { fr, enUS, es, ar, pt, de } from 'date-fns/locale';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogOut } from "lucide-react";
@@ -21,6 +22,12 @@ export function Sidebar({ activeConversationId, onSelectConversation }: SidebarP
   const { user, logout } = useAuth();
   const { appLanguage } = usePreferences();
   const { data: conversations = [] } = useListConversations();
+
+  // Expose conversation count globally so the SW quota-exceeded telemetry
+  // (in main.tsx) can include it in reports without re-fetching.
+  useEffect(() => {
+    (window as Window & { __legendsConversationCount?: number }).__legendsConversationCount = conversations.length;
+  }, [conversations.length]);
 
   return (
     <div className="w-full h-full flex flex-col bg-sidebar border-r border-sidebar-border">

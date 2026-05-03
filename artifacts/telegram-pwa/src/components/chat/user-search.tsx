@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { useSearchUsers, useCreateConversation } from "@workspace/api-client-react";
+import { useSearchUsers, useCreateConversation, getSearchUsersQueryKey } from "@workspace/api-client-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2 } from "lucide-react";
@@ -18,6 +18,7 @@ export function UserSearch({ onSelectUser }: UserSearchProps) {
   
   const { data: users, isLoading } = useSearchUsers({ q: debouncedSearch }, {
     query: {
+      queryKey: getSearchUsersQueryKey({ q: debouncedSearch }),
       enabled: debouncedSearch.length > 0,
     }
   });

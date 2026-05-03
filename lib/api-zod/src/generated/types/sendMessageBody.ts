@@ -5,6 +5,7 @@
  * TeleChat messaging PWA API
  * OpenAPI spec version: 0.1.0
  */
+import type { AlbumItem } from "./albumItem";
 
 export interface SendMessageBody {
   /** @nullable */
@@ -12,7 +13,19 @@ export interface SendMessageBody {
   /** @nullable */
   imageUrl?: string | null;
   /** @nullable */
+  mediaWidth?: number | null;
+  /** @nullable */
+  mediaHeight?: number | null;
+  /** @nullable */
   thumbnailUrl?: string | null;
+  /** @nullable */
+  mediaPreview?: string | null;
+  /** @nullable */
+  mediaAlbum?: AlbumItem[] | null;
+  /** @nullable */
+  audioUrl?: string | null;
+  /** @nullable */
+  audioDuration?: number | null;
   /** @nullable */
   replyToId?: number | null;
 }

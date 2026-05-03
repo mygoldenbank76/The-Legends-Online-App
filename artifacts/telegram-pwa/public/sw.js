@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Service Worker — app-shell + network-first navigation
+// Service Worker — app-shell + categorised media cache (Telegram-style)
 //
 // VERSION is replaced at build time with a per-deploy unique ID by the
 // `swBuildIdPlugin` Vite plugin. This guarantees that every deploy ships
@@ -8,29 +8,72 @@
 // Without this, the same `v11` string would persist across deploys and
 // installed APKs / PWAs would never receive UI updates without a manual
 // reinstall.
+//
+// Media caching strategy (parity with TDLib's FileManager):
+//
+//   Telegram doesn't put every cached file in one bucket — that would
+//   let a flurry of large videos evict your avatars and the stripped
+//   thumbnails of last week's chats. Instead it categorises by purpose
+//   and applies an independent quota + LRU per category. We mirror that
+//   here at the Cache Storage API level by routing each request to one
+//   of four caches:
+//
+//     • avatars → small, very long-lived, never evicted by media bursts
+//     • thumbs  → still images and stripped previews
+//     • media   → photos, videos, voice notes, music
+//     • docs    → PDFs / archives / spreadsheets
+//
+//   Each cache has its own MAX_ENTRIES + TRIM_TO so heavy media use
+//   can't push avatars / thumbs out, and a giant document download
+//   can't blow away your photo cache. The legacy `legends-media-v1`
+//   cache (created before this categorisation existed) is read on
+//   miss-fallback so existing user data is preserved across the
+//   upgrade.
+//
+//   "True" LRU vs FIFO: on every cache hit we re-PUT the response in
+//   the background. Because Cache Storage's `put` of an existing key
+//   removes the old entry and inserts a fresh one at the END of the
+//   keys() iterator, this turns the FIFO trim (drop from front) into
+//   a real LRU (drop least-recently-touched). The cost is one extra
+//   write per read, kicked off via event.waitUntil so it never
+//   delays the response.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const VERSION = '__SW_BUILD_ID__';
 const CACHE_NAME = `legends-${VERSION}`;
 const STATIC_CACHE = `legends-static-${VERSION}`;
-// IMPORTANT: MEDIA_CACHE name is intentionally VERSION-INDEPENDENT.
+const SHELL_CACHE = `legends-shell-${VERSION}`;
+
+// IMPORTANT: media cache names are intentionally VERSION-INDEPENDENT.
 // Photos, videos, voice notes, and external thumbnails are immutable
 // (the URL itself contains a content-hashed object id, or it's an
 // external CDN with its own cache headers), so they remain valid
-// across every app deploy. Keeping the same cache name across deploys
-// means an APK update never wipes the user's already-downloaded media
-// — fixing the "after closing/reopening the app, photos reload from
-// scratch" complaint. The shell/static caches still version-bump so
-// code updates roll out instantly.
-const MEDIA_CACHE = `legends-media-v1`;
-const SHELL_CACHE = `legends-shell-${VERSION}`;
-// Max entries in MEDIA_CACHE before we trim the oldest 20%. Without
-// this, a heavy user can exceed the browser's storage quota and the
-// SW silently fails to cache new media. Telegram-style: keep ~2000
-// most recently fetched items on disk (covers months of typical use
-// at ~200 KB average per cached item ≈ 400 MB ceiling).
-const MEDIA_CACHE_MAX_ENTRIES = 2000;
-const MEDIA_CACHE_TRIM_TO = 1600;
+// across every app deploy. Keeping the same cache names across
+// deploys means an APK update never wipes the user's already-
+// downloaded media — fixing the "after closing/reopening the app,
+// photos reload from scratch" complaint. The shell/static caches
+// still version-bump so code updates roll out instantly.
+const AVATARS_CACHE = 'legends-avatars-v1';
+const THUMBS_CACHE = 'legends-thumbs-v1';
+const MEDIA_CACHE = 'legends-media-v1'; // photos, videos, voice (also pre-v2 entries)
+const DOCS_CACHE = 'legends-docs-v1';
+
+// Per-category quotas. Sized for a heavy user: months of typical use
+// without trim churn, while keeping total disk footprint under ~600 MB
+// at saturation (avatars ~10 MB + thumbs ~50 MB + media ~500 MB +
+// docs ~50 MB, rough back-of-envelope at average byte sizes).
+//
+// Telegram's defaults on Android are ~500 MB / ~3 GB depending on
+// device class; the browser's storage quota is generally ~10% of
+// disk free space, so even on a 32 GB phone we have ~3 GB to play
+// with. We stay well under that to leave room for IDB and other
+// app data.
+const QUOTAS = {
+  [AVATARS_CACHE]: { max: 600, trimTo: 480 },     // ~600 unique users covered
+  [THUMBS_CACHE]:  { max: 4000, trimTo: 3200 },   // months of stripped previews
+  [MEDIA_CACHE]:   { max: 2000, trimTo: 1600 },   // recent full-res photos/videos/voice
+  [DOCS_CACHE]:    { max: 400, trimTo: 320 },     // PDFs/zips don't need huge depth
+};
 
 // App-shell URLs precached at install time. These are the bare minimum
 // the browser needs to paint the first frame from cache without any
@@ -47,6 +90,12 @@ const SHELL_URLS = [
   '/icon-badge.png',
   '/favicon.svg',
 ];
+
+// All categorised media caches, in fallback-search order (avatar
+// requests check avatars first, then thumbs/media/docs in case the
+// URL was previously categorised differently). Keeps backward compat
+// with pre-v2 entries that all live in MEDIA_CACHE.
+const ALL_MEDIA_CACHES = [AVATARS_CACHE, THUMBS_CACHE, MEDIA_CACHE, DOCS_CACHE];
 
 // ── Install ──────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
@@ -77,7 +126,10 @@ self.addEventListener('message', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    const valid = new Set([CACHE_NAME, STATIC_CACHE, MEDIA_CACHE, SHELL_CACHE]);
+    const valid = new Set([
+      CACHE_NAME, STATIC_CACHE, SHELL_CACHE,
+      AVATARS_CACHE, THUMBS_CACHE, MEDIA_CACHE, DOCS_CACHE,
+    ]);
     await Promise.all(
       keys
         .filter((k) => !valid.has(k))
@@ -92,6 +144,36 @@ self.addEventListener('activate', (event) => {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+const AUDIO_RE = /\.(mp3|m4a|ogg|wav|opus|aac|weba)(\?|$)/i;
+const VIDEO_RE = /\.(mp4|webm|mov|m4v)(\?|$)/i;
+const IMAGE_RE = /\.(png|jpe?g|gif|webp|avif|svg|bmp|heic|heif|ico)(\?|$)/i;
+const DOC_RE = /\.(pdf|docx?|xlsx?|pptx?|odt|ods|odp|zip|rar|7z|gz|tgz|tar|csv|txt)(\?|$)/i;
+const FONT_RE = /\.(woff2?|ttf|otf)(\?|$)/i;
+
+/**
+ * Categorise a media request to its target cache. Routing is purely
+ * by URL shape — no need to parse the response. Order matters:
+ * avatars are detected first because their URLs may end in .jpg
+ * which would otherwise route to thumbs.
+ */
+function categoriseMedia(url) {
+  const p = url.pathname.toLowerCase();
+  // Avatars: our /api/avatars/ proxy or any URL whose path explicitly
+  // mentions "avatar" or "profile". External user avatars (gravatar,
+  // OAuth profile pics) too.
+  if (p.includes('/avatar') || p.includes('/profile-pic') || p.includes('/profile_pic')) return AVATARS_CACHE;
+  if (FONT_RE.test(p)) return STATIC_CACHE;
+  if (DOC_RE.test(p)) return DOCS_CACHE;
+  if (VIDEO_RE.test(p) || AUDIO_RE.test(p)) return MEDIA_CACHE;
+  // Stripped thumbnails / link-preview images / reaction emoji etc.
+  // are small and high-frequency — give them their own bucket so a
+  // burst of full-res photos can't evict them.
+  if (IMAGE_RE.test(p)) return THUMBS_CACHE;
+  // Default for anything else our /api/uploads/gcs/ path serves
+  // (mime-detected on the server, no useful extension).
+  return MEDIA_CACHE;
+}
+
 /** URLs that should be served Cache-First (media files) */
 function isMediaRequest(url) {
   const pathname = url.pathname;
@@ -104,6 +186,7 @@ function isMediaRequest(url) {
   // hit the same cache-first path as images and don't re-stream every
   // time the user navigates away and back.
   if (/\.(png|jpe?g|gif|webp|avif|svg|bmp|heic|heif|ico|mp4|webm|mov|m4v|mp3|m4a|ogg|wav|opus|aac|weba|woff2?)(\?|$)/i.test(pathname)) return true;
+  if (DOC_RE.test(pathname)) return true;
   return false;
 }
 
@@ -139,16 +222,18 @@ async function reportQuotaExceeded(err, context) {
   if (now - lastQuotaReportAt < 5 * 60_000) return;
   lastQuotaReportAt = now;
   try {
-    let mediaCacheCount = 0;
-    try {
-      const cache = await caches.open(MEDIA_CACHE);
-      mediaCacheCount = (await cache.keys()).length;
-    } catch { /* best-effort */ }
+    const counts = {};
+    for (const name of ALL_MEDIA_CACHES) {
+      try {
+        const c = await caches.open(name);
+        counts[name] = (await c.keys()).length;
+      } catch { counts[name] = -1; }
+    }
     const clientsList = await self.clients.matchAll({ type: 'window' });
     clientsList.forEach((c) => c.postMessage({
       type: 'SW_QUOTA_EXCEEDED',
       context,
-      mediaCacheCount,
+      cacheCounts: counts,
       errorName: (err && err.name) || 'QuotaExceededError',
       errorMessage: (err && err.message) || String(err),
       ts: now,
@@ -158,42 +243,94 @@ async function reportQuotaExceeded(err, context) {
   }
 }
 
-// ── MEDIA_CACHE LRU trim ─────────────────────────────────────────────────────
-// The Cache Storage API's `keys()` returns Request objects in insertion
-// order — i.e. oldest first. We exploit that to drop the oldest N
-// entries whenever the cache exceeds MEDIA_CACHE_MAX_ENTRIES. This is
-// the same FIFO approximation Workbox uses for its ExpirationPlugin
-// "maxEntries" strategy: it's not a strict per-access LRU (we'd need
-// our own metadata for that, costing one IDB write per fetch), but it
-// reliably keeps the cache from growing unbounded without burning
-// quota on metadata bookkeeping. Trim is rate-limited so we don't
-// re-walk the entire keys() list on every single put.
-let trimInFlight = false;
-let lastTrimAt = 0;
-async function trimMediaCacheIfNeeded(cache) {
-  // Run at most once every 30 s under load — trims happen async, so a
-  // burst of puts only needs one trim pass to bring the cache back to
-  // MEDIA_CACHE_TRIM_TO.
+// ── Per-category LRU trim ────────────────────────────────────────────────────
+// Each cache trims independently against its own quota. Trim is rate-
+// limited per cache so a burst of puts to the same bucket doesn't
+// re-walk keys() on every single put.
+const lastTrimAt = new Map(); // cacheName → timestamp
+const trimInFlight = new Set(); // cacheName
+
+async function trimCacheIfNeeded(cacheName, cache) {
   const now = Date.now();
-  if (trimInFlight || now - lastTrimAt < 30_000) return;
-  trimInFlight = true;
+  if (trimInFlight.has(cacheName)) return;
+  if ((lastTrimAt.get(cacheName) || 0) > now - 30_000) return;
+  trimInFlight.add(cacheName);
   try {
+    const quota = QUOTAS[cacheName];
+    if (!quota) return;
     const keys = await cache.keys();
-    if (keys.length <= MEDIA_CACHE_MAX_ENTRIES) {
-      lastTrimAt = now;
+    if (keys.length <= quota.max) {
+      lastTrimAt.set(cacheName, now);
       return;
     }
-    const toDelete = keys.length - MEDIA_CACHE_TRIM_TO;
-    // keys() is insertion-ordered → first N are oldest.
+    const toDelete = keys.length - quota.trimTo;
+    // keys() is insertion-ordered → first N are oldest (least
+    // recently touched, since touch-on-read re-PUTs to the end).
     for (let i = 0; i < toDelete; i++) {
       await cache.delete(keys[i]);
     }
-    lastTrimAt = Date.now();
+    lastTrimAt.set(cacheName, Date.now());
   } catch {
     // Best-effort — quota errors etc. are silently ignored
   } finally {
-    trimInFlight = false;
+    trimInFlight.delete(cacheName);
   }
+}
+
+// ── True-LRU touch-on-read ───────────────────────────────────────────────────
+// Re-PUT the cached response so it moves to the end of the cache's
+// keys() iterator. The trim above drops from the FRONT, so this turns
+// FIFO into LRU. We rate-limit per URL to avoid burning IO when the
+// same image is requested back-to-back (e.g. a loop of `<img>` re-
+// renders within the same React commit).
+const lastTouchAt = new Map(); // url string → timestamp
+const TOUCH_DEBOUNCE_MS = 60_000; // re-touch at most once per minute per URL
+
+async function touchCacheEntry(cacheName, cache, request, cached) {
+  const url = request.url;
+  const now = Date.now();
+  if ((lastTouchAt.get(url) || 0) > now - TOUCH_DEBOUNCE_MS) return;
+  lastTouchAt.set(url, now);
+  // Cap the touch map so a session that opens thousands of unique
+  // URLs doesn't grow it unbounded. Drop oldest 25% when over 5000.
+  if (lastTouchAt.size > 5000) {
+    const drop = Math.floor(lastTouchAt.size / 4);
+    let n = 0;
+    for (const k of lastTouchAt.keys()) {
+      lastTouchAt.delete(k);
+      if (++n >= drop) break;
+    }
+  }
+  try {
+    // Clone is required because the original `cached` was already
+    // returned to the page (its body is consumed by the renderer).
+    await cache.put(request, cached.clone());
+  } catch (err) {
+    if (err && err.name === 'QuotaExceededError') {
+      // No telemetry spam from a touch — it's purely a hint.
+    }
+  }
+}
+
+// ── Search all categorised caches for a request ──────────────────────────────
+// Used on the cache-first path so a URL that was originally cached
+// pre-categorisation (everything in MEDIA_CACHE before this upgrade,
+// or routed to a different cache because the URL changed shape) is
+// still found instead of triggering an unnecessary network roundtrip.
+async function findInAnyMediaCache(request, primaryCacheName) {
+  // Try the primary first (most common hit)
+  const primary = await caches.open(primaryCacheName);
+  const direct = await primary.match(request);
+  if (direct) return { cache: primary, cacheName: primaryCacheName, response: direct };
+  // Fallback: scan the others in order. Avoid scanning STATIC_CACHE here
+  // (different lifecycle, version-bumped per deploy).
+  for (const name of ALL_MEDIA_CACHES) {
+    if (name === primaryCacheName) continue;
+    const c = await caches.open(name);
+    const r = await c.match(request);
+    if (r) return { cache: c, cacheName: name, response: r };
+  }
+  return null;
 }
 
 // ── Fetch ─────────────────────────────────────────────────────────────────────
@@ -220,77 +357,83 @@ self.addEventListener('fetch', (event) => {
     } catch { return false; }
   };
 
-  // ── 1. Our own media proxy — Cache First, very long TTL ──────────────────
+  // ── 1. Our own media proxy — Cache First, categorised ──────────────────
   if (url.origin === self.location.origin && isMediaRequest(url)) {
-    event.respondWith(
-      caches.open(MEDIA_CACHE).then(async (cache) => {
-        const cached = await cache.match(request);
-        if (cached) {
-          if (isCachedStale(cached)) {
-            event.waitUntil(
-              fetch(request).then(async (res) => {
-                if (res.ok) {
-                  try { await cache.put(request, res.clone()); } catch {}
-                }
-              }).catch(() => {})
-            );
-          }
-          return cached;
+    const targetCacheName = categoriseMedia(url);
+    event.respondWith((async () => {
+      const hit = await findInAnyMediaCache(request, targetCacheName);
+      if (hit) {
+        // Touch-on-read in the background so this entry survives the
+        // next trim pass over its cache. Also re-fetch in the
+        // background if the cached response is stale.
+        event.waitUntil(touchCacheEntry(hit.cacheName, hit.cache, request, hit.response));
+        if (isCachedStale(hit.response)) {
+          event.waitUntil(
+            fetch(request).then(async (res) => {
+              if (res.ok) {
+                try { await hit.cache.put(request, res.clone()); } catch {}
+              }
+            }).catch(() => {})
+          );
         }
-        const response = await fetch(request);
-        if (response.ok) {
-          try {
-            await cache.put(request, response.clone());
-          } catch (err) {
-            if (err && err.name === 'QuotaExceededError') {
-              event.waitUntil(reportQuotaExceeded(err, 'media-proxy'));
-            }
+        return hit.response;
+      }
+      // Cache miss → network → put in the categorised cache.
+      const targetCache = await caches.open(targetCacheName);
+      const response = await fetch(request);
+      if (response.ok) {
+        try {
+          await targetCache.put(request, response.clone());
+        } catch (err) {
+          if (err && err.name === 'QuotaExceededError') {
+            event.waitUntil(reportQuotaExceeded(err, `media-${targetCacheName}`));
           }
-          // Fire-and-forget trim — never blocks the response.
-          event.waitUntil(trimMediaCacheIfNeeded(cache));
         }
-        return response;
-      })
-    );
+        // Fire-and-forget trim — never blocks the response.
+        event.waitUntil(trimCacheIfNeeded(targetCacheName, targetCache));
+      }
+      return response;
+    })());
     return;
   }
 
   // ── 2. External media thumbnails — Cache First (opaque ok) ───────────────
   if (isExternalMedia(url)) {
-    event.respondWith(
-      caches.open(MEDIA_CACHE).then(async (cache) => {
-        const cached = await cache.match(request);
-        if (cached) {
-          if (isCachedStale(cached)) {
-            event.waitUntil(
-              fetch(request, { mode: 'no-cors' }).then(async (res) => {
-                if (res.type === 'opaque' || res.ok) {
-                  try { await cache.put(request, res.clone()); } catch {}
-                }
-              }).catch(() => {})
-            );
-          }
-          return cached;
-        }
-        try {
-          // no-cors gives opaque response — still cacheable and displayable
-          const response = await fetch(request, { mode: 'no-cors' });
-          if (response.type === 'opaque' || response.ok) {
-            try {
-              await cache.put(request, response.clone());
-            } catch (err) {
-              if (err && err.name === 'QuotaExceededError') {
-                event.waitUntil(reportQuotaExceeded(err, 'external-media'));
+    const targetCacheName = categoriseMedia(url);
+    event.respondWith((async () => {
+      const hit = await findInAnyMediaCache(request, targetCacheName);
+      if (hit) {
+        event.waitUntil(touchCacheEntry(hit.cacheName, hit.cache, request, hit.response));
+        if (isCachedStale(hit.response)) {
+          event.waitUntil(
+            fetch(request, { mode: 'no-cors' }).then(async (res) => {
+              if (res.type === 'opaque' || res.ok) {
+                try { await hit.cache.put(request, res.clone()); } catch {}
               }
-            }
-            event.waitUntil(trimMediaCacheIfNeeded(cache));
-          }
-          return response;
-        } catch {
-          return new Response('', { status: 503 });
+            }).catch(() => {})
+          );
         }
-      })
-    );
+        return hit.response;
+      }
+      try {
+        // no-cors gives opaque response — still cacheable and displayable
+        const targetCache = await caches.open(targetCacheName);
+        const response = await fetch(request, { mode: 'no-cors' });
+        if (response.type === 'opaque' || response.ok) {
+          try {
+            await targetCache.put(request, response.clone());
+          } catch (err) {
+            if (err && err.name === 'QuotaExceededError') {
+              event.waitUntil(reportQuotaExceeded(err, `external-${targetCacheName}`));
+            }
+          }
+          event.waitUntil(trimCacheIfNeeded(targetCacheName, targetCache));
+        }
+        return response;
+      } catch {
+        return new Response('', { status: 503 });
+      }
+    })());
     return;
   }
 

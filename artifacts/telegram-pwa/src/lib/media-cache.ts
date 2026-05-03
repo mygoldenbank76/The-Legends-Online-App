@@ -17,6 +17,8 @@
  * JS heap).
  */
 
+import { isNativeAvailable, nativeCacheGet, nativeCachePut } from './native-cache';
+
 const MAX_ENTRIES = 1500;
 
 // src URL → blob objectURL. Map insertion order doubles as our LRU
@@ -96,10 +98,28 @@ export function preloadMedia(src: string): void {
   if (cache.has(src) || pending.has(src)) return;
 
   pending.add(src);
-  fetch(src)
-    .then(r => {
-      if (!r.ok) throw new Error('bad response');
-      return r.blob();
+
+  // On the APK, consult the native filesystem cache FIRST. This
+  // bypasses both the WebView quota AND any SW eviction that may have
+  // happened between sessions, giving Telegram-grade "everything is
+  // already there" persistence. On web/PWA isNativeAvailable() is
+  // false and this resolves to null instantly — the fetch below runs
+  // unchanged and the SW handles disk caching as before.
+  const tryNative = isNativeAvailable() ? nativeCacheGet(src) : Promise.resolve(null);
+
+  tryNative
+    .then(nativeBlob => {
+      if (nativeBlob) return nativeBlob;
+      return fetch(src).then(r => {
+        if (!r.ok) throw new Error('bad response');
+        return r.blob().then(blob => {
+          // Persist to the native FS for next session. Fire-and-
+          // forget — failures (disk full, permission) shouldn't
+          // affect the in-memory hit path.
+          if (isNativeAvailable()) void nativeCachePut(src, blob);
+          return blob;
+        });
+      });
     })
     .then(blob => {
       evictIfNeeded();
@@ -163,14 +183,22 @@ const VIDEO_EXT_RE = /\.(mp4|webm|mov|avi|mkv|m4v)(\?|$)/i;
  * lastMessage summary on the conversation list, without an exhaustive
  * type union.
  */
+type AlbumItemLoose =
+  | string
+  | { url?: string | null; lqip?: string | null; thumbnailUrl?: string | null };
+
 type MessageLikeForMedia = {
   imageUrl?: string | null;
   audioUrl?: string | null;
-  mediaAlbum?: string[] | null;
+  mediaAlbum?: AlbumItemLoose[] | null;
   content?: string | null;
   replyTo?: { imageUrl?: string | null; content?: string | null } | null;
   linkPreview?: { image?: string | null } | null;
 };
+
+function albumItemUrl(item: AlbumItemLoose): string {
+  return typeof item === 'string' ? item : (item?.url ?? '');
+}
 
 // Documents (PDFs, .docx…) sent through the file picker land in
 // `imageUrl` but render as a tap-to-download card, not as an image.
@@ -204,7 +232,8 @@ export function prewarmMessageMedia(messages: readonly MessageLikeForMedia[]): v
       preloadMedia(m.audioUrl);
     }
     if (Array.isArray(m.mediaAlbum)) {
-      for (const url of m.mediaAlbum) {
+      for (const item of m.mediaAlbum) {
+        const url = albumItemUrl(item);
         if (url && !VIDEO_EXT_RE.test(url)) preloadMedia(url);
       }
     }

@@ -47,6 +47,22 @@ export default function Home() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>('groups');
   const [activeConvId, setActiveConvId] = useState<number | undefined>();
+  // ── Keepalive scheme (Telegram parity, point 6) ─────────────────
+  // We keep up to KEEPALIVE_MAX ChatArea instances mounted at any
+  // time — the active one is rendered with `display: flex`, the
+  // others with `display: none`. Switching back to a recently-viewed
+  // conversation restores composer draft, scroll position, video
+  // playback state, message list and any open sheets/menus instantly,
+  // because the React tree (and the underlying DOM) was never torn
+  // down. ChatArea's `isActive` prop gates side-effects (mark-as-read,
+  // typing, activeConversationIdRef, audio/video) so background
+  // instances are inert.
+  //
+  // 3 is a deliberate cap: enough to cover the common A→B→A bounce
+  // and the occasional A→B→C→A triple, but small enough that the
+  // memory footprint of three live message lists + their media
+  // bubbles stays well under ~30 MB on a busy account.
+  const [mountedConvIds, setMountedConvIds] = useState<number[]>([]);
   const [swipeDir, setSwipeDir] = useState<1 | -1>(1);
   // Hidden when the contacts search is active (Telegram-style focus mode).
   const [contactsSearchActive, setContactsSearchActive] = useState(false);
@@ -56,6 +72,20 @@ export default function Home() {
     setActiveTab(isGroupConv ? 'groups' : 'messages');
     setActiveConvId(convId);
   }, []);
+
+  // Maintain the keepalive LRU: every time the active conv changes,
+  // push it to the front and trim to KEEPALIVE_MAX. We do this in an
+  // effect (not inside setActiveConvId) so push notifications, URL
+  // params and conv-list taps all funnel through the same code path.
+  useEffect(() => {
+    if (activeConvId === undefined) return;
+    setMountedConvIds(prev => {
+      if (prev[0] === activeConvId) return prev;
+      const KEEPALIVE_MAX = 3;
+      const without = prev.filter(id => id !== activeConvId);
+      return [activeConvId, ...without].slice(0, KEEPALIVE_MAX);
+    });
+  }, [activeConvId]);
 
   // Handle SW postMessage (app already open when notification is tapped)
   useEffect(() => {
@@ -290,22 +320,24 @@ export default function Home() {
               </AnimatePresence>
             </div>
           )}
-          {showChat && activeConvId && (
-            <ChatArea
-              conversationId={activeConvId}
+          {showChat && mountedConvIds.length > 0 && (
+            <KeepaliveChatPanel
+              mountedConvIds={mountedConvIds}
+              activeConvId={activeConvId}
               onBack={handleBack}
-              onOpenConversation={(convId) => openConversation(convId, false)}
+              openConversation={openConversation}
             />
           )}
         </div>
       ) : (
         /* Desktop: chat panel */
         <div className="relative z-10 flex-1 h-full min-w-0 flex flex-col">
-          {activeConvId ? (
-            <ChatArea
-              conversationId={activeConvId}
+          {mountedConvIds.length > 0 ? (
+            <KeepaliveChatPanel
+              mountedConvIds={mountedConvIds}
+              activeConvId={activeConvId}
               onBack={undefined}
-              onOpenConversation={(convId) => openConversation(convId, false)}
+              openConversation={openConversation}
             />
           ) : (
             <div className="flex h-full items-center justify-center flex-col gap-4 text-muted-foreground">
@@ -318,6 +350,63 @@ export default function Home() {
         </div>
       )}
     </div>
+  );
+}
+
+/* ── Keepalive chat panel ──────────────────────────────────────────
+ * Renders every conv in `mountedConvIds` simultaneously, swapping
+ * `display: flex|none` per instance so React never unmounts a recently
+ * viewed ChatArea. Thanks to React's stable keying, the DOM (and
+ * therefore composer textarea state, scroll position, video element
+ * playback ref, open sheets) survives across switches verbatim.
+ *
+ * The wrapper around each ChatArea uses `flex` not `block` because
+ * ChatArea's root is `flex-col` and relies on flex stretching for the
+ * scroll area to fill the panel; using `block` would collapse the
+ * scroll container to its natural height.
+ *
+ * `aria-hidden + inert` on inactive instances prevents screen readers
+ * from announcing background content and blocks tab-focus from
+ * leaking into hidden message bubbles. `inert` is supported in every
+ * modern browser and the Android WebView shipped with our APK target.
+ */
+function KeepaliveChatPanel({
+  mountedConvIds,
+  activeConvId,
+  onBack,
+  openConversation,
+}: {
+  mountedConvIds: number[];
+  activeConvId: number | undefined;
+  onBack: (() => void) | undefined;
+  openConversation: (convId: number, isGroup: boolean) => void;
+}) {
+  return (
+    <>
+      {mountedConvIds.map((convId) => {
+        const isActive = convId === activeConvId;
+        return (
+          <div
+            key={convId}
+            // `inert` is intentionally a string ("" === present, undefined === absent)
+            // — TS DOM lib types it as boolean | undefined, but the runtime semantics
+            // map both `true` and `""` to the same enabled state. Cast through any
+            // to keep both old (boolean) and new (string) lib.dom resolutions happy.
+            {...({ inert: isActive ? undefined : '' } as any)}
+            aria-hidden={isActive ? undefined : true}
+            className="absolute inset-0 flex flex-col"
+            style={{ display: isActive ? 'flex' : 'none' }}
+          >
+            <ChatArea
+              conversationId={convId}
+              isActive={isActive}
+              onBack={onBack}
+              onOpenConversation={(targetId) => openConversation(targetId, false)}
+            />
+          </div>
+        );
+      })}
+    </>
   );
 }
 

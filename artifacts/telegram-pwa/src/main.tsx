@@ -84,6 +84,47 @@ if ("serviceWorker" in navigator) {
           _swReloaded = true;
           window.location.reload();
         }
+        // ── Quota telemetry ────────────────────────────────────────────────
+        // The SW posts SW_QUOTA_EXCEEDED when cache.put fails because the
+        // OS storage quota is full. We forward to the server so we can see
+        // how often real users hit quota and tune MEDIA_CACHE_MAX_ENTRIES.
+        // Fire-and-forget; never block the UI on telemetry.
+        if (e.data && e.data.type === 'SW_QUOTA_EXCEEDED') {
+          (async () => {
+            let conversationCount: number | null = null;
+            try {
+              const w = window as Window & { __legendsConversationCount?: number };
+              if (typeof w.__legendsConversationCount === 'number') {
+                conversationCount = w.__legendsConversationCount;
+              }
+            } catch { /* ignore */ }
+            let estimate: { quota?: number; usage?: number } = {};
+            try {
+              if (navigator.storage?.estimate) {
+                const est = await navigator.storage.estimate();
+                estimate = { quota: est.quota, usage: est.usage };
+              }
+            } catch { /* ignore */ }
+            try {
+              await fetch('/api/telemetry/quota-exceeded', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  context: e.data.context,
+                  mediaCacheCount: e.data.mediaCacheCount,
+                  conversationCount,
+                  errorName: e.data.errorName,
+                  errorMessage: e.data.errorMessage,
+                  ts: e.data.ts,
+                  quota: estimate.quota,
+                  usage: estimate.usage,
+                  userAgent: navigator.userAgent,
+                }),
+                keepalive: true,
+              });
+            } catch { /* swallow — telemetry must never break the app */ }
+          })();
+        }
       });
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (_swReloaded) return;

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "689366771826",
+    "project_id": "the-legends-online",
+    "storage_bucket": "the-legends-online.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:689366771826:android:737a2cecd4baaf0c73faeb",
+        "android_client_info": {
+          "package_name": "social.thelegendsonline.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyANvO-V52Nqbl5OwE6YTqPyT7kKLCH_0zg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

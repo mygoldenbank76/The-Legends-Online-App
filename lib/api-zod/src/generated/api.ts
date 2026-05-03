@@ -155,7 +155,33 @@ export const ListConversationsResponseItem = zod.object({
         .optional(),
       content: zod.string().nullish(),
       imageUrl: zod.string().nullish(),
+      mediaWidth: zod.number().nullish(),
+      mediaHeight: zod.number().nullish(),
       thumbnailUrl: zod.string().nullish(),
+      mediaPreview: zod
+        .string()
+        .nullish()
+        .describe("Tiny base64 LQIP data URL (~700–1500 B JPEG\/PNG\/WebP)."),
+      mediaAlbum: zod
+        .array(
+          zod
+            .union([
+              zod.string(),
+              zod.object({
+                url: zod.string(),
+                w: zod.number().nullish(),
+                h: zod.number().nullish(),
+                lqip: zod.string().nullish(),
+                thumbnailUrl: zod.string().nullish(),
+              }),
+            ])
+            .describe(
+              "One entry in a multi-attachment album. Either a bare URL string\n(legacy senders) OR a rich object carrying intrinsic dimensions,\na tiny inline LQIP, and an optional video poster URL — same\nTelegram-style fields the single-image bubble already uses.\n",
+            ),
+        )
+        .nullish(),
+      audioUrl: zod.string().nullish(),
+      audioDuration: zod.number().nullish(),
       linkPreview: zod
         .object({
           url: zod.string(),
@@ -165,6 +191,7 @@ export const ListConversationsResponseItem = zod.object({
         })
         .optional(),
       replyTo: zod.unknown().optional(),
+      replyToId: zod.number().nullish(),
       editedAt: zod.string().nullish(),
       isDeleted: zod.boolean(),
       reactions: zod.array(
@@ -265,7 +292,33 @@ export const ListMessagesResponseItem = zod.object({
     .optional(),
   content: zod.string().nullish(),
   imageUrl: zod.string().nullish(),
+  mediaWidth: zod.number().nullish(),
+  mediaHeight: zod.number().nullish(),
   thumbnailUrl: zod.string().nullish(),
+  mediaPreview: zod
+    .string()
+    .nullish()
+    .describe("Tiny base64 LQIP data URL (~700–1500 B JPEG\/PNG\/WebP)."),
+  mediaAlbum: zod
+    .array(
+      zod
+        .union([
+          zod.string(),
+          zod.object({
+            url: zod.string(),
+            w: zod.number().nullish(),
+            h: zod.number().nullish(),
+            lqip: zod.string().nullish(),
+            thumbnailUrl: zod.string().nullish(),
+          }),
+        ])
+        .describe(
+          "One entry in a multi-attachment album. Either a bare URL string\n(legacy senders) OR a rich object carrying intrinsic dimensions,\na tiny inline LQIP, and an optional video poster URL — same\nTelegram-style fields the single-image bubble already uses.\n",
+        ),
+    )
+    .nullish(),
+  audioUrl: zod.string().nullish(),
+  audioDuration: zod.number().nullish(),
   linkPreview: zod
     .object({
       url: zod.string(),
@@ -275,6 +328,7 @@ export const ListMessagesResponseItem = zod.object({
     })
     .optional(),
   replyTo: zod.unknown().optional(),
+  replyToId: zod.number().nullish(),
   editedAt: zod.string().nullish(),
   isDeleted: zod.boolean(),
   reactions: zod.array(
@@ -313,7 +367,30 @@ export const SendMessageParams = zod.object({
 export const SendMessageBody = zod.object({
   content: zod.string().nullish(),
   imageUrl: zod.string().nullish(),
+  mediaWidth: zod.number().nullish(),
+  mediaHeight: zod.number().nullish(),
   thumbnailUrl: zod.string().nullish(),
+  mediaPreview: zod.string().nullish(),
+  mediaAlbum: zod
+    .array(
+      zod
+        .union([
+          zod.string(),
+          zod.object({
+            url: zod.string(),
+            w: zod.number().nullish(),
+            h: zod.number().nullish(),
+            lqip: zod.string().nullish(),
+            thumbnailUrl: zod.string().nullish(),
+          }),
+        ])
+        .describe(
+          "One entry in a multi-attachment album. Either a bare URL string\n(legacy senders) OR a rich object carrying intrinsic dimensions,\na tiny inline LQIP, and an optional video poster URL — same\nTelegram-style fields the single-image bubble already uses.\n",
+        ),
+    )
+    .nullish(),
+  audioUrl: zod.string().nullish(),
+  audioDuration: zod.number().nullish(),
   replyToId: zod.number().nullish(),
 });
 
@@ -358,7 +435,33 @@ export const EditMessageResponse = zod.object({
     .optional(),
   content: zod.string().nullish(),
   imageUrl: zod.string().nullish(),
+  mediaWidth: zod.number().nullish(),
+  mediaHeight: zod.number().nullish(),
   thumbnailUrl: zod.string().nullish(),
+  mediaPreview: zod
+    .string()
+    .nullish()
+    .describe("Tiny base64 LQIP data URL (~700–1500 B JPEG\/PNG\/WebP)."),
+  mediaAlbum: zod
+    .array(
+      zod
+        .union([
+          zod.string(),
+          zod.object({
+            url: zod.string(),
+            w: zod.number().nullish(),
+            h: zod.number().nullish(),
+            lqip: zod.string().nullish(),
+            thumbnailUrl: zod.string().nullish(),
+          }),
+        ])
+        .describe(
+          "One entry in a multi-attachment album. Either a bare URL string\n(legacy senders) OR a rich object carrying intrinsic dimensions,\na tiny inline LQIP, and an optional video poster URL — same\nTelegram-style fields the single-image bubble already uses.\n",
+        ),
+    )
+    .nullish(),
+  audioUrl: zod.string().nullish(),
+  audioDuration: zod.number().nullish(),
   linkPreview: zod
     .object({
       url: zod.string(),
@@ -368,6 +471,7 @@ export const EditMessageResponse = zod.object({
     })
     .optional(),
   replyTo: zod.unknown().optional(),
+  replyToId: zod.number().nullish(),
   editedAt: zod.string().nullish(),
   isDeleted: zod.boolean(),
   reactions: zod.array(
@@ -447,7 +551,33 @@ export const AddReactionResponse = zod.object({
     .optional(),
   content: zod.string().nullish(),
   imageUrl: zod.string().nullish(),
+  mediaWidth: zod.number().nullish(),
+  mediaHeight: zod.number().nullish(),
   thumbnailUrl: zod.string().nullish(),
+  mediaPreview: zod
+    .string()
+    .nullish()
+    .describe("Tiny base64 LQIP data URL (~700–1500 B JPEG\/PNG\/WebP)."),
+  mediaAlbum: zod
+    .array(
+      zod
+        .union([
+          zod.string(),
+          zod.object({
+            url: zod.string(),
+            w: zod.number().nullish(),
+            h: zod.number().nullish(),
+            lqip: zod.string().nullish(),
+            thumbnailUrl: zod.string().nullish(),
+          }),
+        ])
+        .describe(
+          "One entry in a multi-attachment album. Either a bare URL string\n(legacy senders) OR a rich object carrying intrinsic dimensions,\na tiny inline LQIP, and an optional video poster URL — same\nTelegram-style fields the single-image bubble already uses.\n",
+        ),
+    )
+    .nullish(),
+  audioUrl: zod.string().nullish(),
+  audioDuration: zod.number().nullish(),
   linkPreview: zod
     .object({
       url: zod.string(),
@@ -457,6 +587,7 @@ export const AddReactionResponse = zod.object({
     })
     .optional(),
   replyTo: zod.unknown().optional(),
+  replyToId: zod.number().nullish(),
   editedAt: zod.string().nullish(),
   isDeleted: zod.boolean(),
   reactions: zod.array(

@@ -5,6 +5,7 @@
  * TeleChat messaging PWA API
  * OpenAPI spec version: 0.1.0
  */
+import type { AlbumItem } from "./albumItem";
 import type { LinkPreview } from "./linkPreview";
 import type { Message as __Message } from "./message";
 import type { Reaction } from "./reaction";
@@ -20,9 +21,26 @@ export interface Message {
   /** @nullable */
   imageUrl?: string | null;
   /** @nullable */
+  mediaWidth?: number | null;
+  /** @nullable */
+  mediaHeight?: number | null;
+  /** @nullable */
   thumbnailUrl?: string | null;
+  /**
+   * Tiny base64 LQIP data URL (~700–1500 B JPEG/PNG/WebP).
+   * @nullable
+   */
+  mediaPreview?: string | null;
+  /** @nullable */
+  mediaAlbum?: AlbumItem[] | null;
+  /** @nullable */
+  audioUrl?: string | null;
+  /** @nullable */
+  audioDuration?: number | null;
   linkPreview?: LinkPreview;
   replyTo?: __Message;
+  /** @nullable */
+  replyToId?: number | null;
   /** @nullable */
   editedAt?: string | null;
   isDeleted: boolean;

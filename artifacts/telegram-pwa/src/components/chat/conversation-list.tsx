@@ -11,6 +11,7 @@ import {
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
+import type { Locale } from 'date-fns';
 import { fr, enUS, es, ar, pt, de } from 'date-fns/locale';
 import { Trash2, Phone, Video as VideoIcon } from 'lucide-react';
 import { useCall } from '@/lib/call-context';
@@ -439,9 +440,18 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
                           // body is a single link.
                           const lmAny = lastMsg as any;
                           const lmUrl: string | undefined = lastMsg?.imageUrl ?? undefined;
-                          const lmAlbumFirst: string | undefined = Array.isArray(lmAny?.mediaAlbum) && lmAny.mediaAlbum.length > 0
+                          const lmAlbumFirstRaw: unknown = Array.isArray(lmAny?.mediaAlbum) && lmAny.mediaAlbum.length > 0
                             ? lmAny.mediaAlbum[0]
                             : undefined;
+                          // Album items may be bare URL strings (legacy)
+                          // or {url, w, h, lqip, thumbnailUrl} objects.
+                          // Normalise here so the lastMessage thumbnail
+                          // resolves either form.
+                          const lmAlbumFirst: string | undefined = typeof lmAlbumFirstRaw === 'string'
+                            ? lmAlbumFirstRaw
+                            : (lmAlbumFirstRaw && typeof lmAlbumFirstRaw === 'object' && 'url' in lmAlbumFirstRaw
+                              ? (lmAlbumFirstRaw as { url?: string }).url
+                              : undefined);
                           const mediaUrl = lmUrl ?? lmAlbumFirst;
                           // Content-aware document detector — image-typed
                           // files sent via the Document picker still get

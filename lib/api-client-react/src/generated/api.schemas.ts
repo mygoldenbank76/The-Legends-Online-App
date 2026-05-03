@@ -88,6 +88,27 @@ export const ConversationSummaryType = {
   group: "group",
 } as const;
 
+/**
+ * One entry in a multi-attachment album. Either a bare URL string
+(legacy senders) OR a rich object carrying intrinsic dimensions,
+a tiny inline LQIP, and an optional video poster URL — same
+Telegram-style fields the single-image bubble already uses.
+
+ */
+export type AlbumItem =
+  | string
+  | {
+      url: string;
+      /** @nullable */
+      w?: number | null;
+      /** @nullable */
+      h?: number | null;
+      /** @nullable */
+      lqip?: string | null;
+      /** @nullable */
+      thumbnailUrl?: string | null;
+    };
+
 export interface LinkPreview {
   url: string;
   /** @nullable */
@@ -117,9 +138,26 @@ export interface Message {
   /** @nullable */
   imageUrl?: string | null;
   /** @nullable */
+  mediaWidth?: number | null;
+  /** @nullable */
+  mediaHeight?: number | null;
+  /** @nullable */
   thumbnailUrl?: string | null;
+  /**
+   * Tiny base64 LQIP data URL (~700–1500 B JPEG/PNG/WebP).
+   * @nullable
+   */
+  mediaPreview?: string | null;
+  /** @nullable */
+  mediaAlbum?: AlbumItem[] | null;
+  /** @nullable */
+  audioUrl?: string | null;
+  /** @nullable */
+  audioDuration?: number | null;
   linkPreview?: LinkPreview;
   replyTo?: Message;
+  /** @nullable */
+  replyToId?: number | null;
   /** @nullable */
   editedAt?: string | null;
   isDeleted: boolean;
@@ -150,7 +188,19 @@ export interface SendMessageBody {
   /** @nullable */
   imageUrl?: string | null;
   /** @nullable */
+  mediaWidth?: number | null;
+  /** @nullable */
+  mediaHeight?: number | null;
+  /** @nullable */
   thumbnailUrl?: string | null;
+  /** @nullable */
+  mediaPreview?: string | null;
+  /** @nullable */
+  mediaAlbum?: AlbumItem[] | null;
+  /** @nullable */
+  audioUrl?: string | null;
+  /** @nullable */
+  audioDuration?: number | null;
   /** @nullable */
   replyToId?: number | null;
 }

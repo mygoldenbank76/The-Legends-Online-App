@@ -47,10 +47,12 @@ type Conversation = {
   participants?: Participant[];
 };
 
+type AlbumItemLoose = string | { url?: string | null };
+
 type Msg = {
   imageUrl?: string | null;
   audioUrl?: string | null;
-  mediaAlbum?: string[] | null;
+  mediaAlbum?: AlbumItemLoose[] | null;
   linkPreview?: {
     url: string;
     title?: string | null;
@@ -107,8 +109,9 @@ export function GroupInfoSheet({ open, onClose, conversation, messages, onOpenCo
     for (const m of messages) {
       if (m.imageUrl && !isVideo(m.imageUrl)) preloadMedia(m.imageUrl);
       if (m.mediaAlbum) {
-        for (const u of m.mediaAlbum) {
-          if (!isVideo(u)) preloadMedia(u);
+        for (const item of m.mediaAlbum) {
+          const u = typeof item === 'string' ? item : (item?.url ?? '');
+          if (u && !isVideo(u)) preloadMedia(u);
         }
       }
       if (m.linkPreview?.image) preloadMedia(m.linkPreview.image);
@@ -148,7 +151,9 @@ export function GroupInfoSheet({ open, onClose, conversation, messages, onOpenCo
   const gifUrls: string[] = [];
   for (const m of messages) {
     if (m.mediaAlbum && Array.isArray(m.mediaAlbum) && m.mediaAlbum.length > 0) {
-      for (const u of m.mediaAlbum) {
+      for (const item of m.mediaAlbum) {
+        const u = typeof item === 'string' ? item : (item?.url ?? '');
+        if (!u) continue;
         if (isGifUrl(u)) gifUrls.push(u);
         else allMediaUrls.push(u);
       }

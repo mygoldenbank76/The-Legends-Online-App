@@ -12,6 +12,7 @@ import pushRouter from "./push";
 import gifsRouter from "./gifs";
 import contactsRouter from "./contacts";
 import downloadRouter from "./download";
+import telemetryRouter from "./telemetry";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(adminRouter);
 router.use(pushRouter);
 router.use(gifsRouter);
 router.use(contactsRouter);
+router.use(telemetryRouter);
 
 export default router;

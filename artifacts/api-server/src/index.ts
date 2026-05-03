@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import { runSeed } from "./seed";
 import { runMediaDimsBackfill } from "./lib/backfillMediaDims";
 import { runMediaPreviewBackfill } from "./lib/backfillMediaPreview";
+import { runVideoPreviewBackfill } from "./lib/backfillVideoPreview";
 
 const rawPort = process.env["PORT"];
 
@@ -53,6 +54,17 @@ httpServer.listen(port, (err?: Error) => {
       await runMediaPreviewBackfill();
     } catch (e) {
       logger.warn({ err: e }, "Media preview backfill warning");
+    }
+    //   3) Video preview backfill — uses ffprobe + ffmpeg to fill
+    //      legacy video bubbles with intrinsic dims and a tiny
+    //      first-frame LQIP, so videos get the same "bubble already
+    //      sized + blurred placeholder" treatment as photos. Bounded
+    //      to source files ≤50 MB and a single-row pace so ffmpeg
+    //      never starves request handling.
+    try {
+      await runVideoPreviewBackfill();
+    } catch (e) {
+      logger.warn({ err: e }, "Video preview backfill warning");
     }
   })();
 });
