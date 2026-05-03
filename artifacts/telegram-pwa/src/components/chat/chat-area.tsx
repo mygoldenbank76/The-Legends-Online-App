@@ -1542,8 +1542,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     ta.setAttribute('autocapitalize', 'sentences');
     ta.setAttribute('autocorrect', 'on');
     ta.setAttribute('spellcheck', 'true');
-    ta.setAttribute('autocomplete', 'on');
-    ta.setAttribute('enterkeyhint', 'enter');
+    // 'off' on Samsung = "this isn't a form-fill field" → keyboard
+    // shows its word-prediction strip instead of the form toolbar.
+    ta.setAttribute('autocomplete', 'off');
+    ta.setAttribute('enterkeyhint', 'send');
   }, [conversationId, editState]);
 
   const handleCompositionStart = () => {
@@ -4546,6 +4548,37 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   onCompositionStart={handleCompositionStart}
                   onCompositionEnd={handleCompositionEnd}
                   onKeyDown={handleKeyDown}
+                  // Explicit paste handler. On Android, when the user
+                  // taps the keyboard's clipboard icon and then a
+                  // clipped item, the WebView dispatches a `paste`
+                  // event but the resulting `input` event sometimes
+                  // arrives with the OLD value (race between Samsung's
+                  // clipboard panel and the WebView's text-insertion
+                  // pipeline). We grab the clipboard text from the
+                  // event itself, splice it into the controlled value
+                  // at the current cursor position and restore the
+                  // cursor — this matches what every native messaging
+                  // app does and works whether the paste came from the
+                  // keyboard's clipboard, a long-press menu, or
+                  // Ctrl+V on a hardware keyboard.
+                  onPaste={(e) => {
+                    const ta = textareaRef.current;
+                    if (!ta) return;
+                    const pasted = e.clipboardData?.getData('text/plain') ?? '';
+                    if (!pasted) return; // let the browser handle non-text payloads (images, etc.)
+                    e.preventDefault();
+                    const start = ta.selectionStart ?? content.length;
+                    const end = ta.selectionEnd ?? content.length;
+                    const next = content.slice(0, start) + pasted + content.slice(end);
+                    setContent(next);
+                    const newCursor = start + pasted.length;
+                    requestAnimationFrame(() => {
+                      const t = textareaRef.current;
+                      if (!t) return;
+                      t.focus();
+                      try { t.setSelectionRange(newCursor, newCursor); } catch { /* ignore */ }
+                    });
+                  }}
                   onSelect={handleTextSelect}
                   onBlur={() => { if (!linkMode) setTimeout(() => setSelectionRange(null), 150); }}
                   // Suppress the native Android floating action mode
@@ -4563,8 +4596,15 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   autoCapitalize="sentences"
                   autoCorrect="on"
                   spellCheck={true}
-                  autoComplete="on"
-                  enterKeyHint="enter"
+                  // autoComplete="off" (counter-intuitively) is what makes
+                  // Samsung Keyboard show its word-prediction strip
+                  // ("texte / textes / tente") instead of the form-fill
+                  // toolbar (clipboard / translate / settings icons).
+                  // Samsung treats autoComplete="on" as "this field
+                  // wants saved usernames / addresses", which suppresses
+                  // dictionary suggestions. We want the opposite here.
+                  autoComplete="off"
+                  enterKeyHint="send"
                   // Tag the input with the active UI language so the
                   // OS picks the right dictionary / autocorrect locale.
                   lang={appLanguage === 'en' ? 'en-US' : 'fr-FR'}
