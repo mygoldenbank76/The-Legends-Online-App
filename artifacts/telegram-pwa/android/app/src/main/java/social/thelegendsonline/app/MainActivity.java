@@ -6,6 +6,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
@@ -33,14 +34,39 @@ import java.util.List;
 public class MainActivity extends BridgeActivity {
 
     private static final int REQ_WEBVIEW_PERMS = 4242;
+    // ── Persisted state keys ────────────────────────────────────────────
+    // Without persistence, an Android process kill during the APK
+    // download (low memory, swipe-from-recents, etc.) would lose the
+    // pending download id in memory and we'd never trigger the system
+    // installer when DownloadManager finally finishes — leaving the
+    // user to hunt for the APK in their Downloads folder.
+    private static final String PREFS_NAME = "legends_apk_state";
+    private static final String KEY_PENDING_APK_ID = "pending_apk_download_id";
+    // We only auto-prompt the user for "install unknown apps" ONCE (on
+    // the first launch where they don't have it granted yet). Asking
+    // again on every cold start was perceived as malware-like behavior.
+    // The grant naturally re-prompts itself when the user actually
+    // taps "Update" in the app — that's the right moment.
+    private static final String KEY_ASKED_UNKNOWN_SOURCES = "asked_unknown_sources";
+
     private PermissionRequest pendingRequest;
-    // Tracks the in-flight APK download so we can fire the install
-    // Intent automatically the moment DownloadManager broadcasts
-    // ACTION_DOWNLOAD_COMPLETE for that exact ID. Without this we'd
-    // launch the installer for every download the device finishes
-    // (e.g. user-saved photos), which would be jarring.
-    private long pendingApkDownloadId = -1L;
     private BroadcastReceiver downloadCompleteReceiver;
+
+    private SharedPreferences prefs() {
+        return getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+    }
+
+    private long getPendingApkDownloadId() {
+        return prefs().getLong(KEY_PENDING_APK_ID, -1L);
+    }
+
+    private void setPendingApkDownloadId(long id) {
+        prefs().edit().putLong(KEY_PENDING_APK_ID, id).apply();
+    }
+
+    private void clearPendingApkDownloadId() {
+        prefs().edit().remove(KEY_PENDING_APK_ID).apply();
+    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -175,10 +201,11 @@ public class MainActivity extends BridgeActivity {
                     if (dm != null) {
                         long id = dm.enqueue(req);
                         if (isApk) {
-                            // Remember this id so the broadcast receiver
+                            // Persist the id so the broadcast receiver
                             // can match the right download and trigger
-                            // the installer automatically.
-                            pendingApkDownloadId = id;
+                            // the installer automatically — even if the
+                            // process is killed mid-download.
+                            setPendingApkDownloadId(id);
                             Toast.makeText(getApplicationContext(),
                                     "Téléchargement de la mise à jour en cours… L'installation démarrera automatiquement.",
                                     Toast.LENGTH_LONG).show();
@@ -213,8 +240,9 @@ public class MainActivity extends BridgeActivity {
             @Override
             public void onReceive(Context context, Intent intent) {
                 long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L);
-                if (id == -1L || id != pendingApkDownloadId) return;
-                pendingApkDownloadId = -1L;
+                long pendingId = getPendingApkDownloadId();
+                if (id == -1L || id != pendingId) return;
+                clearPendingApkDownloadId();
                 try {
                     DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
                     if (dm == null) return;
@@ -308,47 +336,54 @@ public class MainActivity extends BridgeActivity {
         // ── Demande POST_NOTIFICATIONS au démarrage (Android 13+) ───────
         // Sans cette permission, les notifications push silencieuses ne
         // s'affichent pas, même si le service worker s'est inscrit.
+        // On retarde de 300 ms pour laisser le splash screen s'afficher
+        // avant la pop-up système (sinon flash visuel bizarre).
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                    != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(
-                        this,
-                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
-                        9001
-                );
-            }
+            bridge.getWebView().postDelayed(() -> {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                        != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(
+                            this,
+                            new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                            9001
+                    );
+                }
+            }, 300L);
         }
 
-        // ── Demande "install unknown apps" AU DÉMARRAGE de l'app ────────
-        //
-        // Android refuse catégoriquement qu'une app s'auto-grant cette
-        // permission (c'est par design pour empêcher l'auto-installation
-        // de malwares). Le seul levier qu'il nous reste pour rendre le
-        // flow indolore est de demander cette permission AU PREMIER
-        // DÉMARRAGE de l'app — pas au moment où l'utilisateur veut
-        // mettre à jour. Comme ça, dès qu'une mise à jour sort, le tap
-        // "Mettre à jour" se transforme directement en téléchargement +
-        // installation, sans aucun aller-retour vers les Réglages.
+        // ── Demande "install unknown apps" UNE SEULE FOIS au tout premier
+        // démarrage de l'app après installation. Si l'utilisateur refuse,
+        // on ne le harcèle PAS à chaque cold start (perçu comme malware) :
+        // la prochaine demande arrivera naturellement au moment où il
+        // tape "Mettre à jour" — ce qui est le bon contexte UX.
         //
         // Le check s'exécute après un court délai pour ne pas masquer
         // le splash screen et pour laisser le WebView prendre le focus
         // d'abord — sinon le pop-up système peut s'ouvrir avant que
         // l'utilisateur ait vu l'app.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            bridge.getWebView().postDelayed(() -> {
-                try {
-                    if (!getPackageManager().canRequestPackageInstalls()) {
-                        Toast.makeText(getApplicationContext(),
-                                "Active \"Autoriser cette source\" pour recevoir les mises à jour automatiques de l'application.",
-                                Toast.LENGTH_LONG).show();
-                        Intent grant = new Intent(
-                                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                Uri.parse("package:" + getPackageName()));
-                        grant.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(grant);
-                    }
-                } catch (Exception ignored) { /* skip silently — we'll re-ask at update time as a safety net */ }
-            }, 2500L);
+            SharedPreferences sp = prefs();
+            boolean alreadyAsked = sp.getBoolean(KEY_ASKED_UNKNOWN_SOURCES, false);
+            if (!alreadyAsked) {
+                bridge.getWebView().postDelayed(() -> {
+                    try {
+                        if (!getPackageManager().canRequestPackageInstalls()) {
+                            sp.edit().putBoolean(KEY_ASKED_UNKNOWN_SOURCES, true).apply();
+                            Toast.makeText(getApplicationContext(),
+                                    "Active \"Autoriser cette source\" pour recevoir les mises à jour automatiques de l'application.",
+                                    Toast.LENGTH_LONG).show();
+                            Intent grant = new Intent(
+                                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                    Uri.parse("package:" + getPackageName()));
+                            grant.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(grant);
+                        } else {
+                            // Already granted — record so we never re-ask.
+                            sp.edit().putBoolean(KEY_ASKED_UNKNOWN_SOURCES, true).apply();
+                        }
+                    } catch (Exception ignored) { /* skip silently — we'll re-ask at update time as a safety net */ }
+                }, 2500L);
+            }
         }
     }
 

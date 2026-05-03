@@ -20,8 +20,15 @@ import { getAuthHeaders } from '@/lib/auth-fetch';
  * the 'pushNotificationReceived' listener, where socket.io has already
  * surfaced the message in-app.
  */
+// Minimum cooldown between consecutive FCM registration retries when the
+// backend POST keeps failing. Without this, every parent re-render would
+// re-trigger the whole permission/register/POST sequence and hammer the
+// /api/push/fcm-register endpoint (and the push token broker itself).
+const FCM_RETRY_COOLDOWN_MS = 60_000;
+
 export function useFcm(opts: { userId: number | null }): void {
   const registeredForUserRef = useRef<number | null>(null);
+  const lastFailedAttemptAtRef = useRef<number>(0);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
@@ -30,9 +37,13 @@ export function useFcm(opts: { userId: number | null }): void {
       // Logged out → forget who was registered so the next login re-runs
       // the registration flow against the new account.
       registeredForUserRef.current = null;
+      lastFailedAttemptAtRef.current = 0;
       return;
     }
     if (registeredForUserRef.current === userId) return;
+    // Back off if the previous attempt failed recently — avoids tight
+    // retry loops if the backend is down or the device is offline.
+    if (Date.now() - lastFailedAttemptAtRef.current < FCM_RETRY_COOLDOWN_MS) return;
 
     let cleanup: Array<() => void> = [];
     let cancelled = false;
@@ -65,6 +76,7 @@ export function useFcm(opts: { userId: number | null }): void {
           } catch (err) {
             console.error('[fcm] failed to send token to backend:', err);
             registeredForUserRef.current = null;
+            lastFailedAttemptAtRef.current = Date.now();
           }
         });
         cleanup.push(() => { void regHandle.remove(); });
@@ -72,6 +84,7 @@ export function useFcm(opts: { userId: number | null }): void {
         const errHandle = await PushNotifications.addListener('registrationError', (err) => {
           console.error('[fcm] registration error:', err);
           registeredForUserRef.current = null;
+          lastFailedAttemptAtRef.current = Date.now();
         });
         cleanup.push(() => { void errHandle.remove(); });
 
@@ -101,6 +114,7 @@ export function useFcm(opts: { userId: number | null }): void {
       } catch (err) {
         console.error('[fcm] init failed:', err);
         registeredForUserRef.current = null;
+        lastFailedAttemptAtRef.current = Date.now();
       }
     })();
 

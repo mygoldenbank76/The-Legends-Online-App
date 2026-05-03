@@ -128,6 +128,36 @@ function isExternalMedia(url) {
   return EXTERNAL_MEDIA_HOSTS.some((h) => url.hostname === h || url.hostname.endsWith('.' + h));
 }
 
+// ── Quota error telemetry ────────────────────────────────────────────────────
+// When cache.put fails with QuotaExceededError, the OS-level storage
+// quota was hit before our LRU trim could run. We rate-limit reports
+// to one every 5 minutes per SW instance to avoid swamping the client
+// (and the telemetry endpoint) on a sustained quota miss.
+let lastQuotaReportAt = 0;
+async function reportQuotaExceeded(err, context) {
+  const now = Date.now();
+  if (now - lastQuotaReportAt < 5 * 60_000) return;
+  lastQuotaReportAt = now;
+  try {
+    let mediaCacheCount = 0;
+    try {
+      const cache = await caches.open(MEDIA_CACHE);
+      mediaCacheCount = (await cache.keys()).length;
+    } catch { /* best-effort */ }
+    const clientsList = await self.clients.matchAll({ type: 'window' });
+    clientsList.forEach((c) => c.postMessage({
+      type: 'SW_QUOTA_EXCEEDED',
+      context,
+      mediaCacheCount,
+      errorName: (err && err.name) || 'QuotaExceededError',
+      errorMessage: (err && err.message) || String(err),
+      ts: now,
+    }));
+  } catch {
+    /* swallow — telemetry must never break the SW */
+  }
+}
+
 // ── MEDIA_CACHE LRU trim ─────────────────────────────────────────────────────
 // The Cache Storage API's `keys()` returns Request objects in insertion
 // order — i.e. oldest first. We exploit that to drop the oldest N
@@ -171,18 +201,51 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Only handle GET
+  // Only handle GET — POST/PUT/DELETE/etc. (auth, mutations, analytics
+  // beacons via navigator.sendBeacon) MUST always go straight to the
+  // network. Caching them would corrupt server state on replay.
   if (request.method !== 'GET') return;
+
+  // Stale-while-revalidate threshold for media: serve cached response
+  // immediately, but if it's older than 7 days, refresh it in the
+  // background so user-uploaded content that mutates at the same URL
+  // (avatars overwritten in object storage, etc.) eventually picks up.
+  // Hashed/signed URLs never trigger a refetch since their URL changes.
+  const SWR_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+  const isCachedStale = (cached) => {
+    try {
+      const dateHeader = cached.headers.get('date');
+      if (!dateHeader) return false;
+      return Date.now() - new Date(dateHeader).getTime() > SWR_MAX_AGE_MS;
+    } catch { return false; }
+  };
 
   // ── 1. Our own media proxy — Cache First, very long TTL ──────────────────
   if (url.origin === self.location.origin && isMediaRequest(url)) {
     event.respondWith(
       caches.open(MEDIA_CACHE).then(async (cache) => {
         const cached = await cache.match(request);
-        if (cached) return cached;
+        if (cached) {
+          if (isCachedStale(cached)) {
+            event.waitUntil(
+              fetch(request).then(async (res) => {
+                if (res.ok) {
+                  try { await cache.put(request, res.clone()); } catch {}
+                }
+              }).catch(() => {})
+            );
+          }
+          return cached;
+        }
         const response = await fetch(request);
         if (response.ok) {
-          await cache.put(request, response.clone());
+          try {
+            await cache.put(request, response.clone());
+          } catch (err) {
+            if (err && err.name === 'QuotaExceededError') {
+              event.waitUntil(reportQuotaExceeded(err, 'media-proxy'));
+            }
+          }
           // Fire-and-forget trim — never blocks the response.
           event.waitUntil(trimMediaCacheIfNeeded(cache));
         }
@@ -197,12 +260,29 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       caches.open(MEDIA_CACHE).then(async (cache) => {
         const cached = await cache.match(request);
-        if (cached) return cached;
+        if (cached) {
+          if (isCachedStale(cached)) {
+            event.waitUntil(
+              fetch(request, { mode: 'no-cors' }).then(async (res) => {
+                if (res.type === 'opaque' || res.ok) {
+                  try { await cache.put(request, res.clone()); } catch {}
+                }
+              }).catch(() => {})
+            );
+          }
+          return cached;
+        }
         try {
           // no-cors gives opaque response — still cacheable and displayable
           const response = await fetch(request, { mode: 'no-cors' });
           if (response.type === 'opaque' || response.ok) {
-            await cache.put(request, response.clone());
+            try {
+              await cache.put(request, response.clone());
+            } catch (err) {
+              if (err && err.name === 'QuotaExceededError') {
+                event.waitUntil(reportQuotaExceeded(err, 'external-media'));
+              }
+            }
             event.waitUntil(trimMediaCacheIfNeeded(cache));
           }
           return response;

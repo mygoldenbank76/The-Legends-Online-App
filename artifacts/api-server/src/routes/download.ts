@@ -18,8 +18,10 @@ import { Router, type IRouter, type Request, type Response } from "express";
 
 const router: IRouter = Router();
 
-const GITHUB_REPO = "mygoldenbank76/The-Legends-Online-App";
-const RELEASE_TAG = "native-latest";
+const GITHUB_REPO = process.env.APK_GITHUB_REPO ?? "mygoldenbank76/The-Legends-Online-App";
+// Release tag is configurable so we can stand up a "beta" channel without
+// pushing a new commit. Default stays on the canonical "native-latest".
+const RELEASE_TAG = process.env.APK_RELEASE_TAG ?? "native-latest";
 const APK_ASSET_CANDIDATES = [
   "The Legends Online.apk",
   "The.Legends.Online.apk",
@@ -52,9 +54,16 @@ async function resolveApkAsset(): Promise<{ url: string; size: number | null; bu
       assets?: Array<{ name: string; browser_download_url: string; size: number }>;
     };
     const assets = data.assets ?? [];
+    // Prefer the canonical filename. If absent, fall back to the LARGEST
+    // .apk asset (the signed release) and explicitly skip historical
+    // unsigned/debug names. Picking the largest is robust against the
+    // workflow uploading multiple variants in the future (split APKs,
+    // debug builds attached for triage, etc.).
     const apk =
       APK_ASSET_CANDIDATES.map((n) => assets.find((a) => a.name === n)).find(Boolean) ||
-      assets.find((a) => /\.apk$/i.test(a.name) && a.name !== "legends.apk");
+      assets
+        .filter((a) => /\.apk$/i.test(a.name) && !/^(legends|debug|unsigned).*\.apk$/i.test(a.name))
+        .sort((a, b) => (b.size ?? 0) - (a.size ?? 0))[0];
     if (!apk) return null;
     // The GitHub Actions workflow embeds "Build #N" in the release body
     // (and also bumps the APK versionCode to N). We parse that out so the

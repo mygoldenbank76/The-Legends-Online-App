@@ -1,5 +1,17 @@
 apply plugin: 'com.android.application'
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Version code / name come from env vars set by the CI workflow:
+//   APP_VERSION_CODE = monotonic build number (github.run_number)
+//   APP_VERSION_NAME = "1.0.<build>"
+// Falling back to 1 / "1.0" only for ad-hoc local builds. NEVER use sed
+// to rewrite this file in CI: that approach silently breaks the day someone
+// renames a constant or reformats the line, and it leaves the working tree
+// dirty. Reading env vars is robust to refactors and zero side-effects.
+// ─────────────────────────────────────────────────────────────────────────────
+def appVersionCode = (System.getenv("APP_VERSION_CODE") ?: "1").toInteger()
+def appVersionName = System.getenv("APP_VERSION_NAME") ?: "1.0"
+
 android {
     namespace = "social.thelegendsonline.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +19,8 @@ android {
         applicationId "social.thelegendsonline.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode appVersionCode
+        versionName appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -19,7 +31,12 @@ android {
     signingConfigs {
         release {
             def ksFile = System.getenv("ANDROID_KEYSTORE_FILE")
-            if (ksFile != null && !ksFile.isEmpty() && file(ksFile).exists()) {
+            if (ksFile != null && !ksFile.isEmpty()) {
+                if (!file(ksFile).exists()) {
+                    throw new GradleException(
+                        "ANDROID_KEYSTORE_FILE is set to '${ksFile}' but the file does not exist. " +
+                        "Refusing to produce an unsigned release APK (Play Protect would block install).")
+                }
                 storeFile file(ksFile)
                 storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
                 keyAlias System.getenv("ANDROID_KEY_ALIAS")
@@ -32,7 +49,22 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
+            // Only attach the signingConfig if we actually have a keystore.
+            // If the developer is running a release build WITHOUT a keystore,
+            // fail loudly rather than silently producing an APK that Play
+            // Protect will reject on every device.
+            def ksFile = System.getenv("ANDROID_KEYSTORE_FILE")
+            if (ksFile != null && !ksFile.isEmpty()) {
+                signingConfig signingConfigs.release
+            } else {
+                gradle.taskGraph.whenReady { taskGraph ->
+                    if (taskGraph.allTasks.any { it.name.toLowerCase().contains("assemblerelease") }) {
+                        throw new GradleException(
+                            "Release build requested but ANDROID_KEYSTORE_FILE is unset. " +
+                            "Set the keystore env vars (or run assembleDebug for local testing).")
+                    }
+                }
+            }
         }
     }
 }

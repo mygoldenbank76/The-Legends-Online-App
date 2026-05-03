@@ -83,6 +83,15 @@ type Msg = {
   sender?: { id: number; displayName: string; username?: string; avatar?: string | null; bio?: string | null };
   content?: string | null;
   imageUrl?: string | null;
+  // Multi-attachment "album" payload (Telegram-style 2-6 media grid).
+  // Stored separately from imageUrl so a single message can carry both
+  // (legacy compat) without requiring extra type guards at the call site.
+  mediaAlbum?: string[] | null;
+  // Server-generated thumbnail for video messages (or a low-res preview
+  // of the imageUrl for very large originals). When present, the bubble
+  // paints this immediately so the user sees something while the full
+  // media streams from object storage.
+  thumbnailUrl?: string | null;
   // Intrinsic dimensions captured server-side at upload time so we can
   // size the bubble on the very first paint, with no orientation flash.
   mediaWidth?: number | null;
@@ -571,8 +580,8 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       if (m.audioUrl) {
         preloadMedia(m.audioUrl);
       }
-      if ((m as any).mediaAlbum) {
-        for (const url of (m as any).mediaAlbum) {
+      if (m.mediaAlbum) {
+        for (const url of m.mediaAlbum) {
           if (!url.match(/\.(mp4|webm|mov|avi|mkv)$/i) && !isDocumentUrl(url)) preloadMedia(url);
         }
       }
@@ -1987,7 +1996,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     const sentUrls = new Set<string>();
     for (const m of messages) {
       if (m.imageUrl) sentUrls.add(m.imageUrl);
-      const album = (m as any).mediaAlbum;
+      const album = m.mediaAlbum;
       if (Array.isArray(album)) for (const u of album) sentUrls.add(u);
     }
     const toRemove = pendingUploads.filter(p =>
@@ -2013,7 +2022,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     const live = new Set<string>();
     for (const m of messages) {
       if (m.imageUrl) live.add(m.imageUrl);
-      const album = (m as any).mediaAlbum;
+      const album = m.mediaAlbum;
       if (Array.isArray(album)) for (const u of album) live.add(u);
     }
     for (const p of pendingUploads) {
@@ -2073,7 +2082,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         const anchor = mediaSendAnchorRef.current.get(m.imageUrl);
         if (anchor != null) ts = anchor;
       }
-      const album = (m as any).mediaAlbum;
+      const album = m.mediaAlbum;
       if (Array.isArray(album)) {
         for (const u of album) {
           sentUrlSet.add(u);
@@ -3611,7 +3620,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                               // bubble). Falls back to a parked <video>
                               // metadata frame only as a last resort —
                               // anything but a black box.
-                              const thumb = (msg.replyTo as any).thumbnailUrl as string | null | undefined;
+                              const thumb = msg.replyTo.thumbnailUrl;
                               const poster = thumb || getVideoPoster(msg.replyTo!.imageUrl!);
                               return poster ? (
                                 thumb ? (
@@ -3646,10 +3655,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     )}
 
                     {/* Media Album (multiple images/videos — Telegram grid style) */}
-                    {(msg as any).mediaAlbum && Array.isArray((msg as any).mediaAlbum) && (msg as any).mediaAlbum.length > 0 && !isPoll && (
+                    {msg.mediaAlbum && Array.isArray(msg.mediaAlbum) && msg.mediaAlbum.length > 0 && !isPoll && (
                       <div className="relative">
                         <AlbumGrid
-                          urls={(msg as any).mediaAlbum}
+                          urls={msg.mediaAlbum}
                           // Same condition that decides whether to overlay
                           // the time on the album below — keeps the four
                           // visible margins around the album grid identical
@@ -3658,7 +3667,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                           tightBottom={!msg.content && !hasReactions}
                           onItemClick={(i) => {
                             if (Date.now() - conversationOpenedAt.current < 900) return;
-                            setMediaViewer({ urls: (msg as any).mediaAlbum, index: i });
+                            setMediaViewer({ urls: msg.mediaAlbum!, index: i });
                           }}
                         />
                         {/* Time overlay on the album — only when no caption AND no reactions.
@@ -3675,7 +3684,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                     )}
 
                     {/* Single Image / Video / Document */}
-                    {msg.imageUrl && !(msg as any).mediaAlbum && !isPoll && (() => {
+                    {msg.imageUrl && !msg.mediaAlbum && !isPoll && (() => {
                       const isVideoMsg = !!msg.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i);
                       // Prefer the message-level detector over the URL-only one
                       // so an image-typed file uploaded through the Document
@@ -3718,7 +3727,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                             // with native controls — same UX as Telegram.
                             <VideoThumbnail
                               src={msg.imageUrl}
-                              thumbnailUrl={(msg as any).thumbnailUrl ?? null}
+                              thumbnailUrl={msg.thumbnailUrl ?? null}
                               mediaPreview={msg.mediaPreview}
                               className="w-full rounded-[10px]"
                               intrinsicWidth={msg.mediaWidth ?? undefined}
@@ -3923,7 +3932,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                       // no caption AND no reactions. Otherwise it must show in the
                       // normal bottom row like any other message.
                       const isMediaOnly = !msg.content && !isPoll && !isCall && !isAudio && !hasReactions &&
-                        (!!msg.imageUrl || (Array.isArray((msg as any).mediaAlbum) && (msg as any).mediaAlbum.length > 0));
+                        (!!msg.imageUrl || (Array.isArray(msg.mediaAlbum) && msg.mediaAlbum.length > 0));
                       if (isMediaOnly) return null;
                       return (
                     <div className={`flex items-end justify-between gap-2 ${isPoll ? 'mt-2' : 'mt-0.5 -mb-0.5'}`}>
@@ -4162,7 +4171,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                             // Same instant-paint strategy as the in-bubble
                             // reply preview: server thumbnail → local
                             // poster cache → parked <video> as last resort.
-                            const thumb = (replyTo as any).thumbnailUrl as string | null | undefined;
+                            const thumb = replyTo.thumbnailUrl;
                             const poster = thumb || getVideoPoster(replyTo.imageUrl!);
                             return poster ? (
                               thumb ? (

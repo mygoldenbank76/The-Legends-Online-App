@@ -75,13 +75,6 @@ jobs:
         working-directory: artifacts/telegram-pwa/android
         run: chmod +x ./gradlew
 
-      - name: Bump versionCode to monotonic build number
-        working-directory: artifacts/telegram-pwa/android/app
-        run: |
-          sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/" build.gradle
-          sed -i "s/versionName \"1.0\"/versionName \"1.0.${{ github.run_number }}\"/" build.gradle
-          grep -E 'versionCode|versionName' build.gradle
-
       - name: Build signed release APK
         working-directory: artifacts/telegram-pwa/android
         env:
@@ -89,6 +82,10 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          # build.gradle reads these env vars instead of relying on a brittle
+          # sed rewrite. github.run_number is the monotonic CI build counter.
+          APP_VERSION_CODE: ${{ github.run_number }}
+          APP_VERSION_NAME: 1.0.${{ github.run_number }}
         run: ./gradlew assembleRelease --no-daemon
 
       - name: Verify APK signature
