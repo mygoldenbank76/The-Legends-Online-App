@@ -33,16 +33,13 @@ import com.getcapacitor.CapacitorWebView;
  */
 public class SuggestionsWebView extends CapacitorWebView {
 
-    public SuggestionsWebView(Context context) {
-        super(context);
-    }
-
+    // CapacitorWebView only exposes the (Context, AttributeSet) constructor —
+    // it is always inflated from XML by the bridge layout, so this is the
+    // only constructor we need to provide. Adding (Context) or
+    // (Context, AttributeSet, int) overloads breaks the build because
+    // there is no matching super-constructor to delegate to.
     public SuggestionsWebView(Context context, AttributeSet attrs) {
         super(context, attrs);
-    }
-
-    public SuggestionsWebView(Context context, AttributeSet attrs, int defStyleAttr) {
-        super(context, attrs, defStyleAttr);
     }
 
     @Override
