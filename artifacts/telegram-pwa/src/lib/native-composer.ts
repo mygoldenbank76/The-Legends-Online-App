@@ -67,6 +67,18 @@ export interface NativeComposerPlugin {
     eventName: 'valueChanged',
     listener: (data: { value: string }) => void,
   ): Promise<PluginListenerHandle>;
+
+  /**
+   * Fired by the native EditText whenever the selection (cursor or
+   * highlighted range) moves — including when the user long-presses
+   * to start a selection. JS uses this to drive the custom React
+   * FormattingToolbar (Copier / Coller / Gras / etc) instead of the
+   * suppressed Android system action bar.
+   */
+  addListener(
+    eventName: 'selectionChanged',
+    listener: (data: { start: number; end: number }) => void,
+  ): Promise<PluginListenerHandle>;
 }
 
 const noop = async () => undefined;

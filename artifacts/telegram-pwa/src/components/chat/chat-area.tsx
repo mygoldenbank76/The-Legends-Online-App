@@ -1528,6 +1528,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     if (!useNativeComposer) return;
     let cancelled = false;
     let listener: PluginListenerHandle | null = null;
+    let selectionListener: PluginListenerHandle | null = null;
     (async () => {
       // Resolve the listener FIRST so we can attach it before show().
       // If the component already unmounted while the registration was
@@ -1541,6 +1542,23 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       });
       if (cancelled) { l.remove(); return; }
       listener = l;
+      // Forward native selection changes to React state so the custom
+      // FormattingToolbar (Copier / Coller / Gras / Italique / …) shows
+      // on long-press instead of Android's system "Traduire / Couper /
+      // Copier / Coller" bar (which we suppress on the native side).
+      const sl = await NativeComposer.addListener('selectionChanged', ({ start, end }) => {
+        if (cancelled) return;
+        // Mirror the selection onto the (invisible) HTML textarea so
+        // existing format handlers — which read textareaRef.current's
+        // selectionStart/End — keep working unchanged.
+        const ta = textareaRef.current;
+        if (ta) {
+          try { ta.setSelectionRange(start, end); } catch { /* ignore */ }
+        }
+        setSelectionRange(start !== end ? { start, end } : null);
+      });
+      if (cancelled) { sl.remove(); return; }
+      selectionListener = sl;
       lastNativeValueRef.current = content;
       await NativeComposer.show({
         value: content,
@@ -1553,6 +1571,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       cancelled = true;
       bridgeReadyRef.current = false;
       if (listener) listener.remove();
+      if (selectionListener) selectionListener.remove();
       NativeComposer.hide();
     };
     // Mount/unmount only. `content` and `editState` are intentionally

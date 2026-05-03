@@ -8,6 +8,9 @@ import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
 import android.util.TypedValue;
+import android.view.ActionMode;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
@@ -69,11 +72,57 @@ public class NativeComposerPlugin extends Plugin {
         return Math.round(dp * getActivity().getResources().getDisplayMetrics().density);
     }
 
+    /**
+     * Anonymous EditText subclass that:
+     *   - Forwards every selection change to JS as `selectionChanged`,
+     *     so React can show its custom FormattingToolbar (Copier /
+     *     Coller / Gras / Italique / Souligner / Barrer / Spoiler /
+     *     Lien) instead of Android's system "Traduire / Couper /
+     *     Copier / Coller" floating action bar.
+     *   - Suppresses both selection AND insertion action modes (the
+     *     system menu) by attaching no-op ActionMode.Callbacks. Touches
+     *     and long-press still focus the field; only the system menu
+     *     is hidden.
+     */
+    private class BridgedEditText extends EditText {
+        BridgedEditText(Context c) { super(c); }
+
+        @Override
+        protected void onSelectionChanged(int selStart, int selEnd) {
+            super.onSelectionChanged(selStart, selEnd);
+            if (syncingFromJs) return;
+            JSObject ret = new JSObject();
+            ret.put("start", selStart);
+            ret.put("end", selEnd);
+            notifyListeners("selectionChanged", ret);
+        }
+    }
+
+    /**
+     * Returns false from onCreateActionMode → the system menu never
+     * appears. The other callbacks are just stubs (never invoked when
+     * onCreate returns false, but Android's ActionMode interface
+     * requires all four).
+     */
+    private static final ActionMode.Callback NO_MENU = new ActionMode.Callback() {
+        @Override public boolean onCreateActionMode(ActionMode m, Menu menu) { return false; }
+        @Override public boolean onPrepareActionMode(ActionMode m, Menu menu) { return false; }
+        @Override public boolean onActionItemClicked(ActionMode m, MenuItem i) { return false; }
+        @Override public void onDestroyActionMode(ActionMode m) {}
+    };
+
     private void ensureOverlay() {
         if (editText != null) return;
         Context ctx = getActivity();
 
-        editText = new EditText(ctx);
+        editText = new BridgedEditText(ctx);
+        // Suppress the floating "Traduire / Couper / Copier / Coller"
+        // action bar — we forward selection events to JS and let the
+        // React FormattingToolbar handle copy/paste/format actions.
+        editText.setCustomSelectionActionModeCallback(NO_MENU);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            editText.setCustomInsertionActionModeCallback(NO_MENU);
+        }
 
         // Mirrors DrKLO/Telegram ChatActivityEnterView lines 5583-5590.
         // CRITICAL: this is a real, native EditText (not a WebView
