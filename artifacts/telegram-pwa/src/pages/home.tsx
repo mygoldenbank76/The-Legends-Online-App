@@ -599,29 +599,24 @@ function SettingsPage({
 
   const handleCheckUpdate = async () => {
     // If we already resolved an APK, second tap triggers the download.
+    // We open our own /api/download/apk proxy (which streams the file from
+    // GitHub) so the user only ever sees the thelegendsonline.social
+    // domain in their browser / download notification — never github.com.
     if (updateState.kind === 'available') {
-      // Opening an .apk URL from the WebView delegates to the Android system
-      // browser / download manager, which then prompts the user to install.
-      window.open(updateState.url, '_blank');
+      window.open('/api/download/apk', '_blank');
       return;
     }
     setUpdateState({ kind: 'checking' });
     try {
-      const r = await fetch(
-        'https://api.github.com/repos/mygoldenbank76/The-Legends-Online-App/releases/tags/native-latest',
-        { headers: { Accept: 'application/vnd.github+json' }, cache: 'no-store' },
-      );
+      // Hit our own proxy info endpoint instead of GitHub directly.
+      const r = await fetch('/api/download/apk/info', { cache: 'no-store' });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const data: { assets?: Array<{ name: string; browser_download_url: string; size: number }> } = await r.json();
-      const assets = data.assets ?? [];
-      const apk =
-        assets.find((a) => a.name === 'The Legends Online.apk') ||
-        assets.find((a) => /\.apk$/i.test(a.name) && a.name !== 'legends.apk');
-      if (!apk) throw new Error('no-apk');
+      const data: { available: boolean; sizeMb: number | null; url: string } = await r.json();
+      if (!data.available) throw new Error('no-apk');
       setUpdateState({
         kind: 'available',
-        url: apk.browser_download_url,
-        sizeMb: apk.size / (1024 * 1024),
+        url: data.url,
+        sizeMb: data.sizeMb,
       });
     } catch {
       setUpdateState({ kind: 'error' });

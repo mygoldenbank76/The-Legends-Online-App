@@ -11,10 +11,12 @@ import adminRouter from "./admin";
 import pushRouter from "./push";
 import gifsRouter from "./gifs";
 import contactsRouter from "./contacts";
+import downloadRouter from "./download";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(downloadRouter);
 router.use(authRouter);
 router.use(usersRouter);
 router.use(conversationsRouter);
