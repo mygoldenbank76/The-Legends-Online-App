@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable, conversationsTable, conversationParticipantsTable, messagesTable, reactionsTable, conversationPinsTable } from "@workspace/db";
 import { eq, and, inArray, desc, sql, ne } from "drizzle-orm";
-import { requireAuth } from "../lib/auth";
+import { requireAuth, isConversationMember } from "../lib/auth";
 import { formatUser } from "./users";
 
 const router: IRouter = Router();
@@ -235,6 +235,13 @@ router.get("/conversations/:conversationId", requireAuth, async (req, res): Prom
   const conversationId = parseInt(rawId, 10);
   if (isNaN(conversationId)) {
     res.status(400).json({ error: "Invalid conversation ID" });
+    return;
+  }
+
+  // SECURITY: only conversation participants may read the conversation
+  // detail (which leaks the full participant roster of any group/DM).
+  if (!(await isConversationMember(userId, conversationId))) {
+    res.status(403).json({ error: "Forbidden" });
     return;
   }
 

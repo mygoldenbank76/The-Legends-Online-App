@@ -5,7 +5,7 @@ import {
   pollsTable, pollOptionsTable, conversationPinsTable,
 } from "@workspace/db";
 import { eq, and, lt, desc, inArray, ne, gt, gte } from "drizzle-orm";
-import { requireAuth } from "../lib/auth";
+import { requireAuth, isConversationMember } from "../lib/auth";
 import { formatUser } from "./users";
 import { extractFirstUrl, fetchLinkPreview } from "../lib/linkPreview";
 import { probeImageDimensions } from "../lib/mediaProbe";
@@ -222,6 +222,14 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
   const conversationId = parseInt(rawId, 10);
   if (isNaN(conversationId)) { res.status(400).json({ error: "Invalid conversation ID" }); return; }
 
+  // SECURITY: only participants of the conversation may read its messages.
+  // Without this, any authenticated user could read any 1-1 or group thread
+  // by passing an arbitrary conversationId. See lib/auth.ts.
+  if (!(await isConversationMember(userId, conversationId))) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
   const limit = Math.min(parseInt(req.query.limit as string || "50", 10), 100);
   const before = req.query.before ? parseInt(req.query.before as string, 10) : undefined;
 
@@ -368,6 +376,13 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
   const rawId = Array.isArray(req.params.conversationId) ? req.params.conversationId[0] : req.params.conversationId;
   const conversationId = parseInt(rawId, 10);
   if (isNaN(conversationId)) { res.status(400).json({ error: "Invalid conversation ID" }); return; }
+
+  // SECURITY: only participants may post into a conversation. Without this,
+  // any authenticated user could inject messages into any 1-1 or group.
+  if (!(await isConversationMember(userId, conversationId))) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
 
   const {
     content, imageUrl, mediaWidth, mediaHeight, thumbnailUrl, mediaPreview, mediaAlbum,
@@ -611,6 +626,15 @@ router.post("/conversations/:conversationId/read", requireAuth, async (req, res)
   const conversationId = parseInt(rawId, 10);
   if (isNaN(conversationId)) { res.status(400).json({ error: "Invalid conversation ID" }); return; }
 
+  // SECURITY: only participants may mark a conversation read. The UPDATE
+  // below already filters by (conversationId, userId) so a non-member can't
+  // mutate state, but the messages_read socket emit would still fire and
+  // leak the existence of the conversation to the requester.
+  if (!(await isConversationMember(userId, conversationId))) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
   // Get previous lastReadAt before updating
   const [participant] = await db.select({ lastReadAt: conversationParticipantsTable.lastReadAt })
     .from(conversationParticipantsTable)
@@ -696,12 +720,19 @@ router.delete("/messages/:messageId", requireAuth, async (req, res): Promise<voi
 
 // POST pin/unpin message
 router.post("/messages/:messageId/pin", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as typeof req & { userId: number }).userId;
   const rawId = Array.isArray(req.params.messageId) ? req.params.messageId[0] : req.params.messageId;
   const messageId = parseInt(rawId, 10);
   if (isNaN(messageId)) { res.status(400).json({ error: "Invalid message ID" }); return; }
 
   const [msg] = await db.select().from(messagesTable).where(eq(messagesTable.id, messageId));
   if (!msg) { res.status(404).json({ error: "Message not found" }); return; }
+
+  // SECURITY: only conversation participants may pin/unpin in that conv.
+  if (!(await isConversationMember(userId, msg.conversationId))) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
 
   const existingPin = await db.select().from(conversationPinsTable)
     .where(and(eq(conversationPinsTable.conversationId, msg.conversationId), eq(conversationPinsTable.messageId, messageId)));
@@ -793,6 +824,16 @@ router.post("/messages/:messageId/reactions", requireAuth, async (req, res): Pro
 
   const { emoji } = req.body as { emoji: string };
   if (!emoji) { res.status(400).json({ error: "emoji is required" }); return; }
+
+  // SECURITY: only conversation participants may react to a message.
+  // Look up the message to discover its conversation, then membership-check.
+  const [reactMsg] = await db.select({ conversationId: messagesTable.conversationId })
+    .from(messagesTable).where(eq(messagesTable.id, messageId));
+  if (!reactMsg) { res.status(404).json({ error: "Message not found" }); return; }
+  if (!(await isConversationMember(userId, reactMsg.conversationId))) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
 
   const [existing] = await db.select().from(reactionsTable).where(and(
     eq(reactionsTable.messageId, messageId),

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, pollsTable, pollOptionsTable, pollVotesTable, usersTable, messagesTable } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
-import { requireAuth } from "../lib/auth";
+import { requireAuth, isConversationMember } from "../lib/auth";
 import { io } from "../app";
 
 const router: IRouter = Router();
@@ -59,6 +59,16 @@ router.post("/polls/:pollId/vote", requireAuth, async (req, res): Promise<void> 
   const [poll] = await db.select().from(pollsTable).where(eq(pollsTable.id, pollId));
   if (!poll) { res.status(404).json({ error: "Poll not found" }); return; }
 
+  // SECURITY: only participants of the conversation hosting the poll
+  // may vote. Without this, any authenticated user could vote on any
+  // poll by guessing pollId.
+  const [voteMsg] = await db.select({ conversationId: messagesTable.conversationId })
+    .from(messagesTable).where(eq(messagesTable.pollId, pollId));
+  if (!voteMsg || !(await isConversationMember(userId, voteMsg.conversationId))) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
   // Remove existing votes
   await db.delete(pollVotesTable).where(and(
     eq(pollVotesTable.pollId, pollId),
@@ -92,12 +102,21 @@ router.post("/polls/:pollId/vote", requireAuth, async (req, res): Promise<void> 
 
 // GET /polls/:pollId/votes — get voter details (non-anonymous)
 router.get("/polls/:pollId/votes", requireAuth, async (req, res): Promise<void> => {
+  const userId = (req as typeof req & { userId: number }).userId;
   const pollId = parseInt(req.params.pollId as string, 10);
   if (isNaN(pollId)) { res.status(400).json({ error: "Invalid poll ID" }); return; }
 
   const [poll] = await db.select().from(pollsTable).where(eq(pollsTable.id, pollId));
   if (!poll) { res.status(404).json({ error: "Poll not found" }); return; }
   if (poll.isAnonymous) { res.status(403).json({ error: "Poll is anonymous" }); return; }
+
+  // SECURITY: only conversation participants may see who voted what.
+  const [votesMsg] = await db.select({ conversationId: messagesTable.conversationId })
+    .from(messagesTable).where(eq(messagesTable.pollId, pollId));
+  if (!votesMsg || !(await isConversationMember(userId, votesMsg.conversationId))) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
 
   const votes = await db.select().from(pollVotesTable).where(eq(pollVotesTable.pollId, pollId));
   const userIds = [...new Set(votes.map(v => v.userId))];
