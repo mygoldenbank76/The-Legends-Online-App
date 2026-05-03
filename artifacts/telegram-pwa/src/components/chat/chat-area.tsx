@@ -4226,7 +4226,14 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   )}
                 </AnimatePresence>
 
-                {/* Textarea */}
+                {/* Textarea
+                    Keyboard hints: explicit attributes so Android's
+                    GBoard / Samsung Keyboard show suggestions, autocorrect
+                    and capitalize the first letter of each sentence.
+                    Without these, the WebView defaults strip those
+                    features (the keyboard reverts to "no suggestions"
+                    mode) and the user has to type every capital and
+                    every word by hand. */}
                 <Textarea
                   ref={textareaRef}
                   value={content}
@@ -4239,6 +4246,13 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   onTouchEnd={handleInputTouchEnd}
                   onTouchMove={handleInputTouchEnd}
                   placeholder={editState ? uiT.chat.editPlaceholder : uiT.chat.placeholder}
+                  autoCapitalize="sentences"
+                  autoCorrect="on"
+                  spellCheck={true}
+                  autoComplete="on"
+                  inputMode="text"
+                  enterKeyHint="enter"
+                  lang="fr-FR"
                   className="flex-1 min-h-[40px] max-h-[120px] border-0 focus-visible:ring-0 resize-none py-2.5 px-0 bg-transparent shadow-none text-sm rounded-none"
                   style={{ WebkitTouchCallout: 'none' } as React.CSSProperties}
                   rows={1}

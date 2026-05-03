@@ -621,25 +621,39 @@ function SettingsPage({
     // file from GitHub) so the user only ever sees the thelegendsonline.social
     // domain in their browser / download notification — never github.com.
     if (updateState.kind === 'available') {
-      // The Capacitor WebView ignores window.open('_blank') with no plugin,
-      // so the previous tap looked dead. Build an absolute https:// URL on
-      // our own origin and hand it to @capacitor/browser → Chrome Custom
-      // Tabs, which DOES handle Content-Disposition: attachment and triggers
-      // the Android Download Manager + package installer prompt. Web/PWA
-      // path keeps the regular new-tab open as a safe fallback.
+      // Build an absolute https:// URL on our own origin so the user only
+      // ever sees thelegendsonline.social in their download notification —
+      // never github.com.
       const absUrl = `${window.location.origin}/api/download/apk`;
-      try {
-        if (isCapacitor) {
-          const { Browser } = await import('@capacitor/browser');
-          await Browser.open({ url: absUrl });
-        } else {
-          window.open(absUrl, '_blank');
+
+      if (isCapacitor) {
+        // Capacitor's BridgeWebViewClient registers a DownloadListener that
+        // intercepts any navigation whose response carries
+        // `Content-Disposition: attachment` and hands it to the Android
+        // Download Manager. So a direct `window.location.href = absUrl`
+        // reliably triggers the OS download + install prompt without
+        // requiring any extra plugin to be synced into the native build.
+        //
+        // Why not Browser.open() first? If the @capacitor/browser plugin
+        // is not actually wired into the APK, its bridge call resolves
+        // silently with no UI — the previous code's catch block never
+        // fires, and the user sees a dead tap. Direct navigation is
+        // the most robust path.
+        try {
+          window.location.href = absUrl;
+        } catch {
+          // Pure-JS belt-and-braces: synthesize an <a download> click.
+          const a = document.createElement('a');
+          a.href = absUrl;
+          a.rel = 'noopener';
+          a.download = 'The Legends Online.apk';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
         }
-      } catch {
-        // Last-resort fallback: navigate the WebView directly. The server
-        // sends Content-Disposition: attachment so the WebView SHOULD route
-        // it to the OS download manager rather than rendering it.
-        window.location.href = absUrl;
+      } else {
+        // Web/PWA: open in a new tab so the current page survives.
+        window.open(absUrl, '_blank', 'noopener');
       }
       return;
     }
