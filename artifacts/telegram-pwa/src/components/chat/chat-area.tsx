@@ -2955,13 +2955,12 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             className="absolute right-3 z-40 w-10 h-10 rounded-full bg-card border border-border/60 shadow-lg flex items-center justify-center text-foreground hover:bg-primary/10 transition-colors"
             style={{
               backdropFilter: 'blur(12px)',
-              // composerHeight is the FULL measured height of the composer
-              // wrapper, which already includes its own paddingBottom of
-              // env(safe-area-inset-bottom). Adding safe-area-bottom AGAIN
-              // here would double-count it (visible as a 24-48 px ghost gap
-              // on Android edge-to-edge gesture-nav devices that resolves
-              // ~1 second later when visualViewport settles).
-              bottom: `${(composerHeight ?? 80) + 4}px`,
+              // Sit just above the composer. On some Android WebViews the
+              // wrapper's own padding-bottom: env(safe-area-inset-bottom)
+              // resolves to 0 (Capacitor's edge-to-edge isn't fully wired
+              // through), so composerHeight only measures the pill itself.
+              // We add safe-area here to clear the system gesture bar.
+              bottom: `calc(${composerHeight ?? 80}px + env(safe-area-inset-bottom, 0px) + 4px)`,
             }}
           >
             <ChevronDown className="w-5 h-5" />
@@ -2978,18 +2977,20 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         className="h-full overflow-y-auto scroll-container px-3 pt-1.5"
         style={{
           visibility: searchOpen || scrollReady || isLoading || messages.length === 0 ? 'visible' : 'hidden',
-          // composerHeight is the FULL measured height of the composer
-          // wrapper which ALREADY includes its own paddingBottom of
-          // env(safe-area-inset-bottom). Don't add safe-area again here —
-          // doing so double-counted it and produced a 24-48 px ghost gap
-          // between the last message and the composer on Android APK
-          // edge-to-edge devices, which resolved ~1 second later when
-          // visualViewport's first measurement landed and the messages
-          // re-snapped (the bug visible in the user's "before" screenshot).
-          // Fallback bumped 64 → 80 to better match the real measured
-          // wrapper (composer pill ~52 + safe-area ~24 ≈ 76 px) so the
-          // pre-measure paint is also a sensible starting estimate.
-          paddingBottom: `${composerHeight ?? 80}px`,
+          // Reserve room for the floating composer + system gesture bar.
+          // We add env(safe-area-inset-bottom) on top of composerHeight
+          // because some Android WebViews resolve safe-area-inset-bottom
+          // to 0 inside the composer wrapper's own padding (Capacitor's
+          // edge-to-edge isn't fully wired through) — so composerHeight
+          // ends up only measuring the pill itself and the last message
+          // would otherwise be hidden behind the composer (the user's
+          // bug report after the previous over-correction). Adding it
+          // here is safe even when the WebView DOES include it inside
+          // composerHeight (web/PWA), because then env(...) is also 0
+          // there and the sum is unchanged. Fallback 80 keeps the very
+          // first paint close to the settled value so there's no jump
+          // when ResizeObserver delivers the real height a frame later.
+          paddingBottom: `calc(${composerHeight ?? 80}px + env(safe-area-inset-bottom, 0px))`,
         }}
       >
         {/* Anchor kept for layout symmetry; no longer wired to an
