@@ -291,10 +291,16 @@ export function VideoThumbnail({
         aspectRatio: String(effectiveAspect),
         maxHeight: '70vh',
         minWidth: `${MIN_TILE_WIDTH_PX}px`,
-        // Soft purple-tinted gradient placeholder so the very brief
-        // moment before the poster lands isn't a jarring black box.
-        background:
-          'linear-gradient(135deg, rgba(140,120,255,0.14), rgba(60,40,120,0.22))',
+        // Neutral near-black placeholder. The previous saturated purple
+        // gradient created a very visible "purple flash" on incoming
+        // videos that have no server-stored thumbnail (the on-the-fly
+        // capture path takes ~1 s on a cold load — long enough for the
+        // user to see the gradient and read it as a bug). A near-black
+        // matte sits naturally inside the dark chat background and
+        // reads as "loading" rather than a UI artefact, matching the
+        // way Telegram's video tiles look before their thumbnail blob
+        // decodes.
+        background: 'rgba(20, 20, 26, 0.85)',
       }}
       onClick={onClick}
     >

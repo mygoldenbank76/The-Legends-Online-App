@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Play, ExternalLink, Music, Tv, Twitter, Instagram, Github, Radio, Plus, MoreHorizontal } from 'lucide-react';
 import { CachedImg } from './cached-img';
 import { preloadMedia } from '@/lib/media-cache';
-import { mountIframe } from '@/lib/iframe-pool';
+import { mountIframe, prewarmIframe } from '@/lib/iframe-pool';
 
 export type LinkPreviewData = {
   url: string;
@@ -62,18 +62,46 @@ const SPOTIFY_ATTRS = {
 };
 
 /**
- * Spotify embed using the persistent iframe pool.
- * - First visit: shows rich static card instantly while iframe loads in background.
- * - Every subsequent visit: iframe already loaded → shows instantly with NO loading state.
+ * Spotify embed — TAP-TO-LOAD pattern (Telegram-style).
+ *
+ * Why we don't auto-embed the iframe anymore:
+ *   Spotify's official `<iframe>` widget paints its own contents
+ *   PROGRESSIVELY from spotify.com (background → title → album art →
+ *   controls), and there is nothing the host page can do to speed
+ *   that up. When a conversation contains several Spotify links, the
+ *   user opens the chat and watches each iframe build itself up over
+ *   ~2 s, which reads as "the app is broken / laggy". On low-end
+ *   devices the simultaneous fetch + paint of multiple iframes also
+ *   janks the scroll position.
+ *
+ *   Telegram solves this on mobile by NEVER auto-mounting the embed:
+ *   they show a rich static card with album art + title and only
+ *   load the player on user tap. We mirror that behaviour: the static
+ *   card paints instantly (just an <img> + text — no third-party
+ *   network round-trip), and a single tap mounts the cached iframe
+ *   from our pool — which then shows up loaded thanks to prewarming.
+ *
+ * Pre-warming: we still call `prewarmIframe` (not `mountIframe`) so
+ *   the iframe starts fetching in the background and is ready the
+ *   moment the user actually taps the play button — no perceived
+ *   delay between tap and audio playback, while the chat itself
+ *   stays smooth and free of progressive paint artefacts.
  */
 function SpotifyEmbed({ preview }: { preview: LinkPreviewData; isMine: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [tapped, setTapped] = useState(false);
   const [iframeReady, setIframeReady] = useState(false);
 
   useEffect(() => {
-    if (!preview.embedUrl || !containerRef.current) return;
+    if (!preview.embedUrl) return;
     if (preview.image) preloadMedia(preview.image);
+    // Pre-warm in the background so the iframe is already loaded by
+    // the time the user taps; never mount it visibly until then.
+    prewarmIframe(preview.embedUrl, SPOTIFY_ATTRS);
+  }, [preview.embedUrl, preview.image]);
 
+  useEffect(() => {
+    if (!tapped || !preview.embedUrl || !containerRef.current) return;
     const cleanup = mountIframe(
       preview.embedUrl,
       containerRef.current,
@@ -81,7 +109,7 @@ function SpotifyEmbed({ preview }: { preview: LinkPreviewData; isMine: boolean }
       () => setIframeReady(true),
     );
     return cleanup;
-  }, [preview.embedUrl, preview.image]);
+  }, [tapped, preview.embedUrl]);
 
   return (
     // Fixed-height (152px) container that matches Spotify's mini-player
@@ -94,12 +122,26 @@ function SpotifyEmbed({ preview }: { preview: LinkPreviewData; isMine: boolean }
     // bumps the visible scroll position when the user scrolls back up
     // through a Spotify-rich conversation.
     <div className="mt-2 rounded-xl overflow-hidden relative" style={{ background: '#121212', height: 152 }}>
-      {/* ── Static rich card: cross-fades out once the iframe is ready ── */}
+      {/* ── Static rich card: clickable until the user actually taps to
+          load the iframe. Cross-fades out once the iframe is mounted
+          AND has fired its load event, so we never see the iframe's
+          own progressive paint in front of the user. ── */}
       <div
-        className="absolute inset-0 flex items-center gap-3 px-3 py-3 pointer-events-none"
+        role={tapped ? undefined : 'button'}
+        tabIndex={tapped ? -1 : 0}
+        onClick={() => { if (!tapped) setTapped(true); }}
+        onKeyDown={(e) => {
+          if (!tapped && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault();
+            setTapped(true);
+          }
+        }}
+        className="absolute inset-0 flex items-center gap-3 px-3 py-3"
         style={{
           opacity: iframeReady ? 0 : 1,
           transition: 'opacity 0.2s ease',
+          cursor: tapped ? 'default' : 'pointer',
+          pointerEvents: iframeReady ? 'none' : 'auto',
         }}
       >
         {preview.image ? (
