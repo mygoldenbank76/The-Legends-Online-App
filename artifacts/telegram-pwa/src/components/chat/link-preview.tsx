@@ -129,6 +129,7 @@ function SpotifyEmbed({ preview }: { preview: LinkPreviewData; isMine: boolean }
       <div
         role={tapped ? undefined : 'button'}
         tabIndex={tapped ? -1 : 0}
+        aria-label={tapped ? undefined : 'Load Spotify player'}
         onClick={() => { if (!tapped) setTapped(true); }}
         onKeyDown={(e) => {
           if (!tapped && (e.key === 'Enter' || e.key === ' ')) {
