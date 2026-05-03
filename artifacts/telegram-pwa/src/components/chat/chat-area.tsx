@@ -1456,6 +1456,14 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     const ta = textareaRef.current;
     if (!ta) return;
     ta.style.height = 'auto';
+    // CRITICAL: force a synchronous reflow before reading scrollHeight.
+    // Android Chromium WebView batches layout changes within the same
+    // task — without this offsetHeight read, scrollHeight returns the
+    // OLD content size and the textarea never grows past one line on
+    // paste / emoji insert. Reading offsetHeight is the standard browser
+    // hook to force "give me the layout right NOW", with no side effect
+    // beyond the reflow itself.
+    void ta.offsetHeight;
     // 100px ≈ 4 lines of text-sm (line-height ~20px) + py-2.5 padding.
     ta.style.height = `${Math.min(ta.scrollHeight, 100)}px`;
   }, []);
@@ -4577,20 +4585,64 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   onPaste={(e) => {
                     const ta = textareaRef.current;
                     if (!ta) return;
-                    const pasted = e.clipboardData?.getData('text/plain') ?? '';
-                    if (!pasted) return; // let the browser handle non-text payloads (images, etc.)
-                    e.preventDefault();
+                    const cd = e.clipboardData;
+                    // Try every text format. Samsung Keyboard's clipboard
+                    // panel often only populates 'text' (not 'text/plain'),
+                    // and copies from web pages / mail apps sometimes only
+                    // contain 'text/html'. The previous single-format
+                    // 'text/plain' read silently dropped those payloads,
+                    // which is why "certains textes ne se collent pas".
+                    let pasted = cd?.getData('text/plain') || cd?.getData('text') || '';
+                    if (!pasted) {
+                      const html = cd?.getData('text/html');
+                      if (html) {
+                        // Cheap HTML→text: strip tags + decode the few
+                        // entities a clipboard payload realistically uses.
+                        pasted = html
+                          .replace(/<br\s*\/?>/gi, '\n')
+                          .replace(/<\/p>/gi, '\n')
+                          .replace(/<[^>]+>/g, '')
+                          .replace(/&nbsp;/g, ' ')
+                          .replace(/&amp;/g, '&')
+                          .replace(/&lt;/g, '<')
+                          .replace(/&gt;/g, '>')
+                          .replace(/&quot;/g, '"')
+                          .replace(/&#39;/g, "'")
+                          .trim();
+                      }
+                    }
                     const start = ta.selectionStart ?? content.length;
                     const end = ta.selectionEnd ?? content.length;
-                    const next = content.slice(0, start) + pasted + content.slice(end);
-                    setContent(next);
-                    const newCursor = start + pasted.length;
-                    requestAnimationFrame(() => {
-                      const t = textareaRef.current;
-                      if (!t) return;
-                      t.focus();
-                      try { t.setSelectionRange(newCursor, newCursor); } catch { /* ignore */ }
-                    });
+                    const insertAt = (txt: string) => {
+                      const next = content.slice(0, start) + txt + content.slice(end);
+                      setContent(next);
+                      const newCursor = start + txt.length;
+                      requestAnimationFrame(() => {
+                        const t = textareaRef.current;
+                        if (!t) return;
+                        t.focus();
+                        try { t.setSelectionRange(newCursor, newCursor); } catch { /* ignore */ }
+                      });
+                    };
+                    if (pasted) {
+                      e.preventDefault();
+                      insertAt(pasted);
+                      return;
+                    }
+                    // Last resort: some Samsung WebView builds deliver an
+                    // empty clipboardData even for plain text. The OS
+                    // clipboard still has the value — read it async via
+                    // the modern Clipboard API and splice it ourselves.
+                    // We preventDefault here too so the WebView doesn't
+                    // also insert nothing on its own (which would also
+                    // suppress our own controlled-component re-render).
+                    if (typeof navigator !== 'undefined' && navigator.clipboard?.readText) {
+                      e.preventDefault();
+                      navigator.clipboard.readText()
+                        .then((txt) => { if (txt) insertAt(txt); })
+                        .catch(() => { /* permission denied / nothing to read */ });
+                    }
+                    // else: let the browser handle non-text payloads (images, etc.)
                   }}
                   onSelect={handleTextSelect}
                   onBlur={() => { if (!linkMode) setTimeout(() => setSelectionRange(null), 150); }}
