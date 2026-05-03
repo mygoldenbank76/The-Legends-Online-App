@@ -90,7 +90,13 @@ public class NativeComposerPlugin extends Plugin {
         @Override
         protected void onSelectionChanged(int selStart, int selEnd) {
             super.onSelectionChanged(selStart, selEnd);
+            // Android calls onSelectionChanged from the EditText
+            // constructor BEFORE our `editText` field is assigned, and
+            // also during programmatic setText/setSelection driven from
+            // JS. Skip both to avoid emitting bogus events / racing the
+            // bridge during plugin construction.
             if (syncingFromJs) return;
+            if (editText == null) return;
             JSObject ret = new JSObject();
             ret.put("start", selStart);
             ret.put("end", selEnd);
@@ -265,6 +271,30 @@ public class NativeComposerPlugin extends Plugin {
                 editText.setText(value);
                 final int safe = Math.min(value == null ? 0 : value.length(), cursor < 0 ? 0 : cursor);
                 editText.setSelection(safe);
+                syncingFromJs = false;
+            }
+            call.resolve();
+        });
+    }
+
+    /**
+     * Push a selection (cursor or highlighted range) from JS into the
+     * native EditText. Used after the React FormattingToolbar mutates
+     * content (bold / italic / link wrap / paste) so the native caret
+     * lands at the same place the user expects, instead of staying at
+     * its pre-format position.
+     */
+    @PluginMethod
+    public void setSelection(PluginCall call) {
+        final int start = call.getInt("start", 0);
+        final int end = call.getInt("end", start);
+        getActivity().runOnUiThread(() -> {
+            if (editText != null) {
+                syncingFromJs = true;
+                final int len = editText.getText().length();
+                final int s = Math.max(0, Math.min(start, len));
+                final int e = Math.max(s, Math.min(end, len));
+                editText.setSelection(s, e);
                 syncingFromJs = false;
             }
             call.resolve();

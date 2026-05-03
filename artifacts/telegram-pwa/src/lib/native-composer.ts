@@ -79,9 +79,21 @@ export interface NativeComposerPlugin {
     eventName: 'selectionChanged',
     listener: (data: { start: number; end: number }) => void,
   ): Promise<PluginListenerHandle>;
+
+  /**
+   * Push a selection (cursor or range) into the native EditText.
+   * React's FormattingToolbar calls this after every format-apply or
+   * paste so the native caret follows the post-mutation position
+   * instead of staying at the pre-format index.
+   */
+  setSelection(opts: { start: number; end: number }): Promise<void>;
 }
 
 const noop = async () => undefined;
+
+/**
+ * Web stub: sync selection back to native EditText. No-op on web.
+ */
 
 export const NativeComposer = registerPlugin<NativeComposerPlugin>('NativeComposer', {
   // Web fallback — every method resolves as a no-op so the same module
@@ -91,6 +103,7 @@ export const NativeComposer = registerPlugin<NativeComposerPlugin>('NativeCompos
     show: noop,
     hide: noop,
     setValue: noop,
+    setSelection: noop,
     setBounds: noop,
     getValue: async () => ({ value: '' }),
     focus: noop,

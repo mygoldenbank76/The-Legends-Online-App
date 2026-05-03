@@ -1816,7 +1816,19 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     const { newText, newEnd } = applyFormat(content, start, end, fmt);
     setContent(newText);
     setSelectionRange(null);
-    setTimeout(() => { ta.focus(); ta.setSelectionRange(newEnd, newEnd); }, 0);
+    setTimeout(() => {
+      ta.setSelectionRange(newEnd, newEnd);
+      // On Android the visible caret lives in the native EditText, not
+      // the hidden textarea — push the post-format cursor across the
+      // bridge and re-focus the native field so the keyboard stays up
+      // and the user types at the right place.
+      if (isNativeComposerAvailable()) {
+        void NativeComposer.setSelection({ start: newEnd, end: newEnd });
+        void NativeComposer.focus();
+      } else {
+        ta.focus();
+      }
+    }, 0);
   };
 
   const handleLinkRequest = () => {
@@ -1835,7 +1847,15 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     if (start !== end && url) {
       const { newText, newEnd } = applyFormat(content, start, end, 'link', url);
       setContent(newText);
-      setTimeout(() => { ta.focus(); ta.setSelectionRange(newEnd, newEnd); }, 0);
+      setTimeout(() => {
+        ta.setSelectionRange(newEnd, newEnd);
+        if (isNativeComposerAvailable()) {
+          void NativeComposer.setSelection({ start: newEnd, end: newEnd });
+          void NativeComposer.focus();
+        } else {
+          ta.focus();
+        }
+      }, 0);
     }
     setLinkMode(false);
     setLinkUrl('');
@@ -1869,7 +1889,15 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       const newText = content.slice(0, start) + text + content.slice(end);
       setContent(newText);
       const newCursor = start + text.length;
-      setTimeout(() => { ta.focus(); ta.setSelectionRange(newCursor, newCursor); }, 0);
+      setTimeout(() => {
+        ta.setSelectionRange(newCursor, newCursor);
+        if (isNativeComposerAvailable()) {
+          void NativeComposer.setSelection({ start: newCursor, end: newCursor });
+          void NativeComposer.focus();
+        } else {
+          ta.focus();
+        }
+      }, 0);
     } catch { /* permission denied or no clipboard */ }
   }, [content]);
 
