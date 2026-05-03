@@ -101,10 +101,15 @@ public class NativeComposerPlugin extends Plugin {
         editText.setTextColor(Color.WHITE);
         editText.setHintTextColor(0xFF888888);
         editText.setHint("Message");
-        int padH = dpToPx(10);
-        int padV = dpToPx(8);
-        editText.setPadding(padH, padV, padH, padV);
+        // Match the HTML <Textarea> exactly: `px-0 py-2.5 text-sm` →
+        // 0px horizontal padding, 10px vertical, 14sp text. Without
+        // matching the HTML padding the text sits visibly indented from
+        // the GIF/+ buttons compared to the web version.
+        editText.setPadding(0, dpToPx(10), 0, dpToPx(10));
         editText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        // Drop the EditText's default underline + min height insets so
+        // it really hugs the textarea rect.
+        editText.setIncludeFontPadding(false);
 
         editText.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}

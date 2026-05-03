@@ -4719,7 +4719,11 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   // auto-capitalize are independent of contextmenu and
                   // remain fully functional.
                   onContextMenu={(e) => e.preventDefault()}
-                  placeholder={editState ? uiT.chat.editPlaceholder : uiT.chat.placeholder}
+                  // On Android (native EditText overlay), the native side
+                  // owns the placeholder — we must clear the HTML one or
+                  // both render simultaneously and the user sees doubled
+                  // overlapping text.
+                  placeholder={useNativeComposer ? '' : (editState ? uiT.chat.editPlaceholder : uiT.chat.placeholder)}
                   autoCapitalize="sentences"
                   autoCorrect="on"
                   spellCheck={true}
