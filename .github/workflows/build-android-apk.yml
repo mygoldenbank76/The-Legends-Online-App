@@ -52,12 +52,14 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
 
-      - name: Cache debug keystore
-        id: cache-keystore
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: android-debug-keystore-legends-v1
+      - name: Decode release keystore from secret
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p $HOME/.android-keystore
+          echo "$KEYSTORE_B64" | base64 -d > $HOME/.android-keystore/legends-release.keystore
+          ls -la $HOME/.android-keystore/
+          echo "ANDROID_KEYSTORE_FILE=$HOME/.android-keystore/legends-release.keystore" >> $GITHUB_ENV
 
       - name: Install dependencies
         run: pnpm install
@@ -80,14 +82,25 @@ jobs:
           sed -i "s/versionName \"1.0\"/versionName \"1.0.${{ github.run_number }}\"/" build.gradle
           grep -E 'versionCode|versionName' build.gradle
 
-      - name: Build debug APK (signed with cached debug keystore — same key across runs, so updates work in-place)
+      - name: Build signed release APK
         working-directory: artifacts/telegram-pwa/android
-        run: ./gradlew assembleDebug --no-daemon
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ env.ANDROID_KEYSTORE_FILE }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Verify APK signature
+        run: |
+          BUILD_TOOLS=$(ls $ANDROID_HOME/build-tools/ | tail -1)
+          $ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner verify --print-certs \
+            artifacts/telegram-pwa/android/app/build/outputs/apk/release/app-release.apk
 
       - name: Rename APK to "The Legends Online.apk"
         run: |
           mkdir -p _release
-          cp artifacts/telegram-pwa/android/app/build/outputs/apk/debug/app-debug.apk "_release/The Legends Online.apk"
+          cp artifacts/telegram-pwa/android/app/build/outputs/apk/release/app-release.apk "_release/The Legends Online.apk"
           ls -la _release/
 
       - name: Publish to "native-latest" release
@@ -96,7 +109,7 @@ jobs:
           tag_name: native-latest
           name: 'Native APK (latest build)'
           body: |
-            **Native Capacitor build** — APK packagé avec WebView Android isolée.
+            **Native Capacitor build** — APK packagé avec WebView Android isolée et **signé en release** (Play Protect compatible).
 
             - Storage indépendant du navigateur Chrome
             - Aucune barre URL au démarrage
