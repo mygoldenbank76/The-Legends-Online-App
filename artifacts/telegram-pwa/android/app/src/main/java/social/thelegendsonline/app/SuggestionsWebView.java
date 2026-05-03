@@ -46,11 +46,28 @@ public class SuggestionsWebView extends CapacitorWebView {
     public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
         InputConnection ic = super.onCreateInputConnection(outAttrs);
         if (outAttrs != null) {
-            // Make sure the field is treated as multi-line text (the message
-            // composer is a <textarea>) and ENABLE the prediction strip.
+            // Strip the WebView default NO_SUGGESTIONS flag and add the
+            // standard text-class flags Android keyboards check before
+            // showing the prediction strip + sentence capitalization.
+            //
+            // CRITICAL: we do NOT set TYPE_TEXT_FLAG_MULTI_LINE here.
+            // Samsung Keyboard (the default on every Galaxy device,
+            // representing the bulk of our French userbase) HIDES the
+            // prediction strip entirely on any field flagged multi-line
+            // — it treats the strip as a single-line affordance only.
+            // The textarea still accepts newlines via the standard
+            // WebView <textarea> path; the IME flag only changes UI
+            // affordances, not the actual newline behavior of the
+            // underlying contenteditable region. Removing this flag is
+            // what finally surfaces both autocorrect suggestions AND
+            // first-letter capitalization on Samsung's keyboard, which
+            // matches the way Telegram's native EditText is configured
+            // (see drklo/telegram ChatActivityEnterView — it never sets
+            // MULTI_LINE on its message composer EditText for the same
+            // reason).
             outAttrs.inputType &= ~InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
+            outAttrs.inputType &= ~InputType.TYPE_TEXT_FLAG_MULTI_LINE;
             outAttrs.inputType |= InputType.TYPE_CLASS_TEXT
-                    | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                     | InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
                     | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES;
             // Also clear the "no personalized learning" flag so the keyboard

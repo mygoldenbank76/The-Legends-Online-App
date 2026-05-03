@@ -1290,14 +1290,67 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   }, [content, sending, editState, replyTo, conversationId, sendMsg, editMsg, invalidate, scrollBottom, emitTyping]);
 
   // ── GIF send ──────────────────────────────────────────────
+  // We download the GIF once in the sender's browser to derive (a) the
+  // intrinsic width/height so every recipient's bubble lands at the
+  // correct aspect on the first paint, and (b) a tiny blurred LQIP
+  // (Telegram's `stripped_thumb` equivalent) so receivers see a
+  // recognisable preview from the very first frame instead of an
+  // empty/violet rectangle while the multi-MB GIF streams from Tenor /
+  // Giphy. Both are sent inline with the message JSON so they reach
+  // the server in a single round-trip — no background backfill, no
+  // second request, no race. If the fetch fails (CORS, offline, …) we
+  // silently fall back to the legacy "just imageUrl" path so a flaky
+  // GIF provider can never break sending.
   const handleGifSelect = useCallback(async (gif: GifResult) => {
     if (sending) return;
     const replyId = replyTo?.id;
     setReplyTo(null);
     setSending(true);
+
+    let mediaWidth: number | undefined;
+    let mediaHeight: number | undefined;
+    let mediaPreview: string | undefined;
+    try {
+      const resp = await fetch(gif.url, { mode: 'cors' });
+      if (resp.ok) {
+        const blob = await resp.blob();
+        // Probe dims via a transient <img> — much lighter than image-size.
+        const dims = await new Promise<{ w: number; h: number } | null>((resolve) => {
+          const objUrl = URL.createObjectURL(blob);
+          const probe = new Image();
+          const done = (out: { w: number; h: number } | null) => {
+            try { URL.revokeObjectURL(objUrl); } catch { /**/ }
+            resolve(out);
+          };
+          probe.onload = () => done({ w: probe.naturalWidth, h: probe.naturalHeight });
+          probe.onerror = () => done(null);
+          probe.src = objUrl;
+        });
+        if (dims && dims.w > 0 && dims.h > 0) {
+          mediaWidth = dims.w;
+          mediaHeight = dims.h;
+        }
+        const lqip = await generateLqip(blob).catch(() => null);
+        if (lqip) mediaPreview = lqip;
+      }
+    } catch {
+      // Provider blocked CORS or the fetch failed; fall through and
+      // send the message without a preview/dims. Receivers get the
+      // legacy behaviour, which is no worse than before this change.
+    }
+
     try {
       forceScrollRef.current = true;
-      await sendMsg.mutateAsync({ conversationId, data: { imageUrl: gif.url, replyToId: replyId } });
+      await sendMsg.mutateAsync({
+        conversationId,
+        data: {
+          imageUrl: gif.url,
+          replyToId: replyId,
+          mediaWidth,
+          mediaHeight,
+          mediaPreview,
+        } as any,
+      });
       invalidate();
     } catch (e) { console.error(e); forceScrollRef.current = false; }
     finally { setSending(false); }
@@ -3592,6 +3645,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                             <VideoThumbnail
                               src={msg.imageUrl}
                               thumbnailUrl={(msg as any).thumbnailUrl ?? null}
+                              mediaPreview={msg.mediaPreview}
                               className="w-full rounded-[10px]"
                               intrinsicWidth={msg.mediaWidth ?? undefined}
                               intrinsicHeight={msg.mediaHeight ?? undefined}

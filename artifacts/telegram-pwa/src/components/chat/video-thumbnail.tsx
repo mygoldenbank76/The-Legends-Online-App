@@ -41,6 +41,14 @@ interface Props {
   src: string;
   /** Server-stored JPEG URL (set when the sender uploaded a thumbnail). */
   thumbnailUrl?: string | null;
+  /**
+   * Tiny base64 LQIP (`data:image/jpeg;base64,…`) — Telegram's
+   * `stripped_thumb` equivalent. Painted INSTANTLY behind the tile
+   * (blurred) so the very first frame the user sees is a recognisable
+   * preview of the video, not a near-black matte. Optional — when
+   * absent we fall back to the matte + spinner.
+   */
+  mediaPreview?: string | null;
   className?: string;
   intrinsicWidth?: number;
   intrinsicHeight?: number;
@@ -190,7 +198,7 @@ const DEFAULT_FALLBACK_ASPECT = 9 / 16;
 const MIN_TILE_WIDTH_PX = 240;
 
 export function VideoThumbnail({
-  src, thumbnailUrl, className = '', intrinsicWidth, intrinsicHeight, onClick,
+  src, thumbnailUrl, mediaPreview, className = '', intrinsicWidth, intrinsicHeight, onClick,
 }: Props) {
   const intrinsicRatio = (intrinsicWidth && intrinsicHeight && intrinsicHeight > 0)
     ? intrinsicWidth / intrinsicHeight
@@ -304,11 +312,34 @@ export function VideoThumbnail({
       }}
       onClick={onClick}
     >
+      {/* ── LQIP layer (Telegram's stripped_thumb) ──────────────────────
+          Painted SYNCHRONOUSLY before any network round-trip, so the
+          very first frame already shows a blurred preview of the real
+          video instead of a matte rectangle. Stays underneath the
+          poster so the moment the sharp poster lands it covers this
+          layer with no visible flash. */}
+      {mediaPreview && (
+        <img
+          src={mediaPreview}
+          alt=""
+          aria-hidden
+          decoding="sync"
+          draggable={false}
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+          style={{
+            filter: 'blur(14px)',
+            transform: 'scale(1.1)',
+            opacity: visiblePoster ? 0 : 1,
+            transition: 'opacity 0.18s linear',
+          }}
+        />
+      )}
+
       {visiblePoster ? (
         <img
           src={visiblePoster}
           alt=""
-          className="block w-full h-full object-contain"
+          className="block w-full h-full object-contain relative"
           draggable={false}
           // Decoded async to avoid blocking the main thread for the
           // brief moment the JPEG comes off cache/network.
@@ -326,7 +357,7 @@ export function VideoThumbnail({
         />
       )}
 
-      {!visiblePoster && (
+      {!visiblePoster && !mediaPreview && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <Loader2 className="w-6 h-6 text-white/70 animate-spin" />
         </div>
