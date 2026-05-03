@@ -147,7 +147,16 @@ function useVisualViewport() {
         root.style.top = '0px';
       } else {
         root.style.height = `${vv.height}px`;
-        root.style.top    = `${vv.offsetTop}px`;
+        // NB: deliberately NOT mirroring `vv.offsetTop` here. On Samsung's
+        // Android WebView, during the keyboard open/close animation
+        // `visualViewport.offsetTop` briefly reports a non-zero value
+        // (the layout viewport scrolling under the keyboard). If we copy
+        // that into `#root.style.top`, the entire app shifts down for a
+        // few frames mid-animation, which the user sees as the composer
+        // jumping to the top of the screen with a huge black gap above
+        // the keyboard. Keeping `top: 0` and relying on `height` alone
+        // gives a smooth, single-step layout transition.
+        root.style.top = '0px';
       }
     };
 

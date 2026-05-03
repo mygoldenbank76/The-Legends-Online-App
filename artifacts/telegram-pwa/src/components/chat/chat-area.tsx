@@ -1525,6 +1525,27 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     syncContentFromDom();
   };
 
+  // Re-assert keyboard hint attributes directly on the DOM node after
+  // mount. React reflects `autoCapitalize` / `autoCorrect` / `spellCheck`
+  // to the corresponding HTML attributes, but Samsung Keyboard (one of
+  // the most common Android IMEs in our user base) only reads them on
+  // its first inspection of the element. When the element is recreated
+  // by React's reconciliation (e.g. switching conversation, toggling
+  // edit-mode), Samsung Keyboard sometimes caches "no autocap" from a
+  // previous lifecycle. Setting the attributes imperatively after every
+  // mount guarantees the IME picks them up afresh, restoring the
+  // expected "first letter of the message + first letter after a
+  // period are auto-capitalised" behaviour.
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.setAttribute('autocapitalize', 'sentences');
+    ta.setAttribute('autocorrect', 'on');
+    ta.setAttribute('spellcheck', 'true');
+    ta.setAttribute('autocomplete', 'on');
+    ta.setAttribute('enterkeyhint', 'enter');
+  }, [conversationId, editState]);
+
   const handleCompositionStart = () => {
     isComposingRef.current = true;
   };
@@ -4527,15 +4548,17 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   onKeyDown={handleKeyDown}
                   onSelect={handleTextSelect}
                   onBlur={() => { if (!linkMode) setTimeout(() => setSelectionRange(null), 150); }}
-                  // NB: deliberately NO onContextMenu / onTouchStart /
-                  // onTouchEnd / onTouchMove and NO WebkitTouchCallout
-                  // override on the composer textarea. Long-press IS the
-                  // gesture that opens the keyboard's word-suggestions /
-                  // cut/copy/paste menu / "select word" handles on
-                  // Android — blocking it (as we used to) is what made
-                  // paste-from-clipboard fail and stopped the user from
-                  // editing a word mid-text. Keep the input "as native
-                  // as possible".
+                  // Suppress the native Android floating action mode
+                  // ("Couper / Copier / Coller") that pops up on text
+                  // selection. We render our own FormattingToolbar
+                  // (Copier / Coller / Gras / Italique / Souligner /
+                  // Barrer / Spoiler / Lien) right above the composer
+                  // and want it to be the ONLY menu the user sees on
+                  // selection. Note: this only blocks the contextmenu
+                  // event — keyboard suggestions, autocorrect and
+                  // auto-capitalize are independent of contextmenu and
+                  // remain fully functional.
+                  onContextMenu={(e) => e.preventDefault()}
                   placeholder={editState ? uiT.chat.editPlaceholder : uiT.chat.placeholder}
                   autoCapitalize="sentences"
                   autoCorrect="on"
@@ -4545,8 +4568,23 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   // Tag the input with the active UI language so the
                   // OS picks the right dictionary / autocorrect locale.
                   lang={appLanguage === 'en' ? 'en-US' : 'fr-FR'}
+                  // overflowWrap + wordBreak + whiteSpace: long runs of
+                  // emojis are treated by Android WebView as a single
+                  // un-breakable grapheme cluster and overflow the
+                  // composer horizontally instead of wrapping. Forcing
+                  // `anywhere` lets the browser break between any two
+                  // code-points, restoring the same wrap behaviour as
+                  // plain text. Without these, after ~10–15 emojis on
+                  // a single line the textarea silently stops accepting
+                  // new input because the line cannot grow further.
+                  style={{
+                    overflowWrap: 'anywhere',
+                    wordBreak: 'break-word',
+                    whiteSpace: 'pre-wrap',
+                  }}
                   className="flex-1 min-h-[40px] max-h-[120px] border-0 focus-visible:ring-0 resize-none py-2.5 px-0 bg-transparent shadow-none text-sm rounded-none"
                   rows={1}
+                  wrap="soft"
                 />
 
                 {/* Right icons inside field: + attachment, then Mic/Send (Telegram-like) */}
