@@ -53,36 +53,12 @@ export function GifPicker({ open, onClose, onSelect }: Props) {
   const { results, loading } = useGifs(query, open);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Track the visual viewport so the picker shrinks when the on-screen keyboard appears
-  const [viewportH, setViewportH] = useState<number>(
-    typeof window !== 'undefined' ? window.innerHeight : 800
-  );
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const vv = window.visualViewport;
-    const update = () => setViewportH(vv ? vv.height : window.innerHeight);
-    update();
-    if (vv) {
-      vv.addEventListener('resize', update);
-      vv.addEventListener('scroll', update);
-      return () => {
-        vv.removeEventListener('resize', update);
-        vv.removeEventListener('scroll', update);
-      };
-    }
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, []);
-
-  // Reserve space for the chat header at the top (~56px) and the input bar below (~64px),
-  // PLUS the device's status-bar safe-area inset (env(safe-area-inset-top))
-  // — on Samsung S22 with edge-to-edge WebView the status bar takes
-  // ~30 px more that the previous fixed 140 px reservation didn't
-  // account for, so the picker bled across the chat header subtitle
-  // ("1 utilisateur en ligne"). The CSS calc below pulls the live
-  // safe-area value at render time so the picker always stops just
-  // under the header on every device, regardless of cutout size.
-  const maxPickerHeight = Math.max(180, viewportH - 140);
+  // Picker height is constrained by a fixed `max-h-[240px]` cap on the
+  // inner GIF grid below — same approach as the emoji picker, so both
+  // pickers are visually the same size when stacked above the composer.
+  // No viewport-based calc is needed: the grid scrolls and the picker
+  // never grows past header+grid+footer (~310px), which always fits
+  // above the input bar on every supported device.
 
   useEffect(() => {
     if (open) {
@@ -108,9 +84,6 @@ export function GifPicker({ open, onClose, onSelect }: Props) {
           <div
             data-overlay-region="gif"
             className="popover-floating rounded-2xl overflow-hidden mx-3 flex flex-col"
-            style={{
-              maxHeight: `min(${maxPickerHeight}px, calc(${viewportH}px - 56px - 64px - env(safe-area-inset-top, 0px)))`,
-            }}
           >
             {/* Search bar */}
             <div className="flex-shrink-0 flex items-center gap-2 px-3 pt-3 pb-2 gradient-hairline-bottom">
@@ -138,8 +111,10 @@ export function GifPicker({ open, onClose, onSelect }: Props) {
               {rawQuery.trim() ? 'Résultats' : 'Tendances'}
             </p>
 
-            {/* GIF grid */}
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            {/* GIF grid — same scroll cap as the emoji picker (max-h-[240px]
+                on the inner scrollable list) so both pickers are visually
+                the same size when stacked above the composer. */}
+            <div className="max-h-[240px] overflow-y-auto">
               {loading ? (
                 <div className="flex items-center justify-center h-28">
                   <Loader2 className="w-5 h-5 animate-spin text-primary" />

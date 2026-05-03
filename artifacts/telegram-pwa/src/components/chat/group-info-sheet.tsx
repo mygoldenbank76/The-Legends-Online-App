@@ -386,20 +386,20 @@ function MainView(p: MainViewProps) {
               align="end"
               sideOffset={8}
               data-overlay-region="group-info-menu"
-              className="w-60 p-1 glass-strong border-border/40 rounded-2xl z-[460] shadow-2xl"
+              className="popover-floating min-w-[15rem] p-0 py-1 rounded-xl border-0 shadow-none z-[460] whitespace-nowrap"
             >
               <button
                 onClick={p.onSearchMembers}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-sm text-foreground hover:bg-foreground/5 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-foreground hover:bg-foreground/5 active:bg-foreground/10 transition-colors whitespace-nowrap"
               >
-                <Search className="w-4 h-4 text-primary" />
+                <Search className="w-4 h-4 text-primary flex-shrink-0" />
                 <span>{p.t.groupInfo.searchMembers}</span>
               </button>
               <button
                 onClick={p.onAddMembers}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-sm text-foreground hover:bg-foreground/5 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-foreground hover:bg-foreground/5 active:bg-foreground/10 transition-colors whitespace-nowrap"
               >
-                <UserPlus className="w-4 h-4 text-primary" />
+                <UserPlus className="w-4 h-4 text-primary flex-shrink-0" />
                 <span>{p.t.groupInfo.addMembers}</span>
               </button>
             </PopoverContent>

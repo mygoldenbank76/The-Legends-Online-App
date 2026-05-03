@@ -3372,10 +3372,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
               {headerMenuOpen && (
                 <div
-                  className="popover-floating absolute right-0 top-9 w-56 rounded-xl overflow-hidden z-50 py-1"
+                  className="popover-floating absolute right-0 top-9 min-w-[15rem] rounded-xl overflow-hidden z-50 py-1 whitespace-nowrap"
                 >
                   <button
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-foreground/5 active:bg-foreground/10 transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-foreground/5 active:bg-foreground/10 transition-colors text-left whitespace-nowrap"
                     onClick={toggleMute}
                   >
                     {isMuted
@@ -3386,7 +3386,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   </button>
 
                   <button
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-foreground/5 active:bg-foreground/10 transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-foreground/5 active:bg-foreground/10 transition-colors text-left whitespace-nowrap"
                     onClick={() => { setSearchOpen(true); setHeaderMenuOpen(false); }}
                   >
                     <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />

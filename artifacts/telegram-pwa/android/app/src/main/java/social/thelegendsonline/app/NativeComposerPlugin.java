@@ -81,6 +81,18 @@ public class NativeComposerPlugin extends Plugin {
     // (user-reported: "the highlight appears briefly then disappears,
     // I can't drag the handles to extend").
     private float lastFontSizePx = -1f;
+    // Tracks the most recent visibility "intent" requested by JS via
+    // setOverlayVisible. Default true (overlay should be visible
+    // whenever bounds are valid). When JS calls setOverlayVisible(false)
+    // — typically because a fullscreen modal is open over the WebView —
+    // we must NOT let the next setBounds revive the overlay, otherwise
+    // the EditText's "Écrire un message…" hint bleeds through the modal
+    // (user-reported on the "Membres du groupe" sub-sheet of group
+    // info: JS pushes setBounds on every visualViewport tick, each one
+    // restoring VISIBLE before the modal closes). show() resets this
+    // back to true so a fresh chat starts with the normal reveal-on-
+    // first-bounds behaviour.
+    private boolean overlayUserVisible = true;
 
     private int dpToPx(float dp) {
         return Math.round(dp * getActivity().getResources().getDisplayMetrics().density);
@@ -390,6 +402,11 @@ public class NativeComposerPlugin extends Plugin {
             // composer rect, so the overlay only ever paints when it is
             // actually positioned over the HTML composer pill.
             overlay.setVisibility(View.GONE);
+            // Reset visibility intent so the next valid setBounds reveals
+            // the overlay normally; a previous chat's modal-induced
+            // setOverlayVisible(false) must not carry over to a fresh
+            // chat session.
+            overlayUserVisible = true;
             // No requestFocus / showSoftInput here — the user's tap on the
             // HTML composer pill triggers focus naturally via the WebView,
             // and we don't want the keyboard to pop on every chat open.
@@ -447,7 +464,13 @@ public class NativeComposerPlugin extends Plugin {
             // Without this the overlay stays GONE forever (show() now
             // leaves it GONE to avoid the flash-of-previous-bounds that
             // bled the placeholder onto the conversation list).
-            if (overlay != null && overlay.getVisibility() != View.VISIBLE) {
+            // BUT only when JS hasn't asked us to stay hidden — when a
+            // fullscreen modal is open (group-info sub-sheets, media
+            // viewer, etc.) JS calls setOverlayVisible(false) and we
+            // must respect it across subsequent setBounds ticks pushed
+            // by ResizeObserver / visualViewport scrolls.
+            if (overlay != null && overlayUserVisible
+                    && overlay.getVisibility() != View.VISIBLE) {
                 overlay.setVisibility(View.VISIBLE);
             }
             call.resolve();
@@ -467,6 +490,9 @@ public class NativeComposerPlugin extends Plugin {
     public void setOverlayVisible(PluginCall call) {
         final boolean visible = Boolean.TRUE.equals(call.getBoolean("visible", true));
         getActivity().runOnUiThread(() -> {
+            // Record the intent BEFORE touching visibility so a setBounds
+            // racing on the UI thread sees the right value.
+            overlayUserVisible = visible;
             if (overlay != null) {
                 overlay.setVisibility(visible ? View.VISIBLE : View.GONE);
             }
