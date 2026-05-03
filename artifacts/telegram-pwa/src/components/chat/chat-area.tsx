@@ -2668,14 +2668,13 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       <div
         className="flex-none glass border-b border-border/50 flex items-center px-3 z-10 gap-3"
         style={{
-          // Aligné EXACTEMENT sur MobileHeader (home) pour que le chat
-          // ne paraisse pas plus écrasé que la liste des conversations.
-          // Sur APK Android edge-to-edge, sans paddingBottom l'avatar
-          // 40px se faisait limiter par la min-height de 44px et avait
-          // l'air rogné contre le bord inférieur du header.
-          paddingTop: `max(env(safe-area-inset-top, 0px), 8px)`,
-          paddingBottom: 8,
-          minHeight: 'calc(2.75rem + env(safe-area-inset-top, 0px))',
+          // Aligné sur les sheets de détails (user-profile-sheet,
+          // group-info-sheet) qui utilisent py-3 + safe-area top : 12 px
+          // de padding vertical pour bien aérer l'avatar 40px et donner
+          // au chat la même prestance que le panneau de détails.
+          paddingTop: `calc(0.75rem + env(safe-area-inset-top, 0px))`,
+          paddingBottom: 12,
+          minHeight: 'calc(3.25rem + env(safe-area-inset-top, 0px))',
         }}
       >
 

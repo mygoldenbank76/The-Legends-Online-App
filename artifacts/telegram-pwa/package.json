@@ -14,6 +14,7 @@
     "android:build": "pnpm run build && pnpm run cap:sync && cd android && ./gradlew assembleDebug"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.3.1",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "^1.2.4",
@@ -83,10 +84,12 @@
     "@capacitor/android": "^8.3.1",
     "@capacitor/app": "^8.1.0",
     "@capacitor/core": "^8.3.1",
+    "@capacitor/filesystem": "^8.1.2",
     "@capacitor/splash-screen": "^8.0.1",
     "@capacitor/status-bar": "^8.0.2",
     "@tanstack/query-sync-storage-persister": "^5.97.0",
     "@tanstack/react-query-persist-client": "^5.97.0",
+    "capacitor-voice-recorder": "^7.0.6",
     "express": "^5",
     "socket.io-client": "^4.8.3"
   }

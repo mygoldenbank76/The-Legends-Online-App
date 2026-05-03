@@ -592,15 +592,32 @@ function SettingsPage({
   type UpdateState =
     | { kind: 'idle' }
     | { kind: 'checking' }
-    | { kind: 'available'; url: string; sizeMb: number | null }
-    | { kind: 'uptodate' }
+    | { kind: 'available'; url: string; sizeMb: number | null; latestBuild: number | null; installedBuild: number | null }
+    | { kind: 'uptodate'; build: number | null }
     | { kind: 'error' };
   const [updateState, setUpdateState] = useState<UpdateState>({ kind: 'idle' });
 
+  // Read the installed APK's versionCode (e.g. 12 for build #12) via the
+  // Capacitor App plugin. Returns null if we're not in the native shell or
+  // the call fails, in which case we fall back to "always show update".
+  const getInstalledBuild = async (): Promise<number | null> => {
+    if (!isCapacitor) return null;
+    try {
+      const App = (window as any).Capacitor?.Plugins?.App;
+      if (!App?.getInfo) return null;
+      const info = await App.getInfo();
+      // info.build is a string on Android (the versionCode)
+      const n = parseInt(String(info.build), 10);
+      return Number.isFinite(n) ? n : null;
+    } catch {
+      return null;
+    }
+  };
+
   const handleCheckUpdate = async () => {
-    // If we already resolved an APK, second tap triggers the download.
-    // We open our own /api/download/apk proxy (which streams the file from
-    // GitHub) so the user only ever sees the thelegendsonline.social
+    // If we already resolved an UPDATE is available, second tap triggers the
+    // download. We open our own /api/download/apk proxy (which streams the
+    // file from GitHub) so the user only ever sees the thelegendsonline.social
     // domain in their browser / download notification — never github.com.
     if (updateState.kind === 'available') {
       window.open('/api/download/apk', '_blank');
@@ -608,16 +625,31 @@ function SettingsPage({
     }
     setUpdateState({ kind: 'checking' });
     try {
-      // Hit our own proxy info endpoint instead of GitHub directly.
-      const r = await fetch('/api/download/apk/info', { cache: 'no-store' });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const data: { available: boolean; sizeMb: number | null; url: string } = await r.json();
+      const [infoR, installedBuild] = await Promise.all([
+        fetch('/api/download/apk/info', { cache: 'no-store' }),
+        getInstalledBuild(),
+      ]);
+      if (!infoR.ok) throw new Error(`HTTP ${infoR.status}`);
+      const data: { available: boolean; sizeMb: number | null; build: number | null; url: string } = await infoR.json();
       if (!data.available) throw new Error('no-apk');
-      setUpdateState({
-        kind: 'available',
-        url: data.url,
-        sizeMb: data.sizeMb,
-      });
+
+      // Compare installed build with latest build to decide whether to
+      // surface "Mise à jour disponible" or "À jour" — avoids re-prompting
+      // a download when the user already has the latest signed APK
+      // installed (which used to spam "Réinstaller ?" pop-ups).
+      const isUpToDate =
+        installedBuild !== null && data.build !== null && installedBuild >= data.build;
+      if (isUpToDate) {
+        setUpdateState({ kind: 'uptodate', build: installedBuild });
+      } else {
+        setUpdateState({
+          kind: 'available',
+          url: data.url,
+          sizeMb: data.sizeMb,
+          latestBuild: data.build,
+          installedBuild,
+        });
+      }
     } catch {
       setUpdateState({ kind: 'error' });
       // Auto-reset to idle after 4s so the user can retry

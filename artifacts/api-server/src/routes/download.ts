@@ -29,11 +29,11 @@ const FILENAME = "The Legends Online.apk";
 // Cache the resolved asset URL for 5 minutes to avoid hitting the GitHub
 // API rate limit on every download click.
 const CACHE_TTL_MS = 5 * 60 * 1000;
-let cached: { url: string; size: number | null; at: number } | null = null;
+let cached: { url: string; size: number | null; build: number | null; at: number } | null = null;
 
-async function resolveApkAsset(): Promise<{ url: string; size: number | null } | null> {
+async function resolveApkAsset(): Promise<{ url: string; size: number | null; build: number | null } | null> {
   if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
-    return { url: cached.url, size: cached.size };
+    return { url: cached.url, size: cached.size, build: cached.build };
   }
   try {
     const r = await fetch(
@@ -47,6 +47,8 @@ async function resolveApkAsset(): Promise<{ url: string; size: number | null } |
     );
     if (!r.ok) return null;
     const data = (await r.json()) as {
+      body?: string;
+      name?: string;
       assets?: Array<{ name: string; browser_download_url: string; size: number }>;
     };
     const assets = data.assets ?? [];
@@ -54,8 +56,16 @@ async function resolveApkAsset(): Promise<{ url: string; size: number | null } |
       APK_ASSET_CANDIDATES.map((n) => assets.find((a) => a.name === n)).find(Boolean) ||
       assets.find((a) => /\.apk$/i.test(a.name) && a.name !== "legends.apk");
     if (!apk) return null;
-    cached = { url: apk.browser_download_url, size: apk.size, at: Date.now() };
-    return { url: apk.browser_download_url, size: apk.size };
+    // The GitHub Actions workflow embeds "Build #N" in the release body
+    // (and also bumps the APK versionCode to N). We parse that out so the
+    // client can compare it against Capacitor's installed app build number
+    // and only show "update available" when there's actually a new build.
+    let build: number | null = null;
+    const m = (data.body || "").match(/Build\s*#(\d+)/i) ||
+              (data.name || "").match(/Build\s*#?(\d+)/i);
+    if (m) build = parseInt(m[1], 10);
+    cached = { url: apk.browser_download_url, size: apk.size, build, at: Date.now() };
+    return { url: apk.browser_download_url, size: apk.size, build };
   } catch {
     return null;
   }
@@ -143,6 +153,7 @@ router.get("/download/apk/info", async (_req: Request, res: Response) => {
   res.json({
     available: true,
     sizeMb: asset.size ? asset.size / (1024 * 1024) : null,
+    build: asset.build,
     url: "/api/download/apk",
     filename: FILENAME,
   });
