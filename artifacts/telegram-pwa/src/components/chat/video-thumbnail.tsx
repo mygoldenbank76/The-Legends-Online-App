@@ -218,10 +218,26 @@ export function VideoThumbnail({
   const [localPoster, setLocalPoster] = useState<string | null>(
     () => getCachedPoster(src),
   );
+  // Tracks whether the visible <img> has actually finished decoding
+  // and painted. We use this to hide the LQIP layer EXACTLY at the
+  // moment the sharp poster appears — not the moment its src is
+  // assigned. Defaulting to `true` for local data: posters skips the
+  // fade entirely (the data URL is synchronous), and to `false` for
+  // remote thumbnailUrl so the LQIP stays visible while the network
+  // image decodes. If the poster errors out we never set this true,
+  // so the LQIP remains as the visible content forever — which is
+  // exactly what we want for a 404 thumbnailUrl.
+  const [posterLoaded, setPosterLoaded] = useState<boolean>(
+    () => !!getCachedPoster(src),
+  );
+  const [posterFailed, setPosterFailed] = useState<boolean>(false);
 
   useEffect(() => {
     setAspect(intrinsicRatio ?? getCachedAspect(src));
-    setLocalPoster(getCachedPoster(src));
+    const cachedPoster = getCachedPoster(src);
+    setLocalPoster(cachedPoster);
+    setPosterLoaded(!!cachedPoster);
+    setPosterFailed(false);
   }, [src, intrinsicRatio, thumbnailUrl]);
 
   // Fall-through capture: only runs when neither the server thumbnail
@@ -315,9 +331,9 @@ export function VideoThumbnail({
       {/* ── LQIP layer (Telegram's stripped_thumb) ──────────────────────
           Painted SYNCHRONOUSLY before any network round-trip, so the
           very first frame already shows a blurred preview of the real
-          video instead of a matte rectangle. Stays underneath the
-          poster so the moment the sharp poster lands it covers this
-          layer with no visible flash. */}
+          video. Hidden ONLY when the sharp poster has actually loaded
+          AND not failed — this way a slow/404 thumbnailUrl never leaves
+          the user staring at a blank tile. */}
       {mediaPreview && (
         <img
           src={mediaPreview}
@@ -329,7 +345,7 @@ export function VideoThumbnail({
           style={{
             filter: 'blur(14px)',
             transform: 'scale(1.1)',
-            opacity: visiblePoster ? 0 : 1,
+            opacity: posterLoaded && !posterFailed ? 0 : 1,
             transition: 'opacity 0.18s linear',
           }}
         />
@@ -344,6 +360,15 @@ export function VideoThumbnail({
           // Decoded async to avoid blocking the main thread for the
           // brief moment the JPEG comes off cache/network.
           decoding="async"
+          onLoad={() => { setPosterLoaded(true); setPosterFailed(false); }}
+          onError={() => { setPosterFailed(true); setPosterLoaded(false); }}
+          style={{
+            // Fade in over the LQIP so the swap is invisible. When
+            // there's no LQIP this still gives a nice fade vs. the
+            // matte background instead of a hard pop.
+            opacity: posterLoaded && !posterFailed ? 1 : 0,
+            transition: 'opacity 0.18s linear',
+          }}
         />
       ) : (
         // Transparent SVG placeholder that participates in the LAYOUT
@@ -357,6 +382,9 @@ export function VideoThumbnail({
         />
       )}
 
+      {/* Spinner only when we have NOTHING to show — neither a poster
+          source nor an LQIP. Posters that are still loading show the
+          LQIP behind them, so the spinner would be visual noise. */}
       {!visiblePoster && !mediaPreview && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <Loader2 className="w-6 h-6 text-white/70 animate-spin" />

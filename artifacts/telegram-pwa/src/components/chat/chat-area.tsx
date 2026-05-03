@@ -1310,8 +1310,15 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     let mediaWidth: number | undefined;
     let mediaHeight: number | undefined;
     let mediaPreview: string | undefined;
+    // Hard 1.5 s budget for the entire probe (fetch + decode + LQIP).
+    // The probe is purely a UX optimization for receivers; if the
+    // provider is slow or the GIF is huge, we'd rather send the
+    // message immediately with no preview than make the SENDER wait
+    // — they tapped Send, they expect Send to be near-instant.
+    const ctrl = new AbortController();
+    const probeTimeout = window.setTimeout(() => ctrl.abort(), 1500);
     try {
-      const resp = await fetch(gif.url, { mode: 'cors' });
+      const resp = await fetch(gif.url, { mode: 'cors', signal: ctrl.signal });
       if (resp.ok) {
         const blob = await resp.blob();
         // Probe dims via a transient <img> — much lighter than image-size.
@@ -1334,9 +1341,12 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         if (lqip) mediaPreview = lqip;
       }
     } catch {
-      // Provider blocked CORS or the fetch failed; fall through and
-      // send the message without a preview/dims. Receivers get the
-      // legacy behaviour, which is no worse than before this change.
+      // Provider blocked CORS, fetch aborted on timeout, or any other
+      // failure — fall through and send the message without a
+      // preview/dims. Receivers get the legacy behaviour, which is no
+      // worse than before this change.
+    } finally {
+      window.clearTimeout(probeTimeout);
     }
 
     try {
