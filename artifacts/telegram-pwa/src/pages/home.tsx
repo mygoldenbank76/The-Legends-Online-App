@@ -410,12 +410,13 @@ function MobileHeader(_props: { user: { displayName: string } }) {
     <div
       className="flex-shrink-0 flex items-center justify-between px-4 gradient-hairline-bottom relative surface-header"
       style={{
-        // En natif (status bar ~70-90 px) on n'ajoute AUCUN padding
-        // supplémentaire — la safe-area suffit. En web (safe-area = 0)
-        // on garde 8 px pour que le header ne colle pas au bord.
-        paddingTop: `max(env(safe-area-inset-top, 0px), 8px)`,
-        paddingBottom: 8,
-        minHeight: `calc(2.75rem + env(safe-area-inset-top, 0px))`,
+        // Aligné EXACTEMENT sur le header de chat (chat-area.tsx) et sur
+        // les sheets de détails (user-profile-sheet, group-info-sheet) :
+        // 12 px de padding vertical + safe-area en haut. Comme ça, ouvrir
+        // une conversation ne fait JAMAIS sauter la position du header.
+        paddingTop: `calc(0.75rem + env(safe-area-inset-top, 0px))`,
+        paddingBottom: 12,
+        minHeight: `calc(3.25rem + env(safe-area-inset-top, 0px))`,
       }}
     >
       <div className="flex items-center gap-2.5 relative z-10">
