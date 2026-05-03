@@ -148,6 +148,13 @@ public class NativeComposerPlugin extends Plugin {
             } catch (Throwable ignored) { /* unsupported on some OEM forks */ }
         }
 
+        // Belt-and-suspenders multiline wrapping. TYPE_TEXT_FLAG_MULTI_LINE
+        // alone isn't enough on every OEM (some Samsung builds still
+        // single-line until you also flip these two switches), and the
+        // user reported text overflowing to the right edge instead of
+        // wrapping to the next line.
+        editText.setSingleLine(false);
+        editText.setHorizontallyScrolling(false);
         editText.setMaxLines(4);
         // Transparent background — the HTML composer pill already paints
         // the rounded background underneath; we just want the text +
@@ -160,7 +167,10 @@ public class NativeComposerPlugin extends Plugin {
         // 0px horizontal padding, 10px vertical, 14sp text. Without
         // matching the HTML padding the text sits visibly indented from
         // the GIF/+ buttons compared to the web version.
-        editText.setPadding(0, dpToPx(10), 0, dpToPx(10));
+        // Slightly tighter than the HTML's py-2.5 (10dp) per user
+        // request — keeps the text visually centered in the pill but
+        // shaves a couple of pixels top/bottom.
+        editText.setPadding(0, dpToPx(6), 0, dpToPx(6));
         editText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         // Drop the EditText's default underline + min height insets so
         // it really hugs the textarea rect.
@@ -244,6 +254,26 @@ public class NativeComposerPlugin extends Plugin {
             lastW = Math.max(1, dpToPx((float) wCss));
             lastH = Math.max(1, dpToPx((float) hCss));
             applyBounds();
+            call.resolve();
+        });
+    }
+
+    /**
+     * Toggle the overlay's visibility WITHOUT tearing down the
+     * EditText, its content, or the soft keyboard input connection.
+     * Used by JS to temporarily hide the composer when a fullscreen
+     * React modal/menu (message action sheet, media picker, etc) is
+     * open — the native EditText is added directly to the activity
+     * root so it always paints on top of the WebView, which would
+     * otherwise show the composer text bleeding through the modal.
+     */
+    @PluginMethod
+    public void setOverlayVisible(PluginCall call) {
+        final boolean visible = Boolean.TRUE.equals(call.getBoolean("visible", true));
+        getActivity().runOnUiThread(() -> {
+            if (overlay != null) {
+                overlay.setVisibility(visible ? View.VISIBLE : View.GONE);
+            }
             call.resolve();
         });
     }

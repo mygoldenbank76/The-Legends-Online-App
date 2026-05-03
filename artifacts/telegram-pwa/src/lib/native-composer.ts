@@ -87,6 +87,14 @@ export interface NativeComposerPlugin {
    * instead of staying at the pre-format index.
    */
   setSelection(opts: { start: number; end: number }): Promise<void>;
+
+  /**
+   * Show or hide the overlay without tearing down its content or the
+   * soft keyboard. JS calls this with `false` when a fullscreen
+   * React modal opens (so the always-on-top native EditText doesn't
+   * bleed through the modal backdrop) and `true` when it closes.
+   */
+  setOverlayVisible(opts: { visible: boolean }): Promise<void>;
 }
 
 const noop = async () => undefined;
@@ -104,6 +112,7 @@ export const NativeComposer = registerPlugin<NativeComposerPlugin>('NativeCompos
     hide: noop,
     setValue: noop,
     setSelection: noop,
+    setOverlayVisible: noop,
     setBounds: noop,
     getValue: async () => ({ value: '' }),
     focus: noop,

@@ -1583,6 +1583,19 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [useNativeComposer]);
 
+  // Hide the native EditText overlay while a fullscreen React modal
+  // (message action sheet, attachment sheet, media picker, etc) is
+  // open. The native EditText is parented to the activity root and
+  // always paints above the WebView, so without this the placeholder
+  // / typed text bleeds through the modal backdrop on top of menu
+  // items (user-reported: composer text visible over "Supprimer" in
+  // the message action menu).
+  useEffect(() => {
+    if (!useNativeComposer) return;
+    const anyModalOpen = !!ctxMenu || attachmentSheetOpen;
+    void NativeComposer.setOverlayVisible({ visible: !anyModalOpen });
+  }, [useNativeComposer, ctxMenu, attachmentSheetOpen]);
+
   // Bounds sync: keep the native EditText overlay glued to the HTML
   // textarea's on-screen rect. ResizeObserver covers content-driven
   // resizes (line wrap), `resize` covers orientation changes, and
