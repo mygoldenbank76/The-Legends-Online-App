@@ -4,6 +4,7 @@ import path from "path";
 import { randomUUID } from "crypto";
 import { requireAuth } from "../lib/auth";
 import { objectStorageClient } from "../lib/objectStorage";
+import { signMediaUrl, verifyMediaToken } from "../lib/mediaSigning";
 
 const router: IRouter = Router();
 
@@ -62,7 +63,9 @@ router.post("/uploads/image", requireAuth, imageUpload.single("file"), async (re
   if (!req.file) { res.status(400).json({ error: "No file uploaded" }); return; }
   try {
     const objectId = await uploadToGcs(req.file.buffer, req.file.originalname, req.file.mimetype);
-    res.json({ url: `/api/uploads/gcs/${objectId}` });
+    // Sign the URL so the uploader can immediately preview their own
+    // upload without going through a re-fetch from the messages list.
+    res.json({ url: signMediaUrl(`/api/uploads/gcs/${objectId}`) });
   } catch (e) {
     console.error("GCS upload error", e);
     res.status(500).json({ error: "Upload failed" });
@@ -73,7 +76,7 @@ router.post("/uploads/audio", requireAuth, audioUpload.single("file"), async (re
   if (!req.file) { res.status(400).json({ error: "No file uploaded" }); return; }
   try {
     const objectId = await uploadToGcs(req.file.buffer, req.file.originalname, req.file.mimetype);
-    res.json({ url: `/api/uploads/gcs/${objectId}` });
+    res.json({ url: signMediaUrl(`/api/uploads/gcs/${objectId}`) });
   } catch (e) {
     console.error("GCS upload error", e);
     res.status(500).json({ error: "Upload failed" });
@@ -84,7 +87,7 @@ router.post("/uploads/document", requireAuth, documentUpload.single("file"), asy
   if (!req.file) { res.status(400).json({ error: "No file uploaded" }); return; }
   try {
     const objectId = await uploadToGcs(req.file.buffer, req.file.originalname, req.file.mimetype);
-    res.json({ url: `/api/uploads/gcs/${objectId}`, name: req.file.originalname, size: req.file.size });
+    res.json({ url: signMediaUrl(`/api/uploads/gcs/${objectId}`), name: req.file.originalname, size: req.file.size });
   } catch (e) {
     console.error("GCS upload error", e);
     res.status(500).json({ error: "Upload failed" });
@@ -92,8 +95,21 @@ router.post("/uploads/document", requireAuth, documentUpload.single("file"), asy
 });
 
 // ── Serve from GCS ──────────────────────────────────────────────────────────
+//
+// SECURITY: signed-URL gate. See lib/mediaSigning.ts. Every request must
+// carry a valid `?e=…&s=…` token. Without this, the route was completely
+// public — anyone with a leaked URL could download any photo, video,
+// audio or document sent in any private DM. The token has a 7-day TTL
+// and is rebuilt on every API response, so an exfiltrated URL stops
+// working quickly.
 router.get("/uploads/gcs/:objectId", async (req, res): Promise<void> => {
   const objectId = req.params.objectId;
+  const { e, s } = req.query as { e?: string; s?: string };
+  if (!verifyMediaToken(objectId, e, s)) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
   const objectName = `${UPLOAD_PREFIX}/${objectId}`;
   try {
     const bucket = objectStorageClient.bucket(BUCKET_ID);
@@ -105,6 +121,9 @@ router.get("/uploads/gcs/:objectId", async (req, res): Promise<void> => {
     const contentType = (metadata.contentType as string) || "application/octet-stream";
 
     res.setHeader("Content-Type", contentType);
+    // Per-token URLs are stable for the token's lifetime — long max-age
+    // is safe because each unique signed URL is its own cache key. When
+    // the token rotates the next signed URL is a fresh cache entry.
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
     if (metadata.size) res.setHeader("Content-Length", String(metadata.size));
 

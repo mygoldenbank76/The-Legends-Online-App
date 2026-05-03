@@ -3,6 +3,7 @@ import { db, usersTable, conversationsTable, conversationParticipantsTable, mess
 import { eq, and, inArray, desc, sql, ne } from "drizzle-orm";
 import { requireAuth, isConversationMember } from "../lib/auth";
 import { formatUser } from "./users";
+import { signMessageList } from "../lib/mediaSigning";
 
 const router: IRouter = Router();
 
@@ -28,7 +29,10 @@ async function getMessagesWithDetails(messageIds: number[]) {
     reactionsByMessage[r.messageId].push(r);
   }
 
-  return msgs.map(m => ({
+  // SECURITY: sign every /api/uploads/gcs/... URL on the way out.
+  // formatUser() already signs sender avatars; signMessageList walks
+  // imageUrl/audioUrl. See lib/mediaSigning.ts.
+  return signMessageList(msgs.map(m => ({
     id: m.id,
     conversationId: m.conversationId,
     senderId: m.senderId,
@@ -49,7 +53,7 @@ async function getMessagesWithDetails(messageIds: number[]) {
       createdAt: r.createdAt.toISOString(),
     })),
     createdAt: m.createdAt.toISOString(),
-  }));
+  })));
 }
 
 router.get("/conversations", requireAuth, async (req, res): Promise<void> => {

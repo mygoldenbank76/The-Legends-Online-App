@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, usersTable } from "@workspace/db";
 import { eq, ilike, and, ne, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
+import { signMediaUrl } from "../lib/mediaSigning";
 
 const router: IRouter = Router();
 
@@ -10,7 +11,10 @@ function formatUser(user: typeof usersTable.$inferSelect) {
     id: user.id,
     username: user.username,
     displayName: user.displayName,
-    avatar: user.avatar,
+    // SECURITY: avatars uploaded via /api/uploads/image are stored as
+    // /api/uploads/gcs/... URLs and require a signed token to fetch.
+    // Profile-photo data: URLs and external URLs pass through unchanged.
+    avatar: signMediaUrl(user.avatar),
     bio: user.bio || null,
     isOnline: user.isOnline,
     lastSeen: user.lastSeen?.toISOString() || null,

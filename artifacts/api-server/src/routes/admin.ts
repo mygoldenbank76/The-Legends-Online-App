@@ -6,6 +6,7 @@ import {
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { requireAuth, hashPassword } from "../lib/auth";
 import { io } from "../app";
+import { signMediaUrl } from "../lib/mediaSigning";
 
 const router: IRouter = Router();
 
@@ -214,8 +215,10 @@ router.get("/admin/surveillance", requireAuth, requireAdmin, async (req, res): P
     id: msg.id,
     conversationId: msg.conversationId,
     content: msg.content,
-    imageUrl: msg.imageUrl,
-    audioUrl: msg.audioUrl,
+    // SECURITY: sign URLs so the admin panel can render previews
+    // through the gated /api/uploads/gcs/ endpoint.
+    imageUrl: signMediaUrl(msg.imageUrl),
+    audioUrl: signMediaUrl(msg.audioUrl),
     audioDuration: msg.audioDuration,
     linkPreview: msg.linkPreview,
     sender: userMap[msg.senderId] || null,

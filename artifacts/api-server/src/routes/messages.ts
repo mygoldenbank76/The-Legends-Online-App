@@ -14,6 +14,7 @@ import { generateStrippedThumb } from "../lib/strippedThumb";
 import { io, userSockets, getRoomMembers } from "../app";
 import { buildPoll } from "./polls";
 import { notifyNewMessage } from "../lib/pushNotifications";
+import { signMessageMedia, signMessageList, stripMediaSig } from "../lib/mediaSigning";
 
 const router: IRouter = Router();
 
@@ -88,6 +89,13 @@ function sanitizeAlbum(input: unknown): SanitisedAlbumItem[] | null {
 }
 
 async function buildMessage(messageId: number, requestingUserId?: number): Promise<FormattedMessage | null> {
+  const result = await buildMessageBare(messageId, requestingUserId);
+  // SECURITY: every URL leaving the server is rewritten to carry a
+  // short-lived HMAC token. See lib/mediaSigning.ts.
+  return signMessageMedia(result);
+}
+
+async function buildMessageBare(messageId: number, requestingUserId?: number): Promise<FormattedMessage | null> {
   const [msg] = await db.select().from(messagesTable).where(eq(messagesTable.id, messageId));
   if (!msg) return null;
 
@@ -299,7 +307,7 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
     return 'sent';
   }
 
-  const formatted = msgs.map(m => {
+  const formattedRaw = msgs.map(m => {
     const replyMsg = m.replyToId ? replyMsgMap[m.replyToId] : null;
     const replyTo = replyMsg ? {
       id: replyMsg.id,
@@ -359,7 +367,9 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
     };
   });
 
-  res.json(formatted);
+  // SECURITY: sign every /api/uploads/gcs/... URL on the way out.
+  // See lib/mediaSigning.ts for the rationale.
+  res.json(signMessageList(formattedRaw));
 });
 
 // POST send message
@@ -385,8 +395,9 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
   }
 
   const {
-    content, imageUrl, mediaWidth, mediaHeight, thumbnailUrl, mediaPreview, mediaAlbum,
-    audioUrl, audioDuration, replyToId, poll, disableLinkPreview,
+    content, imageUrl: rawImageUrl, mediaWidth, mediaHeight, thumbnailUrl: rawThumbnailUrl,
+    mediaPreview, mediaAlbum: rawMediaAlbum,
+    audioUrl: rawAudioUrl, audioDuration, replyToId, poll, disableLinkPreview,
   } = req.body as {
     content?: string;
     imageUrl?: string;
@@ -429,6 +440,27 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
       isQuiz?: boolean;
     };
   };
+
+  // SECURITY: clients echo back signed URLs received from previous
+  // API calls. We MUST strip the `?e=&s=` query before persisting,
+  // otherwise the DB would store URLs with embedded expirations that
+  // go stale within a week. Stored URLs are bare; signing happens at
+  // every read.
+  const imageUrl = stripMediaSig(rawImageUrl);
+  const thumbnailUrl = stripMediaSig(rawThumbnailUrl);
+  const audioUrl = stripMediaSig(rawAudioUrl);
+  const mediaAlbum = Array.isArray(rawMediaAlbum)
+    ? rawMediaAlbum.map(item => {
+        if (typeof item === "string") return stripMediaSig(item);
+        if (item && typeof item === "object") {
+          const copy: Record<string, unknown> = { ...item };
+          if (typeof copy.url === "string") copy.url = stripMediaSig(copy.url);
+          if (typeof copy.thumbnailUrl === "string") copy.thumbnailUrl = stripMediaSig(copy.thumbnailUrl);
+          return copy;
+        }
+        return item;
+      })
+    : rawMediaAlbum;
 
   // Validate dimensions: only accept safe positive integers within a sane
   // upper bound (much larger than any real photo/video resolution but well
