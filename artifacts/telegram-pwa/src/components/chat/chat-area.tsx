@@ -664,6 +664,12 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // "push content to native" effect does not bounce the same value back
   // when it originated FROM native typing in the first place.
   const lastNativeValueRef = useRef<string | null>(null);
+  // Flips to true once the addListener('valueChanged') + show() pair on
+  // the native side have BOTH resolved. The content/placeholder sync
+  // effects are gated on this so they cannot push setValue/show before
+  // the bridge has its listener attached — otherwise an early sync would
+  // race the user's first native keystrokes and silently drop them.
+  const bridgeReadyRef = useRef(false);
   // True only on the Android APK build. Captured once at mount so the
   // value is stable across renders and we can use it for inline style
   // gates without re-querying Capacitor on every render.
@@ -1520,28 +1526,41 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!useNativeComposer) return;
-    let mounted = true;
+    let cancelled = false;
     let listener: PluginListenerHandle | null = null;
     (async () => {
-      listener = await NativeComposer.addListener('valueChanged', ({ value }) => {
-        if (!mounted) return;
+      // Resolve the listener FIRST so we can attach it before show().
+      // If the component already unmounted while the registration was
+      // in flight, drop the listener immediately and bail — otherwise
+      // we'd leak it and subsequent keystrokes would still call into
+      // a dead React tree.
+      const l = await NativeComposer.addListener('valueChanged', ({ value }) => {
+        if (cancelled) return;
         lastNativeValueRef.current = value;
         setContent(value);
       });
+      if (cancelled) { l.remove(); return; }
+      listener = l;
       lastNativeValueRef.current = content;
       await NativeComposer.show({
         value: content,
         placeholder: editState ? uiT.chat.editPlaceholder : uiT.chat.placeholder,
       });
+      if (cancelled) return;
+      bridgeReadyRef.current = true;
     })();
     return () => {
-      mounted = false;
+      cancelled = true;
+      bridgeReadyRef.current = false;
       if (listener) listener.remove();
       NativeComposer.hide();
     };
-    // Mount/unmount only — content + placeholder are kept in sync by
-    // the dedicated effects below; re-running show() on every keystroke
-    // would tear down the EditText's IME composition span.
+    // Mount/unmount only. `content` and `editState` are intentionally
+    // captured at mount-time — the dedicated content-sync effect below
+    // pushes any later JS-side change to the native EditText, and the
+    // placeholder edit-mode toggle is rare enough that we accept it
+    // not updating live until a chat re-mount (avoiding a second show()
+    // call here is what closed the mount-race the architect flagged).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [useNativeComposer]);
 
@@ -1574,29 +1593,20 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     };
   }, [useNativeComposer]);
 
-  // Content sync (JS → native). Skipped when the change came FROM
-  // native (echo): in that branch we already updated React state in
-  // the valueChanged listener above and the EditText already has the
-  // correct value, so re-pushing it would just reset the cursor.
+  // Content sync (JS → native). Skipped when:
+  //   - bridge is not yet ready (mount path still awaiting addListener
+  //     + show); writing now would race the user's first keystrokes
+  //     and lose them.
+  //   - the value matches the last one we exchanged with native
+  //     (echo): the EditText already shows it, re-pushing would just
+  //     reset the cursor.
   useEffect(() => {
     if (!useNativeComposer) return;
+    if (!bridgeReadyRef.current) return;
     if (lastNativeValueRef.current === content) return;
     lastNativeValueRef.current = content;
     void NativeComposer.setValue({ value: content });
   }, [content, useNativeComposer]);
-
-  // Placeholder sync (edit mode toggles between two strings).
-  useEffect(() => {
-    if (!useNativeComposer) return;
-    void NativeComposer.show({
-      value: content,
-      placeholder: editState ? uiT.chat.editPlaceholder : uiT.chat.placeholder,
-    });
-    // Re-running show() with the SAME value is safe: the plugin
-    // re-applies setHint and setText/Selection inside `syncingFromJs`,
-    // so no spurious valueChanged event is emitted.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editState, useNativeComposer]);
 
   // Centralised "value has changed" handler. Reads the live DOM value
   // (NOT e.target.value) so it stays correct whether triggered by:
