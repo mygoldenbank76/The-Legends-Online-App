@@ -47,55 +47,48 @@ public class SuggestionsWebView extends CapacitorWebView {
     public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
         InputConnection ic = super.onCreateInputConnection(outAttrs);
         if (outAttrs != null) {
-            // Build the inputType from scratch (ASSIGNMENT, not bit-mask
-            // OR) so we are not at the mercy of whatever default the
-            // platform WebView seeded into outAttrs.
+            // Mirror DrKLO/Telegram ChatActivityEnterView, lines 5583-5590:
             //
-            // These flags are taken VERBATIM from Telegram-Android's
-            // ChatActivityEnterView.createMessageEditText():
+            //     int flags = EditorInfo.IME_FLAG_NO_EXTRACT_UI;
+            //     messageEditText.setImeOptions(flags);
+            //     messageEditText.setInputType(messageEditText.getInputType()
+            //         | EditorInfo.TYPE_TEXT_FLAG_CAP_SENTENCES
+            //         | EditorInfo.TYPE_TEXT_FLAG_MULTI_LINE);
             //
-            //   TYPE_CLASS_TEXT
-            //     | TYPE_TEXT_FLAG_CAP_SENTENCES
-            //     | TYPE_TEXT_FLAG_AUTO_CORRECT
-            //     | TYPE_TEXT_FLAG_MULTI_LINE
+            // Three things we got wrong before, now corrected:
             //
-            // The two corrections vs the previous version of this class:
+            //  1) Telegram does a BIT-OR on the existing inputType, it
+            //     does not assign from scratch. Whatever the platform
+            //     seeded into outAttrs (variation, locale hints, etc.)
+            //     is preserved.
             //
-            //  * REMOVE TYPE_TEXT_FLAG_AUTO_COMPLETE.
-            //    Samsung Keyboard treats AUTO_COMPLETE as "this field
-            //    wants saved usernames / addresses / passwords", which
-            //    causes it to hide the dictionary prediction strip and
-            //    show its form-fill toolbar (clipboard / translate /
-            //    settings icons) instead. Removing this flag is what
-            //    finally surfaces the "texte / textes / tente" strip on
-            //    Samsung Keyboard, matching native Telegram.
+            //  2) Telegram does NOT set TYPE_TEXT_FLAG_AUTO_CORRECT
+            //     explicitly. The autocorrect / suggestion-strip
+            //     behaviour is what Android gives you BY DEFAULT on a
+            //     plain EditText whenever the NO_SUGGESTIONS flag is
+            //     absent. The previous AUTO_COMPLETE we set was the
+            //     real source of Samsung's form-fill toolbar.
             //
-            //  * ADD TYPE_TEXT_FLAG_MULTI_LINE.
-            //    Telegram itself sets it. Without it, GBoard shows a
-            //    "Done" button instead of letting the user insert a
-            //    newline, and on physical / Bluetooth keyboards Enter
-            //    submits a fake action instead of inserting a line
-            //    break. The empirical "Samsung hides predictions on
-            //    multi-line" claim from the previous comment turned
-            //    out to be wrong — the toolbar was caused by
-            //    AUTO_COMPLETE, not by MULTI_LINE.
-            outAttrs.inputType = InputType.TYPE_CLASS_TEXT
+            //  3) Telegram's imeOptions is JUST IME_FLAG_NO_EXTRACT_UI.
+            //     IME_ACTION_NONE / NO_FULLSCREEN are not set — with
+            //     MULTI_LINE, the IME already maps Enter to newline.
+            //
+            // The one thing we have to do that Telegram does not is
+            // CLEAR TYPE_TEXT_FLAG_NO_SUGGESTIONS (and the legacy
+            // AUTO_COMPLETE bit). Android WebView seeds NO_SUGGESTIONS
+            // into outAttrs by default for contenteditable / <textarea>
+            // regions, and that is what suppresses the prediction
+            // strip in the first place. A plain EditText (what
+            // Telegram uses) is never seeded with this flag, so they
+            // don't need to clear it.
+            outAttrs.inputType = (outAttrs.inputType
+                    & ~InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                    & ~InputType.TYPE_TEXT_FLAG_AUTO_COMPLETE)
+                    | InputType.TYPE_CLASS_TEXT
                     | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-                    | InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
                     | InputType.TYPE_TEXT_FLAG_MULTI_LINE;
 
-            // Tell the IME explicitly that there is no special
-            // primary action — this is what Telegram does too. With
-            // MULTI_LINE set, Enter must insert a newline, so an
-            // IME_ACTION_SEND would be misleading.
-            outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE
-                    | EditorInfo.IME_FLAG_NO_FULLSCREEN
-                    | EditorInfo.IME_FLAG_NO_EXTRACT_UI;
-
-            // Enable personalized learning so the keyboard can adapt to
-            // the user's vocabulary over time (clearing the negative
-            // flag the WebView default sometimes sets).
-            outAttrs.imeOptions &= ~EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING;
+            outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI;
 
             // Hint the keyboard's locale so French dictionary +
             // autocorrect kick in on first focus, even when the
