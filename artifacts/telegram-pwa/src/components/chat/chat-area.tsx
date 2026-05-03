@@ -1646,6 +1646,14 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       !!profileUser ||
       !!mediaViewer;
     void NativeComposer.setOverlayVisible({ visible: !anyModalOpen });
+    // Defensive: when ChatArea unmounts we ALSO push visible:false here
+    // in case the hide() in the mount-effect cleanup races a pending
+    // bridge call. The user reported the placeholder leaking onto the
+    // conversation list after backing out of a chat.
+    return () => {
+      if (!useNativeComposer) return;
+      void NativeComposer.setOverlayVisible({ visible: false });
+    };
   }, [
     useNativeComposer,
     ctxMenu,

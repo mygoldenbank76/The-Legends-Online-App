@@ -328,7 +328,21 @@ public class NativeComposerPlugin extends Plugin {
                 root.addView(overlay, new FrameLayout.LayoutParams(lastW, lastH));
                 applyBounds();
             }
-            overlay.setVisibility(View.VISIBLE);
+            // Keep the overlay GONE until JS pushes the first valid
+            // setBounds for this chat. This prevents two leaks the user
+            // reported in screenshots:
+            //   (a) On chat OPEN, the EditText flashed at the previous
+            //       chat's bottom-bounds for one frame before the new
+            //       textarea's getBoundingClientRect was measured —
+            //       visible as "Écrire un message…" appearing before the
+            //       conversation finishes mounting.
+            //   (b) On chat CLOSE → list, if the cleanup race left the
+            //       overlay visible, the placeholder bled across the
+            //       conversation list / bottom navigation tabs.
+            // setBounds toggles VISIBLE the moment JS reports the real
+            // composer rect, so the overlay only ever paints when it is
+            // actually positioned over the HTML composer pill.
+            overlay.setVisibility(View.GONE);
             // No requestFocus / showSoftInput here — the user's tap on the
             // HTML composer pill triggers focus naturally via the WebView,
             // and we don't want the keyboard to pop on every chat open.
@@ -381,6 +395,13 @@ public class NativeComposerPlugin extends Plugin {
                 // Width changed → wrap column may have shifted →
                 // re-measure & re-emit height so JS resizes the pill.
                 notifyHeightChanged();
+            }
+            // First valid setBounds after show() reveals the overlay.
+            // Without this the overlay stays GONE forever (show() now
+            // leaves it GONE to avoid the flash-of-previous-bounds that
+            // bled the placeholder onto the conversation list).
+            if (overlay != null && overlay.getVisibility() != View.VISIBLE) {
+                overlay.setVisibility(View.VISIBLE);
             }
             call.resolve();
         });
