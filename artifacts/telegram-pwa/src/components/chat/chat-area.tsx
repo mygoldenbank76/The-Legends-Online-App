@@ -1061,7 +1061,13 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     const el = scrollRef.current;
     if (!el || !scrollReady) return;
     const onScroll = () => {
-      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      // Threshold un peu plus généreux (140 au lieu de 80) : sur APK Android
+      // edge-to-edge la safe-area-inset-bottom (gesture bar ~24–48 px) +
+      // la marge naturelle du dernier bubble peuvent décaler le scrollTop
+      // de >80 px même quand l'utilisateur EST visuellement en bas, ce qui
+      // faisait échouer la détection « at bottom » et empêchait l'auto-
+      // scroll sur réception d'un message comme dans le PWA.
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
       wasAtBottomRef.current = atBottom;
       setIsAtBottom(atBottom);
       if (atBottom) setUnreadCount(0);
@@ -1160,8 +1166,13 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         // User just sent something — always scroll to bottom (Telegram behaviour)
         forceScrollRef.current = false;
         scrollBottom(30);
-      } else if (isReallyNew && el && el.scrollHeight - el.scrollTop - el.clientHeight < 200) {
-        // Someone else sent and user was near the bottom — keep them there
+      } else if (isReallyNew && el && el.scrollHeight - el.scrollTop - el.clientHeight < 350) {
+        // Someone else sent and user was near the bottom — keep them there.
+        // Threshold élargi (350) : sur APK edge-to-edge le composer + safe-
+        // area-inset-bottom + marge du dernier bubble cumulent facilement
+        // 200+ px, ce qui faisait que la condition échouait alors que
+        // visuellement l'utilisateur était collé en bas → la nouvelle
+        // bulle apparaissait sans pousser l'écran (pas comme le PWA).
         scrollBottom(30);
       } else if (isReallyNew) {
         // User is scrolled up reading history — show unread badge on the scroll button
@@ -2657,9 +2668,13 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       <div
         className="flex-none glass border-b border-border/50 flex items-center px-3 z-10 gap-3"
         style={{
-          // Pareil que MobileHeader : safe-area uniquement, pas d'extra
-          // padding qui doublerait la hauteur sur Samsung punch-hole.
-          paddingTop: `max(env(safe-area-inset-top, 0px), 4px)`,
+          // Aligné EXACTEMENT sur MobileHeader (home) pour que le chat
+          // ne paraisse pas plus écrasé que la liste des conversations.
+          // Sur APK Android edge-to-edge, sans paddingBottom l'avatar
+          // 40px se faisait limiter par la min-height de 44px et avait
+          // l'air rogné contre le bord inférieur du header.
+          paddingTop: `max(env(safe-area-inset-top, 0px), 8px)`,
+          paddingBottom: 8,
           minHeight: 'calc(2.75rem + env(safe-area-inset-top, 0px))',
         }}
       >
