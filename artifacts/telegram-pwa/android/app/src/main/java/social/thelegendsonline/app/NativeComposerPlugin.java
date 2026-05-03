@@ -69,6 +69,16 @@ public class NativeComposerPlugin extends Plugin {
     // re-apply them after ensureOverlay() recreates the layout params.
     private int lastX = 0, lastY = 0, lastW = ViewGroup.LayoutParams.MATCH_PARENT,
             lastH = ViewGroup.LayoutParams.WRAP_CONTENT;
+    // Cache the last applied font size so we can skip the (expensive)
+    // setTextSize call inside setBounds when the value hasn't really
+    // changed. setTextSize forces a full Layout invalidation, which on
+    // Android also resets the Editor's SelectionModifierCursorController
+    // state — i.e. it KILLS any active drag-to-extend selection. Without
+    // this guard, every visualViewport scroll / tiny rect change during
+    // a long-press would clobber the user's selection mid-gesture
+    // (user-reported: "the highlight appears briefly then disappears,
+    // I can't drag the handles to extend").
+    private float lastFontSizePx = -1f;
 
     private int dpToPx(float dp) {
         return Math.round(dp * getActivity().getResources().getDisplayMetrics().density);
@@ -316,19 +326,41 @@ public class NativeComposerPlugin extends Plugin {
         // null/<=0 means "leave the EditText's text size alone".
         final Double fontSizeDevicePx = call.getDouble("fontSizePx");
         getActivity().runOnUiThread(() -> {
+            // Dedupe font-size: setTextSize triggers a full Layout
+            // invalidate which kills any active selection drag. Only
+            // call it when the value actually changed.
             if (editText != null && fontSizeDevicePx != null && fontSizeDevicePx > 0) {
-                editText.setTextSize(TypedValue.COMPLEX_UNIT_PX,
-                        fontSizeDevicePx.floatValue());
+                final float next = fontSizeDevicePx.floatValue();
+                if (Math.abs(next - lastFontSizePx) > 0.05f) {
+                    editText.setTextSize(TypedValue.COMPLEX_UNIT_PX, next);
+                    lastFontSizePx = next;
+                }
             }
-            lastX = dpToPx((float) xCss);
-            lastY = dpToPx((float) yCss);
-            lastW = Math.max(1, dpToPx((float) wCss));
-            lastH = Math.max(1, dpToPx((float) hCss));
-            applyBounds();
-            // Width may have changed — re-measure & re-emit height so
-            // JS resizes the pill if the new width changed the wrap
-            // column.
-            notifyHeightChanged();
+            final int nextX = dpToPx((float) xCss);
+            final int nextY = dpToPx((float) yCss);
+            final int nextW = Math.max(1, dpToPx((float) wCss));
+            final int nextH = Math.max(1, dpToPx((float) hCss));
+            final boolean rectChanged =
+                    nextX != lastX || nextY != lastY ||
+                    nextW != lastW || nextH != lastH;
+            final boolean widthChanged = nextW != lastW;
+            lastX = nextX;
+            lastY = nextY;
+            lastW = nextW;
+            lastH = nextH;
+            // Skip applyBounds + notifyHeightChanged when nothing
+            // actually changed — same selection-drag preservation
+            // reason as the font-size dedupe above. JS pushes setBounds
+            // on every visualViewport scroll / RO tick, most of which
+            // are no-ops.
+            if (rectChanged) {
+                applyBounds();
+            }
+            if (widthChanged) {
+                // Width changed → wrap column may have shifted →
+                // re-measure & re-emit height so JS resizes the pill.
+                notifyHeightChanged();
+            }
             call.resolve();
         });
     }
