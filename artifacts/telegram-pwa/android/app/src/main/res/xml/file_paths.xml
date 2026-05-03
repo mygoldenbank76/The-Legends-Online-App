@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Camera / gallery picker temp dirs -->
     <external-path name="my_images" path="." />
     <cache-path name="my_cache_images" path="." />
+    <!-- Public Downloads dir — needed so the FileProvider can hand the
+         downloaded APK to the system PackageInstaller via a content://
+         URI without exposing a raw file:// path (which Android 7+
+         rejects with FileUriExposedException). -->
+    <external-path name="external_downloads" path="Download/" />
 </paths>

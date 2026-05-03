@@ -2511,11 +2511,48 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         next.add(msgId);
         return next;
       });
+
+      // ── Surgical cache eviction (fixes "deleted message reappears
+      //    when leaving and coming back to the conversation") ────────
+      // Before this, we relied on `invalidate()` to refetch the list
+      // post-delete. That works while the chat-area stays mounted
+      // (the dustingIds/deadIds Sets keep the bubble hidden), but if
+      // the user navigates away to another page BEFORE the refetch
+      // completes — or even after, since React Query keeps the old
+      // payload in the cache and re-renders it on remount before the
+      // background refetch returns — the previous-conversation cache
+      // still contains the deleted row. The bubble then briefly
+      // re-appears on revisit and disappears once the refetch lands.
+      //
+      // We now patch the cache directly: the key carrying the active
+      // list AND the local olderMessages buffer. Both are reverted
+      // inside the catch block if the API call fails so the user can
+      // retry.
+      const listKey = getListMessagesQueryKey(conversationId);
+      const prevListData = queryClient.getQueryData<Msg[]>(listKey);
+      let prevOlder: Msg[] | null = null;
+      queryClient.setQueryData<Msg[] | undefined>(listKey, (old) =>
+        Array.isArray(old) ? old.filter((m) => m.id !== msgId) : old,
+      );
+      setOlderMessages((prev) => {
+        if (!prev.some((m) => m.id === msgId)) return prev;
+        prevOlder = prev;
+        return prev.filter((m) => m.id !== msgId);
+      });
+
       try {
         await deleteMsg.mutateAsync({ messageId: msgId });
         invalidate();
       } catch (e) {
         console.error(e);
+        // Restore everything we touched optimistically so the user
+        // sees the message again and can retry.
+        if (prevListData !== undefined) {
+          queryClient.setQueryData(listKey, prevListData);
+        }
+        if (prevOlder !== null) {
+          setOlderMessages(prevOlder);
+        }
         setDustingIds(prev => {
           if (!prev.has(msgId)) return prev;
           const next = new Set(prev);
