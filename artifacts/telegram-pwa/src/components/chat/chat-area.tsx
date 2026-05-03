@@ -869,13 +869,27 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       }, [])
     : [];
 
-  // Scroll to search match
+  // Scroll to search match — also trigger the same purple "comet"
+  // ring that fires when the user taps a pinned-message banner, so
+  // navigating between search results draws the eye to the new match
+  // with the same effect as pinned navigation (user request: "met
+  // plutôt le même effets identique que quand le message est épinglé").
+  // The previous static purple outline was replaced by re-applying
+  // the `.pinned-flash` class on every next/prev press — removing
+  // and re-adding it forces the keyframes to restart.
   const scrollToSearchMatch = useCallback((idx: number) => {
     if (!searchMatches.length) return;
     const msgId = messages[searchMatches[idx]]?.id;
     if (!msgId) return;
     const el = document.getElementById(`msg-${msgId}`);
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const bubble =
+      (el.querySelector('.bubble-sent, .bubble-received') as HTMLElement | null) ?? el;
+    bubble.classList.remove('pinned-flash');
+    void bubble.offsetWidth;
+    bubble.classList.add('pinned-flash');
+    setTimeout(() => bubble.classList.remove('pinned-flash'), 1700);
   }, [searchMatches, messages]);
 
   // ── Deep-link: scroll to a specific message + flash highlight ──────────
@@ -3848,7 +3862,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                 key={msg.id}
                 id={`msg-${msg.id}`}
                 className={`flex items-end gap-2 w-full ${isMine ? 'justify-end' : 'justify-start'} ${isSameAuthor ? 'mt-0.5' : 'mt-3'} ${isSearchMatch ? 'relative' : ''}`}
-                style={{ userSelect: 'none', WebkitUserSelect: 'none', contain: 'layout style', ...(isCurrentMatch ? { outline: '2px solid hsl(263,90%,65%)', outlineOffset: 4, borderRadius: 12 } : {}) } as React.CSSProperties}
+                style={{ userSelect: 'none', WebkitUserSelect: 'none', contain: 'layout style' } as React.CSSProperties}
                 onContextMenu={(e) => openCtxMenu(e, msg)}
                 onClick={(e) => {
                   if (didTriggerMenu.current || didJustSwipe.current) {

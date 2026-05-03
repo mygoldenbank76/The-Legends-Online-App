@@ -74,8 +74,14 @@ export function GifPicker({ open, onClose, onSelect }: Props) {
     return () => window.removeEventListener('resize', update);
   }, []);
 
-  // Reserve space for the chat header at the top (~64px) and the input bar below (~64px)
-  // so the picker never collides with either, and the search bar always stays visible.
+  // Reserve space for the chat header at the top (~56px) and the input bar below (~64px),
+  // PLUS the device's status-bar safe-area inset (env(safe-area-inset-top))
+  // — on Samsung S22 with edge-to-edge WebView the status bar takes
+  // ~30 px more that the previous fixed 140 px reservation didn't
+  // account for, so the picker bled across the chat header subtitle
+  // ("1 utilisateur en ligne"). The CSS calc below pulls the live
+  // safe-area value at render time so the picker always stops just
+  // under the header on every device, regardless of cutout size.
   const maxPickerHeight = Math.max(180, viewportH - 140);
 
   useEffect(() => {
@@ -102,7 +108,9 @@ export function GifPicker({ open, onClose, onSelect }: Props) {
           <div
             data-overlay-region="gif"
             className="popover-floating rounded-2xl overflow-hidden mx-3 flex flex-col"
-            style={{ maxHeight: maxPickerHeight }}
+            style={{
+              maxHeight: `min(${maxPickerHeight}px, calc(${viewportH}px - 56px - 64px - env(safe-area-inset-top, 0px)))`,
+            }}
           >
             {/* Search bar */}
             <div className="flex-shrink-0 flex items-center gap-2 px-3 pt-3 pb-2 gradient-hairline-bottom">
