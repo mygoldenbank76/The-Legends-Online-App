@@ -356,8 +356,12 @@ function MainView(p: MainViewProps) {
     >
       {/* Top bar with back arrow and (group only) 3-dot menu */}
       <div
-        className="sticky top-0 z-10 flex items-center justify-between px-3 pb-2 bg-background/80 backdrop-blur-md gradient-hairline-bottom"
-        style={{ paddingTop: `max(env(safe-area-inset-top, 0px), 12px)` }}
+        className="sticky top-0 z-10 flex items-center justify-between px-3 bg-background/80 backdrop-blur-md gradient-hairline-bottom"
+        style={{
+          paddingTop: `calc(0.75rem + env(safe-area-inset-top, 0px))`,
+          paddingBottom: 12,
+          minHeight: `calc(4rem + env(safe-area-inset-top, 0px))`,
+        }}
       >
         <button
           onClick={() => { p.setMenuOpen(false); p.onBack(); }}
@@ -638,8 +642,12 @@ function SearchMembersView({
     <div className="flex flex-col h-full">
       {/* Header with back + search input */}
       <div
-        className="sticky top-0 z-10 flex items-center gap-2 px-3 pb-3 bg-background/80 backdrop-blur-md gradient-hairline-bottom"
-        style={{ paddingTop: `max(env(safe-area-inset-top, 0px), 12px)` }}
+        className="sticky top-0 z-10 flex items-center gap-2 px-3 bg-background/80 backdrop-blur-md gradient-hairline-bottom"
+        style={{
+          paddingTop: `calc(0.75rem + env(safe-area-inset-top, 0px))`,
+          paddingBottom: 12,
+          minHeight: `calc(4rem + env(safe-area-inset-top, 0px))`,
+        }}
       >
         <button
           onClick={onBack}
@@ -777,8 +785,12 @@ function AddMembersView({
     <div className="flex flex-col h-full">
       {/* Header: back + title + Add button */}
       <div
-        className="sticky top-0 z-10 flex items-center gap-3 px-3 pb-2 bg-background/80 backdrop-blur-md gradient-hairline-bottom"
-        style={{ paddingTop: `max(env(safe-area-inset-top, 0px), 12px)` }}
+        className="sticky top-0 z-10 flex items-center gap-3 px-3 bg-background/80 backdrop-blur-md gradient-hairline-bottom"
+        style={{
+          paddingTop: `calc(0.75rem + env(safe-area-inset-top, 0px))`,
+          paddingBottom: 12,
+          minHeight: `calc(4rem + env(safe-area-inset-top, 0px))`,
+        }}
       >
         <button
           onClick={onBack}

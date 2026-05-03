@@ -2674,7 +2674,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
           // au chat la même prestance que le panneau de détails.
           paddingTop: `calc(0.75rem + env(safe-area-inset-top, 0px))`,
           paddingBottom: 12,
-          minHeight: 'calc(3.25rem + env(safe-area-inset-top, 0px))',
+          minHeight: 'calc(4rem + env(safe-area-inset-top, 0px))',
         }}
       >
 

@@ -416,7 +416,7 @@ function MobileHeader(_props: { user: { displayName: string } }) {
         // une conversation ne fait JAMAIS sauter la position du header.
         paddingTop: `calc(0.75rem + env(safe-area-inset-top, 0px))`,
         paddingBottom: 12,
-        minHeight: `calc(3.25rem + env(safe-area-inset-top, 0px))`,
+        minHeight: `calc(4rem + env(safe-area-inset-top, 0px))`,
       }}
     >
       <div className="flex items-center gap-2.5 relative z-10">

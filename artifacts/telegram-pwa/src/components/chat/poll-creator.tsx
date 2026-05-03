@@ -75,11 +75,15 @@ export function PollCreator({ open, onClose, onSubmit }: Props) {
           {/* Header */}
           <div
             className="flex items-center gap-3 px-3 py-3 border-b border-white/10 flex-shrink-0"
-            style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}
+            style={{
+              paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))',
+              paddingBottom: 12,
+              minHeight: 'calc(4rem + env(safe-area-inset-top, 0px))',
+            }}
           >
             <button
               onClick={handleClose}
-              className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+              className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
               data-testid="button-back-poll-creator"
               aria-label={t.chat.back}
             >

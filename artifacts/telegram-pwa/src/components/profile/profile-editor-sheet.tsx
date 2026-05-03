@@ -150,7 +150,7 @@ export function ProfileEditorSheet({ user, onClose, onSaved }: Props) {
       >
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 flex-shrink-0" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 flex-shrink-0" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))', paddingBottom: 12, minHeight: 'calc(4rem + env(safe-area-inset-top, 0px))' }}>
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-xl gradient-primary glow-primary-sm flex items-center justify-center">
                   <User className="w-4 h-4 text-white" />
