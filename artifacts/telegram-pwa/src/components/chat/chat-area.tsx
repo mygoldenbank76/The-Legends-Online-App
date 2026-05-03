@@ -49,6 +49,7 @@ import { uploadFileWithProgress, UploadAbortError } from '@/lib/upload-with-prog
 import { preloadMedia, registerBlob } from '@/lib/media-cache';
 import { prewarmIframe } from '@/lib/iframe-pool';
 import { VideoThumbnail, cacheVideoPosterBlob, cacheVideoAspect, getVideoPoster } from './video-thumbnail';
+import { getCachedImageAspect, probeImageAspect } from '@/lib/image-aspect-cache';
 import { FileCard, isDocumentUrl, isDocumentMessage, stripDocPrefix } from './file-card';
 import { useCall } from '@/lib/call-context';
 import { CallBanner } from './call-modal';
@@ -555,6 +556,14 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       // file that renders as a tap-to-download card, not as a photo.
       if (m.imageUrl && !m.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) && !isDocumentMessage(m)) {
         preloadMedia(m.imageUrl);
+        // For legacy messages whose intrinsic dimensions never made
+        // it into the database, probe + cache the photo's aspect
+        // ratio in the background. The image render below uses the
+        // cached value to reserve the right shape on first paint of
+        // the NEXT visit, eliminating the "ça bouge en entrant" jump.
+        if ((!m.mediaWidth || !m.mediaHeight) && !getCachedImageAspect(m.imageUrl)) {
+          probeImageAspect(m.imageUrl);
+        }
       }
       // Voice notes / music: cache the blob in RAM so playback is instant
       // on revisit and there's no re-streaming when the user navigates away
@@ -3749,10 +3758,24 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                                 // overrides this aspectRatio as soon as
                                 // the natural dimensions are known via
                                 // the img's own intrinsic ratio.
-                                aspectRatio:
-                                  msg.mediaWidth && msg.mediaHeight
-                                    ? `${msg.mediaWidth} / ${msg.mediaHeight}`
-                                    : '4 / 3',
+                                aspectRatio: (() => {
+                                  // 1) Server-stored intrinsic dims — perfect.
+                                  if (msg.mediaWidth && msg.mediaHeight) {
+                                    return `${msg.mediaWidth} / ${msg.mediaHeight}`;
+                                  }
+                                  // 2) Legacy messages: try the client-side
+                                  //    aspect cache (populated by probeImageAspect
+                                  //    on a previous render of the same URL).
+                                  //    On a return visit this is what eliminates
+                                  //    the "bubble jumps from 4:3 to portrait"
+                                  //    flash the user sees on entering a chat.
+                                  const cached = getCachedImageAspect(msg.imageUrl!);
+                                  if (cached) return String(cached);
+                                  // 3) Truly unknown — keep 4:3 as the safest
+                                  //    middle-ground fallback (browser overrides
+                                  //    once natural dims arrive).
+                                  return '4 / 3';
+                                })(),
                               }}
                               onClick={() => {
                                 if (Date.now() - conversationOpenedAt.current < 900) return;

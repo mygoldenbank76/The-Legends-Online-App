@@ -92,15 +92,47 @@ export async function fetchLinkPreview(url: string): Promise<LinkPreview | null>
     }
 
     // ── Spotify ──────────────────────────────────────────────────────
+    //
+    // Spotify exposes a public, no-auth oEmbed endpoint that returns
+    // the track/album/playlist title + a thumbnail URL of the cover
+    // art. We use it to populate the rich card so the user sees the
+    // artwork + name BEFORE tapping the play button — without it the
+    // card was just a generic "music note" skeleton, which is what the
+    // user reported. The endpoint is rate-limit-free for typical chat
+    // usage and we wrap it in a tight 4 s budget so a Spotify outage
+    // can never block the message-send round-trip.
     const spotifyInfo = extractSpotifyInfo(url);
     if (spotifyInfo) {
+      const embedUrl = `https://open.spotify.com/embed/${spotifyInfo.type}/${spotifyInfo.id}?utm_source=generator&theme=0`;
+      let spotTitle: string | null = null;
+      let spotImage: string | null = null;
+      let spotDescription: string | null = null;
+      try {
+        const oe = await axios.get(
+          `https://open.spotify.com/oembed?url=${encodeURIComponent(url)}`,
+          { timeout: 4000, headers: { 'User-Agent': 'Mozilla/5.0 (compatible; TeleChat/1.0)' } },
+        );
+        const d = oe.data as {
+          title?: string;
+          thumbnail_url?: string;
+          provider_name?: string;
+          author_name?: string;
+        };
+        spotTitle = d.title ?? null;
+        spotImage = d.thumbnail_url ?? null;
+        spotDescription = d.author_name ? `Spotify · ${d.author_name}` : 'Spotify';
+      } catch {
+        // oEmbed temporarily unavailable — still return a usable card,
+        // just without the artwork (same skeleton behaviour we had
+        // before; not a regression).
+      }
       return {
         url,
-        title: null,
-        description: null,
-        image: null,
+        title: spotTitle,
+        description: spotDescription,
+        image: spotImage,
         platform: 'spotify',
-        embedUrl: `https://open.spotify.com/embed/${spotifyInfo.type}/${spotifyInfo.id}?utm_source=generator&theme=0`,
+        embedUrl,
         siteName: 'Spotify',
       };
     }

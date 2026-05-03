@@ -1,12 +1,16 @@
 package social.thelegendsonline.app;
 
 import android.content.Context;
+import android.os.Build;
+import android.os.LocaleList;
 import android.text.InputType;
 import android.util.AttributeSet;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 
 import com.getcapacitor.CapacitorWebView;
+
+import java.util.Locale;
 
 /**
  * Custom WebView subclass used in place of the default CapacitorWebView so we
@@ -22,11 +26,8 @@ import com.getcapacitor.CapacitorWebView;
  *   strip stays hidden and "je taime" never gets corrected to "j'aime".
  *
  *   The only reliable fix is to override onCreateInputConnection at the
- *   native level: strip the NO_SUGGESTIONS flag and add AUTO_CORRECT +
- *   CAP_SENTENCES so the IME treats every text field in the WebView like a
- *   regular Android EditText. This is referenced as the standard solution in
- *   the Cordova / Capacitor community for "WebView keyboard has no
- *   suggestions" bugs.
+ *   native level: rewrite outAttrs so the IME treats every text field in
+ *   the WebView like a regular Android EditText.
  *
  * Wired in via a resource-overlay of bridge_layout_main.xml that names this
  * class instead of com.getcapacitor.CapacitorWebView.
@@ -46,33 +47,52 @@ public class SuggestionsWebView extends CapacitorWebView {
     public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
         InputConnection ic = super.onCreateInputConnection(outAttrs);
         if (outAttrs != null) {
-            // Strip the WebView default NO_SUGGESTIONS flag and add the
-            // standard text-class flags Android keyboards check before
-            // showing the prediction strip + sentence capitalization.
+            // Build the inputType from scratch (ASSIGNMENT, not bit-mask
+            // OR) so we are not at the mercy of whatever default the
+            // platform WebView seeded into outAttrs. Empirically, on
+            // Samsung One UI 6+, the seeded value contains
+            // TYPE_TEXT_VARIATION_NORMAL combined with NO_SUGGESTIONS,
+            // and clearing only the NO_SUGGESTIONS bit leaves the
+            // SHORT_MESSAGE variation off — at which point Samsung's
+            // keyboard still hides the prediction strip "for chat-style
+            // composition". A clean assignment to
+            // CLASS_TEXT + AUTO_CORRECT + CAP_SENTENCES + AUTO_COMPLETE
+            // is what every modern Android messenger uses and is what
+            // finally surfaces the strip + autocaps reliably.
             //
-            // CRITICAL: we do NOT set TYPE_TEXT_FLAG_MULTI_LINE here.
-            // Samsung Keyboard (the default on every Galaxy device,
-            // representing the bulk of our French userbase) HIDES the
-            // prediction strip entirely on any field flagged multi-line
-            // — it treats the strip as a single-line affordance only.
-            // The textarea still accepts newlines via the standard
-            // WebView <textarea> path; the IME flag only changes UI
+            // CRITICAL: we deliberately omit TYPE_TEXT_FLAG_MULTI_LINE.
+            // Samsung Keyboard hides the prediction strip on any field
+            // flagged multi-line — the IME flag only changes UI
             // affordances, not the actual newline behavior of the
-            // underlying contenteditable region. Removing this flag is
-            // what finally surfaces both autocorrect suggestions AND
-            // first-letter capitalization on Samsung's keyboard, which
-            // matches the way Telegram's native EditText is configured
-            // (see drklo/telegram ChatActivityEnterView — it never sets
-            // MULTI_LINE on its message composer EditText for the same
-            // reason).
-            outAttrs.inputType &= ~InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
-            outAttrs.inputType &= ~InputType.TYPE_TEXT_FLAG_MULTI_LINE;
-            outAttrs.inputType |= InputType.TYPE_CLASS_TEXT
+            // underlying contenteditable region (\n still works).
+            outAttrs.inputType = InputType.TYPE_CLASS_TEXT
                     | InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
-                    | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES;
-            // Also clear the "no personalized learning" flag so the keyboard
-            // can adapt to the user's vocabulary over time.
+                    | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+                    | InputType.TYPE_TEXT_FLAG_AUTO_COMPLETE;
+
+            // Tell the IME explicitly that there is no special
+            // primary action — this prevents Samsung Keyboard from
+            // collapsing the suggestion strip in favor of a giant
+            // "Send" button on its right edge (which it does when
+            // imeOptions is left as the WebView default IME_ACTION_GO).
+            outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE
+                    | EditorInfo.IME_FLAG_NO_FULLSCREEN
+                    | EditorInfo.IME_FLAG_NO_EXTRACT_UI;
+
+            // Enable personalized learning so the keyboard can adapt to
+            // the user's vocabulary over time (clearing the negative
+            // flag the WebView default sometimes sets).
             outAttrs.imeOptions &= ~EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING;
+
+            // Hint the keyboard's locale so French dictionary +
+            // autocorrect kick in on first focus, even when the
+            // Samsung keyboard is configured with several languages.
+            // Available from API 24+ (Android 7).
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                try {
+                    outAttrs.hintLocales = new LocaleList(Locale.FRENCH, Locale.ENGLISH);
+                } catch (Throwable ignored) { /* unsupported on some OEM forks */ }
+            }
         }
         return ic;
     }
