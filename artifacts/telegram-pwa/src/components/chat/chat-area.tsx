@@ -3256,8 +3256,11 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                 {/* Avatar column — pinned at the TOP of the message group
                     (next to the sender name when shown). The swipe-reply
                     arrow sits above the avatar and only takes space while
-                    the user is actively swiping. */}
-                {!isMine && (
+                    the user is actively swiping.
+                    Hidden in 1-to-1 (direct) chats — the avatar is already
+                    visible in the header, so showing it next to every
+                    received message is redundant. */}
+                {!isMine && conversation?.type !== 'direct' && (
                   <div className="flex-shrink-0 self-start flex flex-col items-center mt-1" style={{ width: 32 }}>
                     {/* Swipe reply arrow — above avatar */}
                     <div
