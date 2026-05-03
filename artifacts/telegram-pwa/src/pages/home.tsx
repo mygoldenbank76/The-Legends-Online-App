@@ -940,11 +940,29 @@ function SettingsPage({
         </div>
       </div>
 
-      {/* Notifications section */}
-      {pushSupported && (
+      {/* Notifications section — always shown on the APK (Capacitor) so the
+          user keeps the same surface as web/PWA. When running in Capacitor
+          but the WebView's PushManager isn't available, we render an
+          informational card pointing to the Android system settings instead
+          of the toggle (push delivery itself is handled by Android once
+          notifications permission is granted at install time via
+          POST_NOTIFICATIONS in AndroidManifest.xml). */}
+      {(pushSupported || isCapacitor) && (
         <div>
           <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider px-1 mb-2">{t.settings.notifications}</p>
           <div className="glass rounded-2xl overflow-hidden">
+            {!pushSupported && isCapacitor ? (
+              // Capacitor without web-push capability: static info card.
+              <div className="w-full flex items-center gap-3 px-4 py-3.5 text-left">
+                <div className="w-8 h-8 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
+                  <Bell className="w-4 h-4 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-primary">Notifications Android</p>
+                  <p className="text-xs text-muted-foreground">Gérées par le système · Paramètres &gt; Apps &gt; The Legends Online</p>
+                </div>
+              </div>
+            ) : (
             <button
               onClick={pushSubscribed ? disablePush : enablePush}
               disabled={pushLoading || pushPermission === 'denied'}
@@ -983,6 +1001,7 @@ function SettingsPage({
                 </div>
               )}
             </button>
+            )}
           </div>
         </div>
       )}
