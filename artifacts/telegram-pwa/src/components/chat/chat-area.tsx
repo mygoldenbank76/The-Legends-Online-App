@@ -1446,40 +1446,53 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     : [];
 
   // Auto-grow the composer textarea up to 4 lines (Telegram-style).
-  // Runs whenever `content` changes (including programmatic updates).
-  // We schedule the measure inside requestAnimationFrame so the height
-  // change happens AFTER the browser has painted the new character — on
-  // Android, synchronously toggling style.height = 'auto' then back inside
-  // the same input-event tick triggers a layout pass that resets the IME
-  // composition span, which manifests as cursor-jumps to end of text.
-  useEffect(() => {
+  //
+  // Imperative measure: assign 'auto' to release the current height,
+  // read scrollHeight (which now reflects the real content size), then
+  // pin the textarea to min(scrollHeight, 100px). Wrapped in a stable
+  // callback so we can also call it directly outside the layout effect
+  // (e.g. after programmatic text insertion in non-React code paths).
+  const recomputeComposerHeight = useCallback(() => {
     const ta = textareaRef.current;
     if (!ta) return;
-    if (autoGrowRaf.current != null) cancelAnimationFrame(autoGrowRaf.current);
-    autoGrowRaf.current = requestAnimationFrame(() => {
-      autoGrowRaf.current = null;
-      // Only collapse-then-grow if the rendered height truly differs from
-      // what we want — skipping the redundant 'auto' assignment lets the
-      // IME keep its internal selection state stable on Android.
-      const desired = (() => {
-        const prev = ta.style.height;
-        ta.style.height = 'auto';
-        // 100px ≈ 4 lines of text-sm (line-height ~20px) + py-2.5 padding.
-        const h = Math.min(ta.scrollHeight, 100);
-        ta.style.height = prev;
-        return h;
-      })();
-      if (ta.style.height !== `${desired}px`) {
-        ta.style.height = `${desired}px`;
-      }
-    });
-    return () => {
-      if (autoGrowRaf.current != null) {
-        cancelAnimationFrame(autoGrowRaf.current);
+    ta.style.height = 'auto';
+    // 100px ≈ 4 lines of text-sm (line-height ~20px) + py-2.5 padding.
+    ta.style.height = `${Math.min(ta.scrollHeight, 100)}px`;
+  }, []);
+
+  // useLayoutEffect runs AFTER React commits the new DOM value but
+  // BEFORE the browser paints — so the textarea is at the correct
+  // height on the very first frame the user sees. The previous
+  // useEffect + requestAnimationFrame approach added two frames of
+  // latency, during which the textarea stayed at its old height.
+  // That delay was the visible bug on paste / emoji insert / quick
+  // typing where content jumps by many characters at once and the
+  // bar appeared "frozen" until the user moved their cursor.
+  //
+  // While an IME composition is in progress we DEFER the resize via
+  // requestAnimationFrame — synchronously toggling style.height inside
+  // the IME's input-event tick triggers a layout pass that resets the
+  // composition span on some Android keyboards (Samsung One UI, older
+  // GBoard), causing cursor-jumps to end of text. The defer is only
+  // active during composition, so paste / emoji / non-IME typing get
+  // the immediate, snappy resize.
+  useLayoutEffect(() => {
+    if (isComposingRef.current) {
+      if (autoGrowRaf.current != null) cancelAnimationFrame(autoGrowRaf.current);
+      autoGrowRaf.current = requestAnimationFrame(() => {
         autoGrowRaf.current = null;
-      }
-    };
-  }, [content]);
+        recomputeComposerHeight();
+      });
+      return () => {
+        if (autoGrowRaf.current != null) {
+          cancelAnimationFrame(autoGrowRaf.current);
+          autoGrowRaf.current = null;
+        }
+      };
+    }
+    recomputeComposerHeight();
+    return undefined;
+  }, [content, recomputeComposerHeight]);
 
   // Centralised "value has changed" handler. Reads the live DOM value
   // (NOT e.target.value) so it stays correct whether triggered by:

@@ -1,0 +1,93 @@
+import { registerPlugin, Capacitor } from '@capacitor/core';
+import type { PluginListenerHandle } from '@capacitor/core';
+
+/**
+ * NativeComposer — JS contract for the native Android EditText overlay
+ * that gives us Samsung Keyboard's word-prediction strip, autocorrect,
+ * and auto-capitalisation. The Chromium WebView intercepts IME at a
+ * level below our outer WebView subclass, so an HTML <textarea> cannot
+ * reliably surface those features. This bridge lets the React composer
+ * defer text entry to a real native EditText on Android.
+ *
+ * The Java implementation lives in
+ * artifacts/telegram-pwa/android/app/src/main/java/social/thelegendsonline/app/NativeComposerPlugin.java
+ *
+ * Web: all methods resolve as no-ops so the same JS module loads safely
+ * in the browser preview without any platform-specific guards.
+ */
+export interface NativeComposerPlugin {
+  /**
+   * Mounts the EditText overlay (full width, anchored to the bottom of
+   * the screen in v1) and shows the soft keyboard. If `value` is given,
+   * the field is pre-filled with that text and the cursor is placed at
+   * the end. Resolves once the overlay is on screen and focused.
+   */
+  show(options?: { value?: string; placeholder?: string }): Promise<void>;
+
+  /**
+   * Hides the overlay and dismisses the soft keyboard. The EditText
+   * itself is kept in memory across hide/show cycles so its IME state
+   * (composition span, suggestion strip cache) survives.
+   */
+  hide(): Promise<void>;
+
+  /**
+   * Push a value from JS into the EditText. Used to keep the native
+   * field in sync when JS-side actions modify the composer (emoji
+   * panel insert, paste handler, /clear command, etc.). The TextWatcher
+   * is muted while this runs so the value does not bounce back to JS.
+   */
+  setValue(options: { value: string }): Promise<void>;
+
+  /** Read the current EditText value. */
+  getValue(): Promise<{ value: string }>;
+
+  /** Re-focus the EditText and re-show the soft keyboard. */
+  focus(): Promise<void>;
+
+  /** Drop EditText focus and dismiss the soft keyboard. */
+  blur(): Promise<void>;
+
+  /**
+   * Fired by the native TextWatcher whenever the user types, pastes,
+   * or otherwise mutates the EditText value. Not fired for changes
+   * pushed FROM JS via setValue().
+   */
+  addListener(
+    eventName: 'valueChanged',
+    listener: (data: { value: string }) => void,
+  ): Promise<PluginListenerHandle>;
+}
+
+const noop = async () => undefined;
+
+export const NativeComposer = registerPlugin<NativeComposerPlugin>('NativeComposer', {
+  // Web fallback — every method resolves as a no-op so the same module
+  // can be imported unconditionally from React code that runs in both
+  // the browser preview and the native APK.
+  web: () => ({
+    show: noop,
+    hide: noop,
+    setValue: noop,
+    getValue: async () => ({ value: '' }),
+    focus: noop,
+    blur: noop,
+    addListener: async () => ({
+      remove: noop,
+    }) as unknown as PluginListenerHandle,
+  }),
+});
+
+/**
+ * True only on the Android APK build. JS callers can use this to gate
+ * the native overlay path vs the existing HTML <textarea> composer:
+ *
+ *   if (isNativeComposerAvailable()) {
+ *     await NativeComposer.show({ value: content });
+ *   } else {
+ *     // fall back to the HTML composer
+ *   }
+ */
+export function isNativeComposerAvailable(): boolean {
+  return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+}

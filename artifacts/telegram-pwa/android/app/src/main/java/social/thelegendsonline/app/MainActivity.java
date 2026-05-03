@@ -39,6 +39,15 @@ public class MainActivity extends BridgeActivity {
         // auth token into SharedPreferences so the inline-reply
         // BroadcastReceiver can POST to /api without booting the WebView.
         registerPlugin(AuthBridgePlugin.class);
+        // NativeComposer: overlays a real native EditText on top of the
+        // WebView so the user gets Samsung Keyboard's word-prediction
+        // strip, autocorrect, and auto-capitalisation that a Chromium
+        // WebView <textarea> cannot reliably surface (Chromium handles
+        // IME at a layer below our SuggestionsWebView override). The
+        // plugin is registered here but not yet wired into the React
+        // composer — that integration happens in a follow-up so we can
+        // first verify the plugin builds and loads on device.
+        registerPlugin(NativeComposerPlugin.class);
     }
 
     private static final int REQ_WEBVIEW_PERMS = 4242;
