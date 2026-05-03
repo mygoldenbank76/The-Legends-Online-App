@@ -318,10 +318,42 @@ public class MainActivity extends BridgeActivity {
                 );
             }
         }
+
+        // ── Demande "install unknown apps" AU DÉMARRAGE de l'app ────────
+        //
+        // Android refuse catégoriquement qu'une app s'auto-grant cette
+        // permission (c'est par design pour empêcher l'auto-installation
+        // de malwares). Le seul levier qu'il nous reste pour rendre le
+        // flow indolore est de demander cette permission AU PREMIER
+        // DÉMARRAGE de l'app — pas au moment où l'utilisateur veut
+        // mettre à jour. Comme ça, dès qu'une mise à jour sort, le tap
+        // "Mettre à jour" se transforme directement en téléchargement +
+        // installation, sans aucun aller-retour vers les Réglages.
+        //
+        // Le check s'exécute après un court délai pour ne pas masquer
+        // le splash screen et pour laisser le WebView prendre le focus
+        // d'abord — sinon le pop-up système peut s'ouvrir avant que
+        // l'utilisateur ait vu l'app.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            bridge.getWebView().postDelayed(() -> {
+                try {
+                    if (!getPackageManager().canRequestPackageInstalls()) {
+                        Toast.makeText(getApplicationContext(),
+                                "Active \"Autoriser cette source\" pour recevoir les mises à jour automatiques de l'application.",
+                                Toast.LENGTH_LONG).show();
+                        Intent grant = new Intent(
+                                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                Uri.parse("package:" + getPackageName()));
+                        grant.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(grant);
+                    }
+                } catch (Exception ignored) { /* skip silently — we'll re-ask at update time as a safety net */ }
+            }, 2500L);
+        }
     }
 
     @Override
-    protected void onDestroy() {
+    public void onDestroy() {
         // Always unregister the dynamic receiver to avoid the
         // "Activity has leaked IntentReceiver" warning in logcat and
         // the small amount of memory the system would keep around.
