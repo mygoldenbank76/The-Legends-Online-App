@@ -646,6 +646,17 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [mediaPicker, setMediaPicker] = useState<File[] | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // True while the IME (GBoard, Samsung Keyboard, iOS QuickType, …) is in
+  // the middle of a composition session — i.e. the user is typing a word
+  // with auto-suggest, picking an emoji from the keyboard panel, or
+  // gliding/swiping a word. Updating React state during composition tears
+  // down the textarea's internal IME buffer on Android, which is what
+  // caused the long list of keyboard bugs (cursor jumps to end, can't
+  // insert an emoji mid-text, can't backspace an emoji, suggestions
+  // disappear, auto-capitalize stops working). We pause state updates
+  // while composing and re-sync once the IME commits.
+  const isComposingRef = useRef(false);
+  const autoGrowRaf = useRef<number | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressInputTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didTriggerMenu = useRef(false);
@@ -1436,20 +1447,55 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
   // Auto-grow the composer textarea up to 4 lines (Telegram-style).
   // Runs whenever `content` changes (including programmatic updates).
+  // We schedule the measure inside requestAnimationFrame so the height
+  // change happens AFTER the browser has painted the new character — on
+  // Android, synchronously toggling style.height = 'auto' then back inside
+  // the same input-event tick triggers a layout pass that resets the IME
+  // composition span, which manifests as cursor-jumps to end of text.
   useEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
-    ta.style.height = 'auto';
-    // 100px ≈ 4 lines of text-sm (line-height ~20px) + py-2.5 padding.
-    const next = Math.min(ta.scrollHeight, 100);
-    ta.style.height = `${next}px`;
+    if (autoGrowRaf.current != null) cancelAnimationFrame(autoGrowRaf.current);
+    autoGrowRaf.current = requestAnimationFrame(() => {
+      autoGrowRaf.current = null;
+      // Only collapse-then-grow if the rendered height truly differs from
+      // what we want — skipping the redundant 'auto' assignment lets the
+      // IME keep its internal selection state stable on Android.
+      const desired = (() => {
+        const prev = ta.style.height;
+        ta.style.height = 'auto';
+        // 100px ≈ 4 lines of text-sm (line-height ~20px) + py-2.5 padding.
+        const h = Math.min(ta.scrollHeight, 100);
+        ta.style.height = prev;
+        return h;
+      })();
+      if (ta.style.height !== `${desired}px`) {
+        ta.style.height = `${desired}px`;
+      }
+    });
+    return () => {
+      if (autoGrowRaf.current != null) {
+        cancelAnimationFrame(autoGrowRaf.current);
+        autoGrowRaf.current = null;
+      }
+    };
   }, [content]);
 
-  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value;
-    setContent(value);
+  // Centralised "value has changed" handler. Reads the live DOM value
+  // (NOT e.target.value) so it stays correct whether triggered by:
+  //   • React's synthetic onChange (web, most cases),
+  //   • the raw 'input' DOM event (Samsung IME emoji commits),
+  //   • or onCompositionEnd flushing the final composed text.
+  // Skips state updates while an IME composition is in progress — the
+  // text shows up live in the DOM and we sync it on compositionend.
+  const syncContentFromDom = useCallback(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    if (isComposingRef.current) return;
+    const value = ta.value;
+    if (value !== content) setContent(value);
     if (value.trim()) setGifOpen(false);
-    const cursor = e.target.selectionStart ?? value.length;
+    const cursor = ta.selectionStart ?? value.length;
     const textBeforeCursor = value.slice(0, cursor);
     const match = textBeforeCursor.match(/@(\w*)$/);
     if (match) {
@@ -1463,6 +1509,36 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     emitTyping(conversationId, true);
     if (typingStopTimeout.current) clearTimeout(typingStopTimeout.current);
     typingStopTimeout.current = setTimeout(() => { emitTyping(conversationId, false); }, 2500);
+  }, [content, conversationId, emitTyping]);
+
+  const handleContentChange = (_e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    syncContentFromDom();
+  };
+
+  // Belt-and-braces 'input' event listener: some Android IMEs (notably
+  // Samsung Keyboard) commit emojis and glide-typed words via the IME
+  // bridge in a way that updates the DOM but skips React's synthetic
+  // onChange inside a Capacitor WebView. Mirroring the raw input event
+  // keeps `content` in sync with what the user actually sees.
+  const handleContentInput = (_e: React.FormEvent<HTMLTextAreaElement>) => {
+    if (isComposingRef.current) return;
+    syncContentFromDom();
+  };
+
+  const handleCompositionStart = () => {
+    isComposingRef.current = true;
+  };
+
+  const handleCompositionEnd = () => {
+    // Defer one tick so the textarea's `value` reflects the final
+    // committed composition before we read it (some IMEs fire 'end'
+    // BEFORE the underlying value has settled).
+    isComposingRef.current = false;
+    requestAnimationFrame(() => {
+      // Guard against a new composition starting in the same frame.
+      if (isComposingRef.current) return;
+      syncContentFromDom();
+    });
   };
 
   const handleMentionSelect = (p: { id: number; displayName: string; username?: string }) => {
@@ -4434,35 +4510,42 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   ref={textareaRef}
                   value={content}
                   onChange={handleContentChange}
-                  // Belt-and-braces sync for Android IME emoji insertion:
-                  // some keyboards (Samsung, GBoard glide) commit text via
-                  // the IME bridge in a way that updates the DOM value but
-                  // doesn't always fire React's synthetic onChange in a
-                  // Capacitor WebView. Mirroring the raw `input` event into
-                  // state keeps `content` in sync with what the user sees,
-                  // so the send button + mention/typing logic don't read
-                  // a stale empty string.
-                  onInput={(e) => {
-                    const v = (e.target as HTMLTextAreaElement).value;
-                    if (v !== content) setContent(v);
-                  }}
+                  // Mirrors the raw DOM 'input' event for IMEs that don't
+                  // fire React's synthetic onChange (Samsung emoji panel,
+                  // GBoard glide-typing). Composition-aware — see
+                  // syncContentFromDom + handleCompositionStart/End.
+                  onInput={handleContentInput}
+                  // Composition handlers are CRITICAL for Android IMEs.
+                  // Without them, every onChange while the keyboard is
+                  // mid-word forces React to re-set textarea.value, which
+                  // resets the IME composition span and the cursor jumps
+                  // to the end — making it impossible to edit mid-text,
+                  // insert emojis between characters, or backspace an
+                  // emoji from the keyboard panel.
+                  onCompositionStart={handleCompositionStart}
+                  onCompositionEnd={handleCompositionEnd}
                   onKeyDown={handleKeyDown}
                   onSelect={handleTextSelect}
                   onBlur={() => { if (!linkMode) setTimeout(() => setSelectionRange(null), 150); }}
-                  onContextMenu={e => e.preventDefault()}
-                  onTouchStart={handleInputTouchStart}
-                  onTouchEnd={handleInputTouchEnd}
-                  onTouchMove={handleInputTouchEnd}
+                  // NB: deliberately NO onContextMenu / onTouchStart /
+                  // onTouchEnd / onTouchMove and NO WebkitTouchCallout
+                  // override on the composer textarea. Long-press IS the
+                  // gesture that opens the keyboard's word-suggestions /
+                  // cut/copy/paste menu / "select word" handles on
+                  // Android — blocking it (as we used to) is what made
+                  // paste-from-clipboard fail and stopped the user from
+                  // editing a word mid-text. Keep the input "as native
+                  // as possible".
                   placeholder={editState ? uiT.chat.editPlaceholder : uiT.chat.placeholder}
                   autoCapitalize="sentences"
                   autoCorrect="on"
                   spellCheck={true}
                   autoComplete="on"
-                  inputMode="text"
                   enterKeyHint="enter"
-                  lang="fr-FR"
+                  // Tag the input with the active UI language so the
+                  // OS picks the right dictionary / autocorrect locale.
+                  lang={appLanguage === 'en' ? 'en-US' : 'fr-FR'}
                   className="flex-1 min-h-[40px] max-h-[120px] border-0 focus-visible:ring-0 resize-none py-2.5 px-0 bg-transparent shadow-none text-sm rounded-none"
-                  style={{ WebkitTouchCallout: 'none' } as React.CSSProperties}
                   rows={1}
                 />
 
