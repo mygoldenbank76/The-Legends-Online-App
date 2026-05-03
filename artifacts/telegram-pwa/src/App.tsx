@@ -87,7 +87,10 @@ function BanGuard({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   // Once the user is authenticated, register the device for native FCM push
   // so messages reach the APK even when it's fully closed. No-op on the web.
-  useFcm({ isAuthenticated: !!user && !isLoading });
+  // Re-runs on user change (logout / switch account on same device) so the
+  // FCM token gets remapped to the active user.
+  const fcmUserId = !isLoading && user ? ((user as { id: number }).id ?? null) : null;
+  useFcm({ userId: fcmUserId });
   if (!isLoading && user && (user as any).isBanned) {
     return <BannedScreen />;
   }

@@ -6,28 +6,36 @@ import { getAuthHeaders } from '@/lib/auth-fetch';
 /**
  * Native FCM push notifications (Capacitor APK only). Silent no-op on web.
  *
- * Boot sequence:
- *  1. Skip if not native.
- *  2. Request POST_NOTIFICATIONS permission (Android 13+).
- *  3. Register with FCM → get token via 'registration' event.
- *  4. POST token to /api/push/fcm-register so the server can target this device.
- *  5. Listen for tap events → navigate into the conversation.
+ * Lifecycle:
+ *  - Re-runs whenever the authenticated userId changes (login, logout +
+ *    re-login as another account on the same device). The previous run's
+ *    listeners are removed and a new register() pass remaps the token to
+ *    the current user.
+ *  - The "already registered" guard only kicks in AFTER the backend
+ *    successfully stored the token. A failed POST resets the guard so the
+ *    next render or a manual `register()` event retries.
  *
- * The OS itself draws the notification when the APK is fully closed (we send
- * `notification` payload from server). When the app is in the foreground the
- * 'pushNotificationReceived' event fires instead — we just refresh the badge
- * and let socket.io handle the in-app delivery.
+ * The OS draws the notification natively when the APK is fully closed (we
+ * send `notification` + `data` from the server). Foreground delivery hits
+ * the 'pushNotificationReceived' listener, where socket.io has already
+ * surfaced the message in-app.
  */
-export function useFcm(opts: { isAuthenticated: boolean }): void {
-  const registeredRef = useRef(false);
+export function useFcm(opts: { userId: number | null }): void {
+  const registeredForUserRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
-    if (!opts.isAuthenticated) return;
-    if (registeredRef.current) return;
-    registeredRef.current = true;
+    const userId = opts.userId;
+    if (userId == null) {
+      // Logged out → forget who was registered so the next login re-runs
+      // the registration flow against the new account.
+      registeredForUserRef.current = null;
+      return;
+    }
+    if (registeredForUserRef.current === userId) return;
 
     let cleanup: Array<() => void> = [];
+    let cancelled = false;
 
     (async () => {
       try {
@@ -39,23 +47,31 @@ export function useFcm(opts: { isAuthenticated: boolean }): void {
           console.warn('[fcm] permission not granted:', perm.receive);
           return;
         }
+        if (cancelled) return;
 
         const regHandle = await PushNotifications.addListener('registration', async (t: Token) => {
           try {
-            await fetch('/api/push/fcm-register', {
+            const r = await fetch('/api/push/fcm-register', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
               body: JSON.stringify({ token: t.value, platform: 'android' }),
             });
-            console.log('[fcm] token registered with backend');
+            if (!r.ok) throw new Error(`backend ${r.status}`);
+            // Mark as registered ONLY after the backend confirms — so a
+            // transient failure leaves us in a state where the next render
+            // (or auth refresh) will retry.
+            registeredForUserRef.current = userId;
+            console.log('[fcm] token registered with backend for user', userId);
           } catch (err) {
             console.error('[fcm] failed to send token to backend:', err);
+            registeredForUserRef.current = null;
           }
         });
         cleanup.push(() => { void regHandle.remove(); });
 
         const errHandle = await PushNotifications.addListener('registrationError', (err) => {
           console.error('[fcm] registration error:', err);
+          registeredForUserRef.current = null;
         });
         cleanup.push(() => { void errHandle.remove(); });
 
@@ -81,15 +97,17 @@ export function useFcm(opts: { isAuthenticated: boolean }): void {
         cleanup.push(() => { void tapHandle.remove(); });
 
         await PushNotifications.register();
-        console.log('[fcm] register() called');
+        console.log('[fcm] register() called for user', userId);
       } catch (err) {
         console.error('[fcm] init failed:', err);
+        registeredForUserRef.current = null;
       }
     })();
 
     return () => {
+      cancelled = true;
       cleanup.forEach((fn) => fn());
       cleanup = [];
     };
-  }, [opts.isAuthenticated]);
+  }, [opts.userId]);
 }
