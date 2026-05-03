@@ -13,6 +13,15 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Edge-to-edge: WebView dessine sous la status bar et la nav bar
+             pour un rendu "vraie app native". safe-area-inset-* en CSS
+             gère le padding correct dans React. -->
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowTranslucentStatus">false</item>
+        <item name="android:windowTranslucentNavigation">false</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 
 

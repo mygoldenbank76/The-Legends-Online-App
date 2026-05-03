@@ -249,6 +249,11 @@ export function ConversationList({ filterType, activeConvId, onSelectConv, user 
       e.preventDefault();
       return;
     }
+    // Always preventDefault on tap to suppress the synthesised click that
+    // Android dispatches ~30 ms later — without this, the ghost click lands
+    // inside the freshly-mounted ChatArea (on a link or media inside the
+    // first visible message) and triggers an unwanted navigation.
+    e.preventDefault();
     if (openId === convId) {
       setOpenId(null);
       return;

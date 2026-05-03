@@ -7,7 +7,7 @@
 // shell for the next launch.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const VERSION = 'v10';
+const VERSION = 'v11';
 const CACHE_NAME = `legends-${VERSION}`;
 const STATIC_CACHE = `legends-static-${VERSION}`;
 const MEDIA_CACHE = `legends-media-${VERSION}`;

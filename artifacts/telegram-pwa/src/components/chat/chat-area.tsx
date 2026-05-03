@@ -423,6 +423,32 @@ function EmptyConversation({ title, subtitle }: { title: string; subtitle: strin
   );
 }
 
+/* ── Ghost-click shield ──
+   Transparent overlay that swallows pointer/click/touch events for the
+   first 400 ms after ChatArea mounts. Without this, the synthesised
+   click that follows pointerUp on the conversation row in the list lands
+   inside the freshly-mounted chat (on a link, image, etc.). */
+function GhostClickShield() {
+  const [active, setActive] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setActive(false), 400);
+    return () => clearTimeout(t);
+  }, []);
+  if (!active) return null;
+  return (
+    <div
+      aria-hidden
+      className="absolute inset-0 z-[9999]"
+      style={{ background: 'transparent', touchAction: 'none' }}
+      onClickCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onTouchStartCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onTouchEndCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onPointerDownCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onPointerUpCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
+    />
+  );
+}
+
 function MessagesSkeleton() {
   return (
     <div className="flex flex-col justify-end gap-1.5 px-3 pb-3 pt-6 min-h-full">
@@ -2618,8 +2644,23 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       </AnimatePresence>
     <div className="absolute inset-0 flex flex-col">
 
+      {/* ── Ghost-click shield ──
+          When the user taps a conversation row in the list, pointerUp fires
+          and mounts ChatArea synchronously. ~30 ms later Android dispatches
+          a synthesised `click` at the SAME screen coordinates — which now
+          lands on whatever is under the finger in the chat (often a link
+          inside the first visible message). This transparent overlay
+          swallows that ghost click for 400 ms, then unmounts. */}
+      <GhostClickShield />
+
       {/* ── Header ── */}
-      <div className="flex-none h-14 glass border-b border-border/50 flex items-center px-3 z-10 gap-3">
+      <div
+        className="flex-none glass border-b border-border/50 flex items-center px-3 z-10 gap-3"
+        style={{
+          paddingTop: 'env(safe-area-inset-top, 0px)',
+          minHeight: 'calc(3.5rem + env(safe-area-inset-top, 0px))',
+        }}
+      >
 
         {searchOpen ? (
           /* ── Mode recherche : remplace le contenu du header (pas de layout shift) ── */
