@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Resource overlay of capacitor-android's bridge_layout_main.xml.
+    By providing a same-named layout in our app res/layout/, ours wins
+    over the library's at build time. This lets us swap the default
+    CapacitorWebView for our SuggestionsWebView subclass, which forces
+    the on-screen keyboard to show predictions, auto-correct French
+    typos, and capitalize the first letter of each sentence inside the
+    message composer.
+-->
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <social.thelegendsonline.app.SuggestionsWebView
+        android:id="@+id/webview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

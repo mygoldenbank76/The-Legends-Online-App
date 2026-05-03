@@ -68,6 +68,11 @@
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
+    <!-- Installation d'APK : permet au téléchargement (DownloadManager) de
+         déboucher sur le prompt d'installation natif quand l'utilisateur
+         tape sur la notification "Mise à jour téléchargée". -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- Indique que la caméra et le micro sont optionnels (pour rester
          compatible avec les tablettes ou Chromebooks sans hardware). -->
     <uses-feature android:name="android.hardware.microphone" android:required="false" />

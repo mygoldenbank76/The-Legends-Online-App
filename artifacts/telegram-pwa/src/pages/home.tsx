@@ -924,7 +924,7 @@ function SettingsPage({
                       {t.settings.updateAvailableDesc}
                       {updateState.sizeMb ? ` · ${updateState.sizeMb.toFixed(1)} Mo` : ''}
                       {updateState.installedBuild
-                        ? ` (installé : v1.0.${updateState.installedBuild})`
+                        ? ` (Version actuelle : v1.0.${updateState.installedBuild})`
                         : ''}
                     </p>
                   </>
@@ -1232,17 +1232,17 @@ function VersionFooter({ isCapacitor, isStandalone, isIos }: {
 
   const version = native?.versionName || __APP_VERSION__;
   const build = native?.build || __APP_BUILD__;
-  // __APP_BUILD__ is always the 7-char git SHA injected at Vite build time.
-  // On the APK, native.build is the Android versionCode (e.g. "21"), so we
-  // show BOTH side by side so we can always tell which commit is shipped.
-  const commitSha = __APP_BUILD__;
-  const showCommit = isCapacitor && commitSha && commitSha !== build;
-
+  // On the APK, `native.build` is the Android versionCode (e.g. "28") and
+  // `version` is the human-readable versionName (e.g. "1.0.28"). We show
+  // both — first the build number (matches GitHub Actions run #), then the
+  // full version installed on the device — so the user immediately sees
+  // which release they're running. The git-SHA "dev-mop" suffix that used
+  // to appear here was confusing and has been removed per user feedback.
   return (
     <div className="text-center text-xs text-muted-foreground/70 pt-4 pb-2 select-none leading-relaxed">
       <p>
-        The Legends Online pour {platform} v{version} ({build}
-        {showCommit ? ` · ${commitSha}` : ''})
+        The Legends Online pour {platform} v{version}
+        {isCapacitor && build ? ` (${build} · v${version})` : ` (${build})`}
       </p>
       <p className="mt-0.5 opacity-70">thelegendsonline.social</p>
     </div>

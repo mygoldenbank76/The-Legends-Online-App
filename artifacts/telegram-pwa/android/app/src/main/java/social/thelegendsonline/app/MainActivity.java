@@ -1,12 +1,19 @@
 package social.thelegendsonline.app;
 
 import android.Manifest;
+import android.app.DownloadManager;
+import android.content.Context;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.view.WindowManager;
+import android.webkit.DownloadListener;
 import android.webkit.PermissionRequest;
+import android.webkit.URLUtil;
 import android.webkit.WebChromeClient;
+import android.widget.Toast;
 
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -84,6 +91,56 @@ public class MainActivity extends BridgeActivity {
                             REQ_WEBVIEW_PERMS
                     );
                 });
+            }
+        });
+
+        // ── DownloadListener : déclenche le DownloadManager Android pour
+        //    le bouton "Mise à jour disponible". Sans ce listener, une
+        //    navigation vers /api/download/apk dans la WebView ne fait
+        //    rien (la WebView ne sait pas rendre un APK et n'a pas de
+        //    handler par défaut pour les Content-Disposition: attachment),
+        //    donc le tap sur la carte de mise à jour paraissait mort.
+        //    Ici on délègue à DownloadManager qui télécharge le fichier
+        //    en arrière-plan, affiche une notif système, et — au tap sur
+        //    cette notif — déclenche l'installateur de paquet Android.
+        bridge.getWebView().setDownloadListener(new DownloadListener() {
+            @Override
+            public void onDownloadStart(String url, String userAgent,
+                                        String contentDisposition, String mimetype,
+                                        long contentLength) {
+                try {
+                    String resolvedMime = (mimetype != null && !mimetype.isEmpty())
+                            ? mimetype
+                            : "application/vnd.android.package-archive";
+                    String filename = URLUtil.guessFileName(url, contentDisposition, resolvedMime);
+                    DownloadManager.Request req = new DownloadManager.Request(Uri.parse(url));
+                    req.setMimeType(resolvedMime);
+                    if (userAgent != null) req.addRequestHeader("User-Agent", userAgent);
+                    req.setTitle(filename);
+                    req.setDescription("Téléchargement de la mise à jour");
+                    req.setNotificationVisibility(
+                            DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                    req.setDestinationInExternalPublicDir(
+                            Environment.DIRECTORY_DOWNLOADS, filename);
+                    DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                    if (dm != null) {
+                        dm.enqueue(req);
+                        Toast.makeText(getApplicationContext(),
+                                "Téléchargement de la mise à jour…",
+                                Toast.LENGTH_SHORT).show();
+                    }
+                } catch (Exception e) {
+                    // Last-resort fallback: hand the URL to the system
+                    // browser via an ACTION_VIEW intent so the user still
+                    // gets a working download path even if DownloadManager
+                    // is unavailable on this device profile.
+                    try {
+                        android.content.Intent intent = new android.content.Intent(
+                                android.content.Intent.ACTION_VIEW, Uri.parse(url));
+                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                    } catch (Exception ignored) { /* nothing else we can do */ }
+                }
             }
         });
 
