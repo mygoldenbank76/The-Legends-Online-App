@@ -621,7 +621,26 @@ function SettingsPage({
     // file from GitHub) so the user only ever sees the thelegendsonline.social
     // domain in their browser / download notification — never github.com.
     if (updateState.kind === 'available') {
-      window.open('/api/download/apk', '_blank');
+      // The Capacitor WebView ignores window.open('_blank') with no plugin,
+      // so the previous tap looked dead. Build an absolute https:// URL on
+      // our own origin and hand it to @capacitor/browser → Chrome Custom
+      // Tabs, which DOES handle Content-Disposition: attachment and triggers
+      // the Android Download Manager + package installer prompt. Web/PWA
+      // path keeps the regular new-tab open as a safe fallback.
+      const absUrl = `${window.location.origin}/api/download/apk`;
+      try {
+        if (isCapacitor) {
+          const { Browser } = await import('@capacitor/browser');
+          await Browser.open({ url: absUrl });
+        } else {
+          window.open(absUrl, '_blank');
+        }
+      } catch {
+        // Last-resort fallback: navigate the WebView directly. The server
+        // sends Content-Disposition: attachment so the WebView SHOULD route
+        // it to the OS download manager rather than rendering it.
+        window.location.href = absUrl;
+      }
       return;
     }
     setUpdateState({ kind: 'checking' });
@@ -883,26 +902,35 @@ function SettingsPage({
                   </>
                 ) : updateState.kind === 'available' ? (
                   <>
-                    <p className="text-sm font-semibold text-amber-400">{t.settings.updateAvailable}</p>
-                    <p className="text-xs text-muted-foreground truncate">
+                    <p className="text-sm font-semibold text-amber-400">
+                      {t.settings.updateAvailable}
+                      {updateState.latestBuild ? ` · v1.0.${updateState.latestBuild}` : ''}
+                    </p>
+                    <p className="text-xs text-muted-foreground leading-snug">
                       {t.settings.updateAvailableDesc}
                       {updateState.sizeMb ? ` · ${updateState.sizeMb.toFixed(1)} Mo` : ''}
+                      {updateState.installedBuild
+                        ? ` (installé : v1.0.${updateState.installedBuild})`
+                        : ''}
                     </p>
                   </>
                 ) : updateState.kind === 'uptodate' ? (
                   <>
-                    <p className="text-sm font-semibold text-green-400">{t.settings.upToDate}</p>
-                    <p className="text-xs text-muted-foreground truncate">{t.settings.upToDateDesc}</p>
+                    <p className="text-sm font-semibold text-green-400">
+                      {t.settings.upToDate}
+                      {updateState.build ? ` · v1.0.${updateState.build}` : ''}
+                    </p>
+                    <p className="text-xs text-muted-foreground leading-snug">{t.settings.upToDateDesc}</p>
                   </>
                 ) : updateState.kind === 'error' ? (
                   <>
                     <p className="text-sm font-semibold text-red-400">{t.settings.updateError}</p>
-                    <p className="text-xs text-muted-foreground truncate">{t.settings.updateErrorDesc}</p>
+                    <p className="text-xs text-muted-foreground leading-snug">{t.settings.updateErrorDesc}</p>
                   </>
                 ) : (
                   <>
                     <p className="text-sm font-semibold text-primary">{t.settings.checkUpdate}</p>
-                    <p className="text-xs text-muted-foreground truncate">{t.settings.checkUpdateDesc}</p>
+                    <p className="text-xs text-muted-foreground leading-snug">{t.settings.checkUpdateDesc}</p>
                   </>
                 )}
               </div>
