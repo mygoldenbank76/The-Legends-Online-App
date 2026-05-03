@@ -388,11 +388,24 @@ function KeepaliveChatPanel({
         return (
           <div
             key={convId}
-            // `inert` is intentionally a string ("" === present, undefined === absent)
-            // — TS DOM lib types it as boolean | undefined, but the runtime semantics
-            // map both `true` and `""` to the same enabled state. Cast through any
-            // to keep both old (boolean) and new (string) lib.dom resolutions happy.
-            {...({ inert: isActive ? undefined : '' } as any)}
+            // React 19 supports `inert` as a first-class boolean prop:
+            // `inert={true}` renders the attribute, `inert={false}` removes
+            // it. We previously spread `{ inert: undefined }` through an
+            // `as any` cast which, in some bundler outputs (notably the
+            // production build served to plain Chrome on Android — i.e.
+            // the WEB version, NOT the installed PWA which has its own
+            // cached older bundle), left a residual `inert=""` on the
+            // ACTIVE wrapper. That made the composer textarea silently
+            // un-typable: keyboard opened, focus appeared, but no
+            // characters were inserted because the closest ancestor was
+            // inert. Using the canonical boolean prop avoids the cast
+            // and guarantees the attribute is fully absent when active.
+            //
+            // NOTE: `display: none` on inactive instances already blocks
+            // all interaction (focus, events, layout). The `inert` here
+            // is purely a belt-and-braces a11y/tab-focus guard for the
+            // hidden instances.
+            inert={!isActive}
             aria-hidden={isActive ? undefined : true}
             className="absolute inset-0 flex flex-col"
             style={{ display: isActive ? 'flex' : 'none' }}
