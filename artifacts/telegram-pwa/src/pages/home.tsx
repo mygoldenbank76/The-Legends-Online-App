@@ -885,8 +885,18 @@ function SettingsPage({
                   className="fixed inset-0 z-[450] bg-background flex flex-col"
                   style={{ height: '100dvh' }}
                 >
-                  {/* Header — same language as conversation detail pages */}
-                  <div className="flex items-center justify-between px-4 py-3 glass gradient-hairline-bottom flex-shrink-0">
+                  {/* Header — same language as conversation detail pages.
+                      Match UserProfileSheet's safe-area-aware padding so
+                      the title doesn't slide under the Android status bar
+                      (clock / battery) on devices with a notch. */}
+                  <div
+                    className="flex items-center justify-between px-4 py-3 glass gradient-hairline-bottom flex-shrink-0"
+                    style={{
+                      paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))',
+                      paddingBottom: 12,
+                      minHeight: 'calc(4rem + env(safe-area-inset-top, 0px))',
+                    }}
+                  >
                     <button
                       onClick={() => setShowAdmin(false)}
                       className="w-10 h-10 rounded-full hover:bg-foreground/10 flex items-center justify-center transition-colors -ml-2"

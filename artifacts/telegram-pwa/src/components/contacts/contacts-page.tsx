@@ -349,8 +349,18 @@ function ContactsHubSheet({
           style={{ height: '100dvh' }}
           data-testid="sheet-contacts-hub"
         >
-          {/* Top bar */}
-          <div className="flex items-center gap-3 px-3 pt-3 pb-3 bg-background/80 backdrop-blur-md border-b border-white/5 flex-shrink-0">
+          {/* Top bar — safe-area-aware padding so the title doesn't
+              slide under the Android status bar (clock / battery /
+              notch) on devices like the S22. Mirrors the conversation
+              detail page (UserProfileSheet) header. */}
+          <div
+            className="flex items-center gap-3 px-3 pt-3 pb-3 bg-background/80 backdrop-blur-md border-b border-white/5 flex-shrink-0"
+            style={{
+              paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))',
+              paddingBottom: 12,
+              minHeight: 'calc(4rem + env(safe-area-inset-top, 0px))',
+            }}
+          >
             <button
               type="button"
               onClick={onClose}
