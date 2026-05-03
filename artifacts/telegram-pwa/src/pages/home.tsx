@@ -579,6 +579,56 @@ function SettingsPage({
   const [canInstall, setCanInstall] = useState(() => !!_pwaPrompt);
   const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+  // Detect when the app is running inside the Capacitor Android shell (the
+  // installed APK). The Capacitor runtime exposes a global, so we check both
+  // the modern API and the older "isNative" flag for safety.
+  const isCapacitor = typeof window !== 'undefined' && !!(
+    (window as any).Capacitor?.isNativePlatform?.() ||
+    (window as any).Capacitor?.isNative ||
+    /\b(capacitor|TheLegendsOnline)\b/i.test(navigator.userAgent)
+  );
+
+  // ── Update checker (APK only) ──────────────────────────────────────────
+  type UpdateState =
+    | { kind: 'idle' }
+    | { kind: 'checking' }
+    | { kind: 'available'; url: string; sizeMb: number | null }
+    | { kind: 'uptodate' }
+    | { kind: 'error' };
+  const [updateState, setUpdateState] = useState<UpdateState>({ kind: 'idle' });
+
+  const handleCheckUpdate = async () => {
+    // If we already resolved an APK, second tap triggers the download.
+    if (updateState.kind === 'available') {
+      // Opening an .apk URL from the WebView delegates to the Android system
+      // browser / download manager, which then prompts the user to install.
+      window.open(updateState.url, '_blank');
+      return;
+    }
+    setUpdateState({ kind: 'checking' });
+    try {
+      const r = await fetch(
+        'https://api.github.com/repos/mygoldenbank76/The-Legends-Online-App/releases/tags/native-latest',
+        { headers: { Accept: 'application/vnd.github+json' }, cache: 'no-store' },
+      );
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data: { assets?: Array<{ name: string; browser_download_url: string; size: number }> } = await r.json();
+      const assets = data.assets ?? [];
+      const apk =
+        assets.find((a) => a.name === 'The Legends Online.apk') ||
+        assets.find((a) => /\.apk$/i.test(a.name) && a.name !== 'legends.apk');
+      if (!apk) throw new Error('no-apk');
+      setUpdateState({
+        kind: 'available',
+        url: apk.browser_download_url,
+        sizeMb: apk.size / (1024 * 1024),
+      });
+    } catch {
+      setUpdateState({ kind: 'error' });
+      // Auto-reset to idle after 4s so the user can retry
+      setTimeout(() => setUpdateState({ kind: 'idle' }), 4000);
+    }
+  };
 
   useEffect(() => {
     if (_pwaPrompt) { setCanInstall(true); return; }
@@ -768,11 +818,69 @@ function SettingsPage({
         </>
       )}
 
-      {/* Application section — PWA install */}
+      {/* Application section — PWA install OR APK update checker */}
       <div>
         <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider px-1 mb-2">{t.settings.application}</p>
         <div className="glass rounded-2xl overflow-hidden">
-          {isStandalone ? (
+          {isCapacitor ? (
+            // ── Native APK: replace install button with "Check for updates" ──
+            <button
+              onClick={handleCheckUpdate}
+              disabled={updateState.kind === 'checking'}
+              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-primary/10 transition-colors text-left disabled:opacity-70"
+            >
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                updateState.kind === 'available' ? 'bg-amber-500/15' :
+                updateState.kind === 'uptodate' ? 'bg-green-500/15' :
+                updateState.kind === 'error' ? 'bg-red-500/15' :
+                'bg-primary/15'
+              }`}>
+                {updateState.kind === 'checking' ? (
+                  <div className="w-4 h-4 border-2 border-primary/50 border-t-primary rounded-full animate-spin" />
+                ) : updateState.kind === 'available' ? (
+                  <Download className="w-4 h-4 text-amber-400" />
+                ) : updateState.kind === 'uptodate' ? (
+                  <CheckCircle2 className="w-4 h-4 text-green-400" />
+                ) : updateState.kind === 'error' ? (
+                  <Download className="w-4 h-4 text-red-400" />
+                ) : (
+                  <Download className="w-4 h-4 text-primary" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                {updateState.kind === 'checking' ? (
+                  <>
+                    <p className="text-sm font-semibold text-primary">{t.settings.checkingUpdate}</p>
+                    <p className="text-xs text-muted-foreground truncate">{t.settings.checkUpdateDesc}</p>
+                  </>
+                ) : updateState.kind === 'available' ? (
+                  <>
+                    <p className="text-sm font-semibold text-amber-400">{t.settings.updateAvailable}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {t.settings.updateAvailableDesc}
+                      {updateState.sizeMb ? ` · ${updateState.sizeMb.toFixed(1)} Mo` : ''}
+                    </p>
+                  </>
+                ) : updateState.kind === 'uptodate' ? (
+                  <>
+                    <p className="text-sm font-semibold text-green-400">{t.settings.upToDate}</p>
+                    <p className="text-xs text-muted-foreground truncate">{t.settings.upToDateDesc}</p>
+                  </>
+                ) : updateState.kind === 'error' ? (
+                  <>
+                    <p className="text-sm font-semibold text-red-400">{t.settings.updateError}</p>
+                    <p className="text-xs text-muted-foreground truncate">{t.settings.updateErrorDesc}</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-semibold text-primary">{t.settings.checkUpdate}</p>
+                    <p className="text-xs text-muted-foreground truncate">{t.settings.checkUpdateDesc}</p>
+                  </>
+                )}
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            </button>
+          ) : isStandalone ? (
             <div className="flex items-center gap-3 px-4 py-3.5">
               <div className="w-8 h-8 rounded-xl bg-green-500/15 flex items-center justify-center flex-shrink-0">
                 <CheckCircle2 className="w-4 h-4 text-green-400" />

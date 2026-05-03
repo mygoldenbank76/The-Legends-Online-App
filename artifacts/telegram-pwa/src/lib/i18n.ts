@@ -54,6 +54,15 @@ type Dict = {
     installAppIos: string;
     installAppDesc: string;
     installAppIosDesc: string;
+    checkUpdate: string;
+    checkUpdateDesc: string;
+    checkingUpdate: string;
+    upToDate: string;
+    upToDateDesc: string;
+    updateAvailable: string;
+    updateAvailableDesc: string;
+    updateError: string;
+    updateErrorDesc: string;
     appearance: string;
     theme: string;
     themeDesc: string;
@@ -248,6 +257,15 @@ export const i18n: Record<AppLang, Dict> = {
       installAppIos: 'Installer sur iPhone / iPad',
       installAppDesc: 'Installer en application native',
       installAppIosDesc: "Ajouter à l'écran d'accueil via Safari",
+      checkUpdate: 'Vérifier les mises à jour',
+      checkUpdateDesc: 'Télécharger la dernière version de l\'application',
+      checkingUpdate: 'Vérification en cours…',
+      upToDate: 'Application à jour',
+      upToDateDesc: 'Tu utilises déjà la dernière version',
+      updateAvailable: 'Mise à jour disponible',
+      updateAvailableDesc: 'Touche pour télécharger et installer',
+      updateError: 'Vérification impossible',
+      updateErrorDesc: 'Réessaie dans quelques instants',
       appearance: 'Apparence',
       theme: 'Thème',
       themeDesc: "Choisir l'apparence de l'application",
@@ -438,6 +456,15 @@ export const i18n: Record<AppLang, Dict> = {
       appInstalled: 'App installed',
       appInstalledDesc: 'You are already using the native version',
       installApp: 'Download the app',
+      checkUpdate: 'Check for updates',
+      checkUpdateDesc: 'Download the latest version of the app',
+      checkingUpdate: 'Checking…',
+      upToDate: 'App up to date',
+      upToDateDesc: 'You already have the latest version',
+      updateAvailable: 'Update available',
+      updateAvailableDesc: 'Tap to download and install',
+      updateError: 'Check failed',
+      updateErrorDesc: 'Please try again in a moment',
       installAppIos: 'Install on iPhone / iPad',
       installAppDesc: 'Install as a native app',
       installAppIosDesc: 'Add to home screen via Safari',
@@ -634,6 +661,15 @@ export const i18n: Record<AppLang, Dict> = {
       appInstalled: 'Aplicación instalada',
       appInstalledDesc: 'Ya estás usando la versión nativa',
       installApp: 'Descargar la aplicación',
+      checkUpdate: 'Buscar actualizaciones',
+      checkUpdateDesc: 'Descarga la última versión de la app',
+      checkingUpdate: 'Verificando…',
+      upToDate: 'App actualizada',
+      upToDateDesc: 'Ya tienes la última versión',
+      updateAvailable: 'Actualización disponible',
+      updateAvailableDesc: 'Toca para descargar e instalar',
+      updateError: 'Verificación fallida',
+      updateErrorDesc: 'Intenta de nuevo en un momento',
       installAppIos: 'Instalar en iPhone / iPad',
       installAppDesc: 'Instalar como aplicación nativa',
       installAppIosDesc: 'Añadir a la pantalla de inicio con Safari',
@@ -830,6 +866,15 @@ export const i18n: Record<AppLang, Dict> = {
       appInstalled: 'التطبيق مثبّت',
       appInstalledDesc: 'أنت تستخدم النسخة الأصلية بالفعل',
       installApp: 'تحميل التطبيق',
+      checkUpdate: 'البحث عن تحديثات',
+      checkUpdateDesc: 'تنزيل أحدث إصدار من التطبيق',
+      checkingUpdate: 'جاري التحقق…',
+      upToDate: 'التطبيق محدّث',
+      upToDateDesc: 'أنت تستخدم أحدث إصدار',
+      updateAvailable: 'يتوفر تحديث',
+      updateAvailableDesc: 'انقر للتنزيل والتثبيت',
+      updateError: 'فشل التحقق',
+      updateErrorDesc: 'يرجى المحاولة مرة أخرى بعد قليل',
       installAppIos: 'تثبيت على iPhone / iPad',
       installAppDesc: 'تثبيت كتطبيق أصلي',
       installAppIosDesc: 'أضف إلى الشاشة الرئيسية عبر Safari',
@@ -1026,6 +1071,15 @@ export const i18n: Record<AppLang, Dict> = {
       appInstalled: 'Aplicativo instalado',
       appInstalledDesc: 'Você já está usando a versão nativa',
       installApp: 'Baixar o aplicativo',
+      checkUpdate: 'Verificar atualizações',
+      checkUpdateDesc: 'Baixar a última versão do app',
+      checkingUpdate: 'Verificando…',
+      upToDate: 'App atualizado',
+      upToDateDesc: 'Você já tem a versão mais recente',
+      updateAvailable: 'Atualização disponível',
+      updateAvailableDesc: 'Toque para baixar e instalar',
+      updateError: 'Falha na verificação',
+      updateErrorDesc: 'Tente novamente em instantes',
       installAppIos: 'Instalar no iPhone / iPad',
       installAppDesc: 'Instalar como aplicativo nativo',
       installAppIosDesc: 'Adicionar à tela inicial pelo Safari',
@@ -1222,6 +1276,15 @@ export const i18n: Record<AppLang, Dict> = {
       appInstalled: 'App installiert',
       appInstalledDesc: 'Sie verwenden bereits die native Version',
       installApp: 'App herunterladen',
+      checkUpdate: 'Nach Updates suchen',
+      checkUpdateDesc: 'Die neueste App-Version herunterladen',
+      checkingUpdate: 'Wird geprüft…',
+      upToDate: 'App ist aktuell',
+      upToDateDesc: 'Du hast bereits die neueste Version',
+      updateAvailable: 'Update verfügbar',
+      updateAvailableDesc: 'Tippen zum Herunterladen und Installieren',
+      updateError: 'Prüfung fehlgeschlagen',
+      updateErrorDesc: 'Bitte versuche es gleich erneut',
       installAppIos: 'Auf iPhone / iPad installieren',
       installAppDesc: 'Als native App installieren',
       installAppIosDesc: 'Zum Startbildschirm via Safari hinzufügen',
