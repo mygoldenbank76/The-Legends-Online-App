@@ -8,7 +8,6 @@ import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
 import android.util.TypedValue;
-import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
@@ -61,6 +60,14 @@ public class NativeComposerPlugin extends Plugin {
     // bounce that same value back to JS as a "user typed this" event,
     // which would create an infinite sync loop.
     private boolean syncingFromJs = false;
+    // Last bounds requested by JS, in NATIVE pixels. Cached so we can
+    // re-apply them after ensureOverlay() recreates the layout params.
+    private int lastX = 0, lastY = 0, lastW = ViewGroup.LayoutParams.MATCH_PARENT,
+            lastH = ViewGroup.LayoutParams.WRAP_CONTENT;
+
+    private int dpToPx(float dp) {
+        return Math.round(dp * getActivity().getResources().getDisplayMetrics().density);
+    }
 
     private void ensureOverlay() {
         if (editText != null) return;
@@ -87,14 +94,17 @@ public class NativeComposerPlugin extends Plugin {
         }
 
         editText.setMaxLines(4);
-        editText.setBackgroundColor(0xFF1a1a2a);
+        // Transparent background — the HTML composer pill already paints
+        // the rounded background underneath; we just want the text +
+        // caret to render on top of it.
+        editText.setBackgroundColor(Color.TRANSPARENT);
         editText.setTextColor(Color.WHITE);
         editText.setHintTextColor(0xFF888888);
         editText.setHint("Message");
-        int padPx = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 12,
-                ctx.getResources().getDisplayMetrics());
-        editText.setPadding(padPx, padPx, padPx, padPx);
-        editText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        int padH = dpToPx(10);
+        int padV = dpToPx(8);
+        editText.setPadding(padH, padV, padH, padV);
+        editText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
 
         editText.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -109,10 +119,32 @@ public class NativeComposerPlugin extends Plugin {
         });
 
         overlay = new FrameLayout(ctx);
-        overlay.setBackgroundColor(0xFF0c1019);
+        // Transparent — only the EditText itself paints. Touches outside
+        // the EditText pass through to the WebView underneath because the
+        // overlay is sized exactly to the EditText bounds (see applyBounds).
+        overlay.setBackgroundColor(Color.TRANSPARENT);
         overlay.addView(editText, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT));
+                FrameLayout.LayoutParams.MATCH_PARENT));
+    }
+
+    /**
+     * Re-applies the cached bounds to the overlay's LayoutParams. Called
+     * from show() after attaching to the root, and from setBounds() when
+     * JS reports a layout change.
+     */
+    private void applyBounds() {
+        if (overlay == null) return;
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) overlay.getLayoutParams();
+        if (lp == null) {
+            lp = new FrameLayout.LayoutParams(lastW, lastH);
+        } else {
+            lp.width = lastW;
+            lp.height = lastH;
+        }
+        lp.leftMargin = lastX;
+        lp.topMargin = lastY;
+        overlay.setLayoutParams(lp);
     }
 
     @PluginMethod
@@ -129,17 +161,29 @@ public class NativeComposerPlugin extends Plugin {
 
             ViewGroup root = getActivity().findViewById(android.R.id.content);
             if (overlay.getParent() == null) {
-                FrameLayout.LayoutParams rootLp = new FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.WRAP_CONTENT);
-                rootLp.gravity = Gravity.BOTTOM;
-                root.addView(overlay, rootLp);
+                root.addView(overlay, new FrameLayout.LayoutParams(lastW, lastH));
+                applyBounds();
             }
             overlay.setVisibility(View.VISIBLE);
-            editText.requestFocus();
-            InputMethodManager imm = (InputMethodManager) getActivity()
-                    .getSystemService(Context.INPUT_METHOD_SERVICE);
-            if (imm != null) imm.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT);
+            // No requestFocus / showSoftInput here — the user's tap on the
+            // HTML composer pill triggers focus naturally via the WebView,
+            // and we don't want the keyboard to pop on every chat open.
+            call.resolve();
+        });
+    }
+
+    @PluginMethod
+    public void setBounds(PluginCall call) {
+        final double xCss = call.getDouble("x", 0d);
+        final double yCss = call.getDouble("y", 0d);
+        final double wCss = call.getDouble("width", 0d);
+        final double hCss = call.getDouble("height", 0d);
+        getActivity().runOnUiThread(() -> {
+            lastX = dpToPx((float) xCss);
+            lastY = dpToPx((float) yCss);
+            lastW = Math.max(1, dpToPx((float) wCss));
+            lastH = Math.max(1, dpToPx((float) hCss));
+            applyBounds();
             call.resolve();
         });
     }

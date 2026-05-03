@@ -39,6 +39,16 @@ export interface NativeComposerPlugin {
    */
   setValue(options: { value: string }): Promise<void>;
 
+  /**
+   * Position the EditText overlay over the HTML composer textarea.
+   * Coordinates are in CSS pixels (same coordinate space as
+   * `getBoundingClientRect()`); the native side converts to physical
+   * pixels via display density. Call on every layout change of the
+   * underlying textarea (ResizeObserver + window resize + visualViewport
+   * resize for the keyboard).
+   */
+  setBounds(options: { x: number; y: number; width: number; height: number }): Promise<void>;
+
   /** Read the current EditText value. */
   getValue(): Promise<{ value: string }>;
 
@@ -69,6 +79,7 @@ export const NativeComposer = registerPlugin<NativeComposerPlugin>('NativeCompos
     show: noop,
     hide: noop,
     setValue: noop,
+    setBounds: noop,
     getValue: async () => ({ value: '' }),
     focus: noop,
     blur: noop,

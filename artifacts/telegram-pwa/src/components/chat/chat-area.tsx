@@ -38,6 +38,8 @@ import type { FormatType } from './rich-text';
 import { GifPicker } from './gif-picker';
 import { getMediaDimensions, captureVideoFirstFrame } from '@/lib/media-dimensions';
 import { generateLqip } from '@/lib/lqip';
+import { NativeComposer, isNativeComposerAvailable } from '@/lib/native-composer';
+import type { PluginListenerHandle } from '@capacitor/core';
 import type { GifResult } from './gif-picker';
 import { MediaPickerModal, compressImage } from './media-picker-modal';
 import type { MediaQuality } from './media-picker-modal';
@@ -657,6 +659,15 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // while composing and re-sync once the IME commits.
   const isComposingRef = useRef(false);
   const autoGrowRaf = useRef<number | null>(null);
+  // Last value we received from / pushed to the native EditText overlay
+  // (Android APK only). Used as an echo-suppression token so the JS-side
+  // "push content to native" effect does not bounce the same value back
+  // when it originated FROM native typing in the first place.
+  const lastNativeValueRef = useRef<string | null>(null);
+  // True only on the Android APK build. Captured once at mount so the
+  // value is stable across renders and we can use it for inline style
+  // gates without re-querying Capacitor on every render.
+  const useNativeComposer = isNativeComposerAvailable();
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressInputTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didTriggerMenu = useRef(false);
@@ -1480,6 +1491,112 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       }
     };
   }, [content]);
+
+  // ─────────────────────────────────────────────────────────────────
+  // NATIVE EDITTEXT BRIDGE (Android APK only — web is a no-op)
+  //
+  // The Chromium WebView intercepts IME input below our outer
+  // SuggestionsWebView subclass, so the HTML <textarea> never gets
+  // Samsung Keyboard's prediction strip, autocorrect or auto-capitalize
+  // — and the layout-batching quirk that breaks textarea autogrow on
+  // paste / emoji insert is also a WebView bug we cannot fix in JS.
+  //
+  // Solution: overlay a real native EditText (NativeComposerPlugin)
+  // exactly on top of the HTML textarea. The HTML one is kept in the
+  // DOM (visibility: hidden) so all layout / measurement / send-button
+  // wiring still works against `content` state — we just stop rendering
+  // its visual surface and let the EditText render text + caret on top.
+  //
+  // Three effects:
+  //   1. Mount/unmount: register the valueChanged listener, call show()
+  //      with the current content + placeholder, push the initial bounds.
+  //   2. Bounds sync: ResizeObserver on the textarea + window resize +
+  //      visualViewport resize (covers keyboard slide). Every change
+  //      pushes the new rect to the native side.
+  //   3. Content sync (JS → native): whenever `content` changes from a
+  //      JS-side action (emoji panel insert, paste handler, send-clear,
+  //      edit selection), push it via setValue. Echo-suppressed by
+  //      lastNativeValueRef so native-typed values don't bounce back.
+  // ─────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!useNativeComposer) return;
+    let mounted = true;
+    let listener: PluginListenerHandle | null = null;
+    (async () => {
+      listener = await NativeComposer.addListener('valueChanged', ({ value }) => {
+        if (!mounted) return;
+        lastNativeValueRef.current = value;
+        setContent(value);
+      });
+      lastNativeValueRef.current = content;
+      await NativeComposer.show({
+        value: content,
+        placeholder: editState ? uiT.chat.editPlaceholder : uiT.chat.placeholder,
+      });
+    })();
+    return () => {
+      mounted = false;
+      if (listener) listener.remove();
+      NativeComposer.hide();
+    };
+    // Mount/unmount only — content + placeholder are kept in sync by
+    // the dedicated effects below; re-running show() on every keystroke
+    // would tear down the EditText's IME composition span.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useNativeComposer]);
+
+  // Bounds sync: keep the native EditText overlay glued to the HTML
+  // textarea's on-screen rect. ResizeObserver covers content-driven
+  // resizes (line wrap), `resize` covers orientation changes, and
+  // visualViewport's `resize` covers the soft keyboard sliding the
+  // viewport up/down.
+  useEffect(() => {
+    if (!useNativeComposer) return;
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const push = () => {
+      const r = ta.getBoundingClientRect();
+      void NativeComposer.setBounds({
+        x: r.left, y: r.top, width: r.width, height: r.height,
+      });
+    };
+    push();
+    const ro = new ResizeObserver(push);
+    ro.observe(ta);
+    window.addEventListener('resize', push);
+    window.visualViewport?.addEventListener('resize', push);
+    window.visualViewport?.addEventListener('scroll', push);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', push);
+      window.visualViewport?.removeEventListener('resize', push);
+      window.visualViewport?.removeEventListener('scroll', push);
+    };
+  }, [useNativeComposer]);
+
+  // Content sync (JS → native). Skipped when the change came FROM
+  // native (echo): in that branch we already updated React state in
+  // the valueChanged listener above and the EditText already has the
+  // correct value, so re-pushing it would just reset the cursor.
+  useEffect(() => {
+    if (!useNativeComposer) return;
+    if (lastNativeValueRef.current === content) return;
+    lastNativeValueRef.current = content;
+    void NativeComposer.setValue({ value: content });
+  }, [content, useNativeComposer]);
+
+  // Placeholder sync (edit mode toggles between two strings).
+  useEffect(() => {
+    if (!useNativeComposer) return;
+    void NativeComposer.show({
+      value: content,
+      placeholder: editState ? uiT.chat.editPlaceholder : uiT.chat.placeholder,
+    });
+    // Re-running show() with the SAME value is safe: the plugin
+    // re-applies setHint and setText/Selection inside `syncingFromJs`,
+    // so no spurious valueChanged event is emitted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editState, useNativeComposer]);
 
   // Centralised "value has changed" handler. Reads the live DOM value
   // (NOT e.target.value) so it stays correct whether triggered by:
@@ -4617,10 +4734,20 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
                   // plain text. Without these, after ~10–15 emojis on
                   // a single line the textarea silently stops accepting
                   // new input because the line cannot grow further.
+                  // On the Android APK, a real native EditText is overlaid
+                  // on top of this <textarea> by NativeComposerPlugin (see
+                  // the bridge effects above). We keep the HTML element in
+                  // the DOM so layout measurement, send-button wiring and
+                  // bounds sync still work — but we hide its text + caret
+                  // so the user doesn't see two overlapping carets / two
+                  // suggestion strips.
                   style={{
                     overflowWrap: 'anywhere',
                     wordBreak: 'break-word',
                     whiteSpace: 'pre-wrap',
+                    ...(useNativeComposer
+                      ? { color: 'transparent', caretColor: 'transparent' }
+                      : null),
                   }}
                   className="flex-1 min-h-[40px] max-h-[120px] border-0 focus-visible:ring-0 resize-none py-2.5 px-0 bg-transparent shadow-none text-sm rounded-none"
                   rows={1}
