@@ -2,6 +2,7 @@ package social.thelegendsonline.app;
 
 import android.content.Context;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.os.Build;
 import android.os.LocaleList;
 import android.text.Editable;
@@ -105,14 +106,24 @@ public class NativeComposerPlugin extends Plugin {
     }
 
     /**
-     * Returns false from onCreateActionMode → the system menu never
-     * appears. The other callbacks are just stubs (never invoked when
-     * onCreate returns false, but Android's ActionMode interface
-     * requires all four).
+     * Accepts the action mode (so the selection handles + drag dots
+     * stay alive — without this, returning false from onCreateActionMode
+     * causes Android to immediately drop the selection on tap because
+     * the handles are tied to the action-mode lifecycle on Pie+) but
+     * clears every menu item so the floating "Traduire / Couper /
+     * Copier / Coller" bar renders empty / invisible. The user's
+     * selection survives long enough for our React FormattingToolbar
+     * to take over.
      */
     private static final ActionMode.Callback NO_MENU = new ActionMode.Callback() {
-        @Override public boolean onCreateActionMode(ActionMode m, Menu menu) { return false; }
-        @Override public boolean onPrepareActionMode(ActionMode m, Menu menu) { return false; }
+        @Override public boolean onCreateActionMode(ActionMode m, Menu menu) {
+            menu.clear();
+            return true;
+        }
+        @Override public boolean onPrepareActionMode(ActionMode m, Menu menu) {
+            menu.clear();
+            return true;
+        }
         @Override public boolean onActionItemClicked(ActionMode m, MenuItem i) { return false; }
         @Override public void onDestroyActionMode(ActionMode m) {}
     };
@@ -163,15 +174,25 @@ public class NativeComposerPlugin extends Plugin {
         editText.setTextColor(Color.WHITE);
         editText.setHintTextColor(0xFF888888);
         editText.setHint("Message");
-        // Match the HTML <Textarea> exactly: `px-0 py-2.5 text-sm` →
-        // 0px horizontal padding, 10px vertical, 14sp text. Without
-        // matching the HTML padding the text sits visibly indented from
-        // the GIF/+ buttons compared to the web version.
-        // Slightly tighter than the HTML's py-2.5 (10dp) per user
-        // request — keeps the text visually centered in the pill but
-        // shaves a couple of pixels top/bottom.
+        // Match the HTML <Textarea>'s box: 0px horizontal padding,
+        // 6dp vertical (slightly tighter than the HTML's py-2.5 per
+        // user request).
         editText.setPadding(0, dpToPx(6), 0, dpToPx(6));
-        editText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        // CRITICAL: use COMPLEX_UNIT_PX with density-multiplied 14, NOT
+        // sp. The HTML textarea renders at 14 CSS px regardless of the
+        // user's Android font-scale preference, but sp scales with that
+        // preference — at scale 0.85 EditText text was ~12 px while the
+        // HTML stayed at 14 px, so the two wrapped at different column
+        // counts. This caused the pill to grow (HTML's scrollHeight
+        // wrapped earlier) while the visible EditText text stayed on a
+        // single line, which the user saw as "the bar grows before the
+        // text touches the right edge".
+        final float density = ctx.getResources().getDisplayMetrics().density;
+        editText.setTextSize(TypedValue.COMPLEX_UNIT_PX, 14f * density);
+        // Also force the system sans-serif typeface so different OEM
+        // default fonts (Samsung One UI Sans vs Roboto) don't shift the
+        // wrap point either.
+        editText.setTypeface(Typeface.SANS_SERIF);
         // Drop the EditText's default underline + min height insets so
         // it really hugs the textarea rect.
         editText.setIncludeFontPadding(false);
