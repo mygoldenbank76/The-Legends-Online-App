@@ -10,8 +10,6 @@ import android.text.InputType;
 import android.text.TextWatcher;
 import android.util.TypedValue;
 import android.view.ActionMode;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
@@ -88,6 +86,36 @@ public class NativeComposerPlugin extends Plugin {
     private class BridgedEditText extends EditText {
         BridgedEditText(Context c) { super(c); }
 
+        /**
+         * Suppress the floating system selection toolbar ("Traduire /
+         * Couper / Copier / Coller") by returning null when Android
+         * tries to start a TYPE_FLOATING action mode. The selection
+         * itself + drag handles are managed independently by
+         * `Editor.SelectionModifierCursorController` on Pie+, so they
+         * stay fully functional — the user can long-press, then drag
+         * the start/end handles to extend the selection just like any
+         * native field. Our React FormattingToolbar takes the place of
+         * the suppressed bar via the `selectionChanged` event below.
+         *
+         * NOTE: this is the canonical Telegram / Conversations pattern.
+         * The earlier `setCustomSelectionActionModeCallback` approach
+         * either returned false (which on some Samsung builds
+         * collateral-killed the drag handles) or returned true with
+         * menu.clear() (which left an empty floating bar AND still
+         * dropped the handles on One UI). Overriding startActionMode
+         * directly side-steps both issues.
+         */
+        @Override
+        public ActionMode startActionMode(ActionMode.Callback callback, int type) {
+            if (type == ActionMode.TYPE_FLOATING) return null;
+            return super.startActionMode(callback, type);
+        }
+
+        @Override
+        public ActionMode startActionMode(ActionMode.Callback callback) {
+            return null;
+        }
+
         @Override
         protected void onSelectionChanged(int selStart, int selEnd) {
             super.onSelectionChanged(selStart, selEnd);
@@ -105,41 +133,14 @@ public class NativeComposerPlugin extends Plugin {
         }
     }
 
-    /**
-     * Accepts the action mode (so the selection handles + drag dots
-     * stay alive — without this, returning false from onCreateActionMode
-     * causes Android to immediately drop the selection on tap because
-     * the handles are tied to the action-mode lifecycle on Pie+) but
-     * clears every menu item so the floating "Traduire / Couper /
-     * Copier / Coller" bar renders empty / invisible. The user's
-     * selection survives long enough for our React FormattingToolbar
-     * to take over.
-     */
-    private static final ActionMode.Callback NO_MENU = new ActionMode.Callback() {
-        @Override public boolean onCreateActionMode(ActionMode m, Menu menu) {
-            menu.clear();
-            return true;
-        }
-        @Override public boolean onPrepareActionMode(ActionMode m, Menu menu) {
-            menu.clear();
-            return true;
-        }
-        @Override public boolean onActionItemClicked(ActionMode m, MenuItem i) { return false; }
-        @Override public void onDestroyActionMode(ActionMode m) {}
-    };
-
     private void ensureOverlay() {
         if (editText != null) return;
         Context ctx = getActivity();
 
         editText = new BridgedEditText(ctx);
-        // Suppress the floating "Traduire / Couper / Copier / Coller"
-        // action bar — we forward selection events to JS and let the
-        // React FormattingToolbar handle copy/paste/format actions.
-        editText.setCustomSelectionActionModeCallback(NO_MENU);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            editText.setCustomInsertionActionModeCallback(NO_MENU);
-        }
+        // System floating selection bar is suppressed inside
+        // BridgedEditText.startActionMode — see the override above for
+        // why we don't use setCustomSelectionActionModeCallback here.
 
         // Mirrors DrKLO/Telegram ChatActivityEnterView lines 5583-5590.
         // CRITICAL: this is a real, native EditText (not a WebView
@@ -178,17 +179,19 @@ public class NativeComposerPlugin extends Plugin {
         // 6dp vertical (slightly tighter than the HTML's py-2.5 per
         // user request).
         editText.setPadding(0, dpToPx(6), 0, dpToPx(6));
-        // CRITICAL: use COMPLEX_UNIT_PX with density-multiplied 14, NOT
-        // sp. The HTML textarea renders at 14 CSS px regardless of the
-        // user's Android font-scale preference, but sp scales with that
-        // preference — at scale 0.85 EditText text was ~12 px while the
-        // HTML stayed at 14 px, so the two wrapped at different column
-        // counts. This caused the pill to grow (HTML's scrollHeight
-        // wrapped earlier) while the visible EditText text stayed on a
-        // single line, which the user saw as "the bar grows before the
-        // text touches the right edge".
-        final float density = ctx.getResources().getDisplayMetrics().density;
-        editText.setTextSize(TypedValue.COMPLEX_UNIT_PX, 14f * density);
+        // Initial text size — gets overridden the moment JS calls
+        // show()/setBounds() with the WebView-measured fontSizePx.
+        // We avoid Android's `density` here because on some Samsung
+        // devices the WebView's CSS-px-to-device-px ratio (i.e.
+        // window.devicePixelRatio in JS) is NOT equal to
+        // DisplayMetrics.density (e.g. 2.625 vs 3.0 on S22). Using
+        // density would make the EditText text bigger than the HTML
+        // textarea text and wrap earlier — visible to the user as
+        // "the bar wraps to a new line before the text reaches the
+        // right edge". JS pushes the actual CSS-aligned value via
+        // applyFontSize().
+        editText.setTextSize(TypedValue.COMPLEX_UNIT_PX,
+                14f * ctx.getResources().getDisplayMetrics().density);
         // Also force the system sans-serif typeface so different OEM
         // default fonts (Samsung One UI Sans vs Roboto) don't shift the
         // wrap point either.
@@ -269,7 +272,15 @@ public class NativeComposerPlugin extends Plugin {
         final double yCss = call.getDouble("y", 0d);
         final double wCss = call.getDouble("width", 0d);
         final double hCss = call.getDouble("height", 0d);
+        // CSS-aligned font size in DEVICE pixels (i.e.
+        // computedFontSizeCssPx * window.devicePixelRatio). Optional —
+        // null/<=0 means "leave the EditText's text size alone".
+        final Double fontSizeDevicePx = call.getDouble("fontSizePx");
         getActivity().runOnUiThread(() -> {
+            if (editText != null && fontSizeDevicePx != null && fontSizeDevicePx > 0) {
+                editText.setTextSize(TypedValue.COMPLEX_UNIT_PX,
+                        fontSizeDevicePx.floatValue());
+            }
             lastX = dpToPx((float) xCss);
             lastY = dpToPx((float) yCss);
             lastW = Math.max(1, dpToPx((float) wCss));

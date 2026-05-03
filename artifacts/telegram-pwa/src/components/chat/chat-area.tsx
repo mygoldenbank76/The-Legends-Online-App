@@ -1607,8 +1607,23 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     if (!ta) return;
     const push = () => {
       const r = ta.getBoundingClientRect();
+      // Push the textarea's actual computed font-size IN DEVICE PIXELS
+      // so the EditText overlay wraps at exactly the same column as
+      // the underlying HTML textarea. Without this, on devices where
+      // window.devicePixelRatio !== Android DisplayMetrics.density
+      // (e.g. Samsung S22: 2.625 vs 3.0), the EditText text was bigger
+      // than the WebView text and wrapped to a new line before
+      // visually reaching the right edge of the pill.
+      const cssFontPx = parseFloat(
+        window.getComputedStyle(ta).fontSize,
+      );
+      const fontSizePx =
+        Number.isFinite(cssFontPx) && cssFontPx > 0
+          ? cssFontPx * (window.devicePixelRatio || 1)
+          : undefined;
       void NativeComposer.setBounds({
         x: r.left, y: r.top, width: r.width, height: r.height,
+        fontSizePx,
       });
     };
     push();

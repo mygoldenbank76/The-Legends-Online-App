@@ -47,7 +47,23 @@ export interface NativeComposerPlugin {
    * underlying textarea (ResizeObserver + window resize + visualViewport
    * resize for the keyboard).
    */
-  setBounds(options: { x: number; y: number; width: number; height: number }): Promise<void>;
+  setBounds(options: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    /**
+     * EditText text size in DEVICE pixels — i.e. the textarea's
+     * computed CSS font-size multiplied by window.devicePixelRatio.
+     * Optional. JS pushes it on every bounds update so the EditText
+     * always renders text at the same physical size (and therefore
+     * wraps at the same column) as the underlying HTML textarea,
+     * regardless of the user's Android font-scale preference or the
+     * device's CSS-px-to-device-px ratio (Samsung devicePixelRatio
+     * !== Android density on many models).
+     */
+    fontSizePx?: number;
+  }): Promise<void>;
 
   /** Read the current EditText value. */
   getValue(): Promise<{ value: string }>;
