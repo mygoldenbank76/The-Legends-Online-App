@@ -1643,22 +1643,27 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // / typed text bleeds through the modal backdrop on top of menu
   // items (user-reported: composer text visible over "Supprimer" in
   // the message action menu).
+  // Any fullscreen overlay that visually covers the composer must
+  // hide the native EditText, otherwise its placeholder ("Écrire un
+  // message…") and typed text bleed through the modal — the native
+  // view is parented to the activity root and always paints above
+  // the WebView. User-reported leaks: action menu, attachment sheet,
+  // poll creator, group info sheet, user profile sheet, media
+  // viewer / lightbox.
+  // Computed at render scope (not inside the effect) so we can also
+  // fade the HTML composer pill in sync — otherwise the EditText
+  // snap-hides while the modal is still sliding in (~300ms spring),
+  // leaving a visible empty pill for ~150ms (user-reported: "il se
+  // masque avant que la fenêtre de détail soit entièrement ouverte").
+  const anyModalOpen =
+    !!ctxMenu ||
+    attachmentSheetOpen ||
+    pollCreatorOpen ||
+    groupInfoOpen ||
+    !!profileUser ||
+    !!mediaViewer;
   useEffect(() => {
     if (!useNativeComposer) return;
-    // Any fullscreen overlay that visually covers the composer must
-    // hide the native EditText, otherwise its placeholder ("Écrire un
-    // message…") and typed text bleed through the modal — the native
-    // view is parented to the activity root and always paints above
-    // the WebView. User-reported leaks: action menu, attachment sheet,
-    // poll creator, group info sheet, user profile sheet, media
-    // viewer / lightbox.
-    const anyModalOpen =
-      !!ctxMenu ||
-      attachmentSheetOpen ||
-      pollCreatorOpen ||
-      groupInfoOpen ||
-      !!profileUser ||
-      !!mediaViewer;
     void NativeComposer.setOverlayVisible({ visible: !anyModalOpen });
     // Defensive: when ChatArea unmounts we ALSO push visible:false here
     // in case the hide() in the mount-effect cleanup races a pending
@@ -1668,15 +1673,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       if (!useNativeComposer) return;
       void NativeComposer.setOverlayVisible({ visible: false });
     };
-  }, [
-    useNativeComposer,
-    ctxMenu,
-    attachmentSheetOpen,
-    pollCreatorOpen,
-    groupInfoOpen,
-    profileUser,
-    mediaViewer,
-  ]);
+  }, [useNativeComposer, anyModalOpen]);
 
   // Bounds sync: keep the native EditText overlay glued to the HTML
   // textarea's on-screen rect. ResizeObserver covers content-driven
@@ -4446,7 +4443,19 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       <div
         ref={composerRef}
         className="absolute left-0 right-0 bottom-0 z-30"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        style={{
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          // Fade the HTML composer pill in sync with the native
+          // EditText (which snap-hides via setOverlayVisible(false)
+          // when a fullscreen sheet opens). Without this, the empty
+          // pill (blur veil + smiley/mic/GIF buttons) was visible for
+          // ~150ms while the modal slid in over a 300ms spring,
+          // looking like the EditText "hid before the sheet was even
+          // open". 200ms matches the modal's perceptual fade-in.
+          opacity: useNativeComposer && anyModalOpen ? 0 : 1,
+          transition: 'opacity 200ms ease-out',
+          pointerEvents: useNativeComposer && anyModalOpen ? 'none' : undefined,
+        }}
       >
         {/* Soft blur veil — auto-fits the composer's exact height so it starts pile au bord du haut de la barre */}
         <div

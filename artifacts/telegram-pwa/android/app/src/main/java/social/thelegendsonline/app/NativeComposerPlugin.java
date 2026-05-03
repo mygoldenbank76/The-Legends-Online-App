@@ -503,6 +503,15 @@ public class NativeComposerPlugin extends Plugin {
     @PluginMethod
     public void hide(PluginCall call) {
         getActivity().runOnUiThread(() -> {
+            // Latch the intent to hidden so any setBounds call still
+            // queued from the WebView (visualViewport / ResizeObserver
+            // events fired just before chat-area unmounted) does NOT
+            // revive the overlay over the conversation list / bottom
+            // tabs (user-reported: "Écrire un message…" was visible
+            // over the Groupes/Contacts/Paramètres tab bar after
+            // closing a chat). show() resets overlayUserVisible back
+            // to true for the next chat session.
+            overlayUserVisible = false;
             if (overlay != null) overlay.setVisibility(View.GONE);
             if (editText != null) {
                 InputMethodManager imm = (InputMethodManager) getActivity()
