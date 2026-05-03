@@ -87,12 +87,18 @@ export async function notifyNewMessage(opts: {
   conversationId: number;
   senderId: number;
   senderName: string;
+  senderAvatar?: string | null;
   conversationTitle: string | null;
   isGroup: boolean;
   content: string | null;
   imageUrl: string | null;
+  // The DB id of the message that JUST got inserted. Forwarded into the
+  // FCM `data` payload so the native notification handler can build a
+  // "Reply" RemoteInput action AND deep-link the user straight to this
+  // exact bubble (with a flash highlight) when they tap the notification.
+  messageId: number;
 }): Promise<void> {
-  const { conversationId, senderId, senderName, conversationTitle, isGroup, content, imageUrl } = opts;
+  const { conversationId, senderId, senderName, senderAvatar, conversationTitle, isGroup, content, imageUrl, messageId } = opts;
 
   // Get all participants except sender who have NOT muted this conversation
   const participants = await db
@@ -122,7 +128,14 @@ export async function notifyNewMessage(opts: {
     icon: "/icon-notification.png",
     badge: "/icon-badge.png",
     tag: `conversation-${conversationId}`,
-    data: { conversationId, isGroup },
+    data: {
+      conversationId,
+      isGroup,
+      messageId,
+      senderId,
+      senderName,
+      ...(senderAvatar ? { senderAvatar } : {}),
+    },
   };
 
   // Web Push (browser PWA) — only when VAPID is configured.
@@ -131,6 +144,9 @@ export async function notifyNewMessage(opts: {
   }
 
   // FCM (native APK) — wakes the device even when the app is fully closed.
+  // The data fields below are read by FcmMessagingService.java to build
+  // the MessagingStyle notification (sender name + avatar + body) and
+  // the inline RemoteInput "Reply" action (needs conversationId).
   await sendFcmToUsers(
     participants.map((p) => p.userId),
     {
@@ -138,8 +154,14 @@ export async function notifyNewMessage(opts: {
       body,
       tag: `conversation-${conversationId}`,
       data: {
+        type: "new_message",
         conversationId: String(conversationId),
+        conversationTitle: conversationTitle ?? "",
         isGroup: isGroup ? "1" : "0",
+        messageId: String(messageId),
+        senderId: String(senderId),
+        senderName,
+        ...(senderAvatar ? { senderAvatar } : {}),
       },
     }
   );

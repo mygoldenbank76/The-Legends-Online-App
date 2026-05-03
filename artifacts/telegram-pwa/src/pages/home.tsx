@@ -63,9 +63,24 @@ export default function Home() {
     const handler = (event: MessageEvent) => {
       if (event.data?.type === 'OPEN_CONVERSATION') {
         openConversation(Number(event.data.conversationId), Boolean(event.data.isGroup));
+        if (event.data.messageId) {
+          const targetMsg = Number(event.data.messageId);
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('chat:scroll-to-message', {
+              detail: { conversationId: Number(event.data.conversationId), messageId: targetMsg },
+            }));
+          }, 350);
+        }
       }
       if (event.data?.type === 'MESSAGE_SENT') {
         openConversation(Number(event.data.conversationId), Boolean(event.data.isGroup));
+      }
+      if (event.data?.type === 'ACCEPT_CALL' || event.data?.type === 'REJECT_CALL') {
+        // Forward to the global CallProvider — it owns the WebRTC state.
+        window.dispatchEvent(new CustomEvent(
+          event.data.type === 'ACCEPT_CALL' ? 'call:accept-from-notification' : 'call:reject-from-notification',
+          { detail: { conversationId: Number(event.data.conversationId) } },
+        ));
       }
     };
     navigator.serviceWorker.addEventListener('message', handler);
@@ -77,10 +92,33 @@ export default function Home() {
     const params = new URLSearchParams(window.location.search);
     const convId = params.get('conv');
     const type = params.get('type');
+    const msgId = params.get('msg');
+    const callFlag = params.get('call');
     if (convId) {
       // Clean the URL immediately so a refresh doesn't re-trigger this
       window.history.replaceState({}, '', window.location.pathname);
       openConversation(Number(convId), type !== 'direct');
+      if (msgId) {
+        // Defer the scroll/highlight until the chat area has had a
+        // chance to mount and load its messages — the chat-area effect
+        // listening for `chat:scroll-to-message` handles the actual
+        // jump + flash highlight.
+        const targetMsg = Number(msgId);
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('chat:scroll-to-message', {
+            detail: { conversationId: Number(convId), messageId: targetMsg },
+          }));
+        }, 350);
+      }
+      if (callFlag === '1') {
+        // Ask the call provider to surface the incoming-call modal for
+        // this conversation if a call is still ringing on the wire.
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('call:open-incoming', {
+            detail: { conversationId: Number(convId) },
+          }));
+        }, 200);
+      }
     }
   }, [openConversation]);
   // ─────────────────────────────────────────────────────────────────────────

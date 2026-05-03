@@ -417,16 +417,21 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
 
   // Trigger push notifications (async — don't block response)
   const [conv] = await db.select().from(conversationsTable).where(eq(conversationsTable.id, conversationId));
-  const [sender] = await db.select({ displayName: usersTable.displayName }).from(usersTable).where(eq(usersTable.id, userId));
+  const [sender] = await db.select({
+    displayName: usersTable.displayName,
+    avatarUrl: usersTable.avatar,
+  }).from(usersTable).where(eq(usersTable.id, userId));
   if (conv && sender) {
     notifyNewMessage({
       conversationId,
       senderId: userId,
       senderName: sender.displayName,
+      senderAvatar: sender.avatarUrl ?? null,
       conversationTitle: conv.name,
       isGroup: conv.type === "group",
       content: content ?? null,
       imageUrl: imageUrl ?? null,
+      messageId: msg.id,
     }).catch(() => {});
   }
 

@@ -723,8 +723,24 @@ html:not(.dark) .avatar-ring-unread {
   box-shadow: 0 4px 12px -4px hsl(263 80% 55% / 0.30);
 }
 
-/* ── Safe area bottom (PWA on iOS) ── */
+/* ── Safe area utilities (iOS notch + Android status/nav bars) ── */
+/* These were previously referenced (`pt-safe`, `pb-safe`) but never defined,
+   which made every screen using them paint UNDER the notch / status bar
+   on devices with a non-zero safe-area-inset. The .h-safe-top variant is
+   used by the media picker / viewer / album grid headers so they end up
+   the SAME visible height as MobileHeader (12px + safe-inset top), with
+   no jarring jump between detail pages and the chat area. */
+.pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.pl-safe { padding-left: env(safe-area-inset-left, 0px); }
+.pr-safe { padding-right: env(safe-area-inset-right, 0px); }
+/* Standard 0.75rem (12px) top padding ON TOP OF the safe-area-inset —
+   matches MobileHeader and the chat header so all "back-buttoned" pages
+   line up perfectly, including the media picker and media viewer. */
+.pt-header { padding-top: calc(0.75rem + env(safe-area-inset-top, 0px)); }
+.pb-footer { padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px)); }
 .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.safe-area-top    { padding-top:    env(safe-area-inset-top,    0px); }
 
 /* ── Gradient hairlines (1px) for headers / tab bars ── */
 .gradient-hairline-bottom { position: relative; }
@@ -1169,4 +1185,29 @@ html:not(.dark) .composer-pill {
   .dust-layer {
     animation-duration: 280ms !important;
   }
+}
+
+/* Install page logo animations */
+@keyframes logo-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50%      { opacity: 0.85; transform: scale(1.15); }
+}
+@keyframes logo-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+@keyframes logo-ring {
+  0%   { opacity: 0.6; transform: scale(1); }
+  100% { opacity: 0;   transform: scale(1.4); }
+}
+.animate-logo-pulse  { animation: logo-pulse 2.4s ease-in-out infinite; }
+.animate-logo-float  { animation: logo-float 3.2s ease-in-out infinite; }
+.animate-logo-ring   { animation: logo-ring 2.2s ease-out infinite; }
+.animate-logo-ring-slow { animation: logo-ring 2.8s ease-out infinite 0.6s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-logo-pulse,
+  .animate-logo-float,
+  .animate-logo-ring,
+  .animate-logo-ring-slow { animation: none; }
 }

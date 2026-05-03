@@ -261,6 +261,14 @@ function YouTubeEmbed({ preview, isMine }: { preview: LinkPreviewData; isMine: b
 // link-rich conversation. The neutral background sits behind the image
 // so the reserved space is invisible, not a stark blank rectangle.
 function GenericImage({ src, alt }: { src: string; alt: string }) {
+  // If the server-extracted og:image fails to load (404 / hot-linking blocked /
+  // CORS-tainted) we collapse the reserved space entirely instead of leaving
+  // a stark blank rectangle inside the link preview card. Without this guard
+  // the previous version reserved a 1.91:1 box on every preview and never
+  // recovered when the image actually failed — every Twitter / Instagram
+  // link with a private image showed a 224 px tall grey hole.
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
   return (
     <div
       className="w-full bg-foreground/5 overflow-hidden"
@@ -270,6 +278,7 @@ function GenericImage({ src, alt }: { src: string; alt: string }) {
         src={src}
         alt={alt}
         loading="eager"
+        onError={() => setFailed(true)}
         className="w-full h-full object-cover block"
       />
     </div>

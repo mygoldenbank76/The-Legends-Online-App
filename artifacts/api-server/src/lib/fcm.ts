@@ -60,33 +60,50 @@ export async function sendFcmToUsers(userIds: number[], payload: FcmPayload): Pr
   // `notification` too so the OS draws a system notification automatically
   // when the app process is dead — this is the key to "wakes up the device
   // even when APK is closed".
+  // ── Per-platform delivery strategy ──────────────────────────────────────
+  //
+  // Android: send a DATA-ONLY message (no top-level `notification`, no
+  //   `android.notification`). FcmMessagingService.java intercepts it and
+  //   builds a MessagingStyle notification with InboxStyle stacking and an
+  //   inline RemoteInput "Reply" action. Letting the system auto-display
+  //   the notification via the `notification` field would pre-empt our
+  //   custom service and we'd lose all the rich features (per-sender
+  //   stacking, RemoteInput, deep link to the exact message). High
+  //   priority + the data marker ensure delivery wakes the device.
+  //
+  // iOS: APNs needs the alert payload — we still pass title/body via aps.
+  //
+  // Web (browser): no special override needed; the SW push handler reads
+  //   data.title / data.body the same way as before.
   const message: admin.messaging.MulticastMessage = {
     tokens,
-    notification: {
-      title: payload.title,
-      body: payload.body,
-      ...(payload.imageUrl ? { imageUrl: payload.imageUrl } : {}),
-    },
     data: {
       title: payload.title,
       body: payload.body,
       ...(payload.tag ? { tag: payload.tag } : {}),
+      ...(payload.imageUrl ? { imageUrl: payload.imageUrl } : {}),
       ...(payload.data ?? {}),
     },
     android: {
       priority: "high",
       ttl: 60_000,
-      notification: {
-        channelId: "messages",
-        sound: "default",
-        ...(payload.tag ? { tag: payload.tag } : {}),
-        defaultSound: true,
-        defaultVibrateTimings: true,
-      },
+      // NO `notification` key — we want our FirebaseMessagingService to
+      // be the SOLE notification builder so MessagingStyle, stacking
+      // and RemoteInput all work as designed.
     },
     apns: {
       headers: { "apns-priority": "10" },
-      payload: { aps: { sound: "default", "mutable-content": 1 } },
+      payload: {
+        aps: {
+          alert: { title: payload.title, body: payload.body },
+          sound: "default",
+          "mutable-content": 1,
+          ...(payload.tag ? { "thread-id": payload.tag } : {}),
+        },
+      },
+      ...(payload.imageUrl
+        ? { fcmOptions: { imageUrl: payload.imageUrl } }
+        : {}),
     },
   };
 

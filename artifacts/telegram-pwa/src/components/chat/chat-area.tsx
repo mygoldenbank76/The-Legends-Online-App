@@ -850,6 +850,42 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [searchMatches, messages]);
 
+  // ── Deep-link: scroll to a specific message + flash highlight ──────────
+  // Fired by home.tsx after a notification tap (`?msg=…` URL param OR an
+  // SW postMessage with messageId). The message may not be loaded yet
+  // (the user could be deep in older history while the deep-linked
+  // message lives in the latest page) — we retry every 250 ms for ~3 s
+  // before giving up so the freshly-fetched bubble has time to render.
+  useEffect(() => {
+    function flashMessage(msgId: number, attempt = 0) {
+      const el = document.getElementById(`msg-${msgId}`);
+      if (!el) {
+        if (attempt < 12) {
+          setTimeout(() => flashMessage(msgId, attempt + 1), 250);
+        }
+        return;
+      }
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const bubble =
+        (el.querySelector('.bubble-sent, .bubble-received') as HTMLElement | null) ?? el;
+      bubble.classList.remove('pinned-flash');
+      void bubble.offsetWidth;
+      bubble.classList.add('pinned-flash');
+      setTimeout(() => bubble.classList.remove('pinned-flash'), 1700);
+    }
+    function onJump(e: Event) {
+      const detail = (e as CustomEvent).detail as { conversationId?: number; messageId?: number } | undefined;
+      if (!detail?.messageId) return;
+      // Only react if this chat-area instance is showing the right
+      // conversation — otherwise the parent will swap conversations
+      // and the next mount of chat-area will catch a re-fired event.
+      if (detail.conversationId != null && detail.conversationId !== conversation?.id) return;
+      flashMessage(detail.messageId);
+    }
+    window.addEventListener('chat:scroll-to-message', onJump as EventListener);
+    return () => window.removeEventListener('chat:scroll-to-message', onJump as EventListener);
+  }, [conversation?.id]);
+
   // Reset match index when query changes (no auto-scroll — user navigates manually)
   useEffect(() => {
     setSearchMatchIdx(0);

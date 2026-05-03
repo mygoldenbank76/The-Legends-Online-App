@@ -1,10 +1,21 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User } from '@workspace/api-client-react';
-import { useGetMe, useLogin, useRegister, useLogout } from '@workspace/api-client-react';
+import { useGetMe, useLogin, useRegister, useLogout, getGetMeQueryKey } from '@workspace/api-client-react';
 import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import { saveTokenToIDB, removeTokenFromIDB } from './auth-idb';
 import { useIsRestoring } from './restoring-context';
+import { Capacitor, registerPlugin } from '@capacitor/core';
+
+// Native bridge that mirrors the auth token into Android SharedPreferences
+// so the inline "Répondre" RemoteInput on push notifications can POST
+// to /api without booting the WebView. The plugin is registered in
+// MainActivity.java and is a no-op on web/iOS (callProxy returns null).
+interface AuthBridgePlugin {
+  setToken(opts: { token: string | null; baseUrl?: string; userId?: number | null }): Promise<void>;
+  clearToken(): Promise<void>;
+}
+const AuthBridge = registerPlugin<AuthBridgePlugin>('AuthBridge');
 
 type AuthContextType = {
   user: User | null;
@@ -49,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const { data: user, isLoading, refetch } = useGetMe({
     query: {
+      queryKey: getGetMeQueryKey(),
       retry: false,
       // Don't run the query while IDB is restoring (it would return undefined briefly)
       enabled: hasToken && !isRestoring,
@@ -73,14 +85,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Sync token to IndexedDB so the service worker can access it for inline reply
+  // AND mirror it into native SharedPreferences (Android only) so the
+  // FcmMessagingService / NotificationReplyReceiver can authenticate the
+  // user's inline-reply POST without ever booting the WebView.
   useEffect(() => {
     const token = localStorage.getItem('telechat_token');
     if (token) {
       saveTokenToIDB(token);
+      if (Capacitor.isNativePlatform()) {
+        const baseUrl = window.location.origin;
+        AuthBridge.setToken({
+          token,
+          baseUrl,
+          userId: user?.id ?? null,
+        }).catch((e: unknown) => console.warn('[auth] AuthBridge.setToken failed', e));
+      }
     } else {
       removeTokenFromIDB();
+      if (Capacitor.isNativePlatform()) {
+        AuthBridge.clearToken().catch(() => {});
+      }
     }
-  }, [hasToken]);
+  }, [hasToken, user?.id]);
 
   // Only clear token / redirect AFTER IDB restoration is complete
   useEffect(() => {

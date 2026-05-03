@@ -28,6 +28,41 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!--
+          ── Custom FirebaseMessagingService ─────────────────────────────
+          Overrides the one bundled with @capacitor/push-notifications so
+          we can build rich MessagingStyle notifications with InboxStyle
+          stacking (per-conversation thread + per-tray summary) and an
+          inline RemoteInput "Répondre" action — same UX as WhatsApp /
+          Telegram. The Capacitor plugin still owns FCM token registration
+          via FirebaseMessaging.getToken() at JS-level register() time, so
+          we don't need its service for that. Server now sends data-only
+          payloads on Android (see lib/fcm.ts) so this service is the
+          sole notification builder.
+        -->
+        <service
+            android:name=".FcmMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Receiver for inline RemoteInput "Répondre" + "Lu" actions. -->
+        <receiver
+            android:name=".NotificationReplyReceiver"
+            android:exported="false" />
+
+        <!-- Default notification channel hint for the FCM SDK so any
+             stray system-displayed notification (extremely rare with
+             our data-only setup) lands on the right channel. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="messages" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@mipmap/ic_launcher" />
     </application>
 
     <!-- ── Permissions ─────────────────────────────────────────────────── -->

@@ -85,6 +85,19 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+
+    // Firebase BoM + messaging — required by FcmMessagingService.java.
+    // The Capacitor PushNotifications plugin pulls Firebase transitively
+    // via its own Gradle file, but pinning the BoM here guarantees a
+    // single, consistent set of Firebase artefacts in the final APK and
+    // gives us a stable surface to override the messaging service.
+    implementation platform('com.google.firebase:firebase-bom:33.7.0')
+    implementation 'com.google.firebase:firebase-messaging'
+
+    // For MessagingStyle, RemoteInput, NotificationCompat.Action.
+    // androidx.core ships them but we make the dependency explicit so a
+    // future trim-down of transitives can't silently break notifications.
+    implementation 'androidx.core:core:1.13.1'
 }
 
 apply from: 'capacitor.build.gradle'

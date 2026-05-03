@@ -18,7 +18,7 @@ interface Props {
   initialFiles: File[];
   onClose: () => void;
   onSend: (files: File[], caption: string, quality: MediaQuality) => Promise<void>;
-  addMoreInputRef: React.RefObject<HTMLInputElement>;
+  addMoreInputRef: React.RefObject<HTMLInputElement | null>;
 }
 
 // Compress an image file using canvas. Hardened so it can NEVER
@@ -324,8 +324,16 @@ export function MediaPickerModal({ initialFiles, onClose, onSend, addMoreInputRe
       exit={{ opacity: 0 }}
       transition={{ duration: 0.18 }}
     >
-      {/* ── Top bar ── */}
-      <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 pt-safe glass gradient-hairline-bottom">
+      {/*
+        ── Top bar ──
+        Uses .pt-header (0.75rem + safe-area-inset-top) so the back button
+        sits at exactly the same vertical position as on every other detail
+        page (MobileHeader, ChatArea header, profile editor). Prior versions
+        used pt-safe (which we hadn't actually defined as CSS) so on devices
+        with a non-zero safe area the header collapsed under the notch and
+        the back button became impossible to reach.
+      */}
+      <div className="flex-shrink-0 flex items-center justify-between px-3 pb-2 pt-header glass gradient-hairline-bottom">
         <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors">
           <ArrowLeft className="w-5 h-5 text-white" />
         </button>
@@ -487,7 +495,7 @@ export function MediaPickerModal({ initialFiles, onClose, onSend, addMoreInputRe
 
       {/* ── Caption + Send ── */}
       <div
-        className="flex-shrink-0 flex items-end gap-2 px-3 py-2 pb-safe glass gradient-hairline-top"
+        className="flex-shrink-0 flex items-end gap-2 px-3 pt-2 pb-footer glass gradient-hairline-top"
       >
         <div className="flex-1 rounded-2xl px-4 py-2.5 surface-elevated">
           <textarea

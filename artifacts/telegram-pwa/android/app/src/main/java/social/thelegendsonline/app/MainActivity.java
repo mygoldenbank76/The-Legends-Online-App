@@ -33,6 +33,14 @@ import java.util.List;
 
 public class MainActivity extends BridgeActivity {
 
+    {
+        // Register custom Capacitor plugins BEFORE super.onCreate() so
+        // the bridge picks them up. AuthBridgePlugin mirrors the JS
+        // auth token into SharedPreferences so the inline-reply
+        // BroadcastReceiver can POST to /api without booting the WebView.
+        registerPlugin(AuthBridgePlugin.class);
+    }
+
     private static final int REQ_WEBVIEW_PERMS = 4242;
     // ── Persisted state keys ────────────────────────────────────────────
     // Without persistence, an Android process kill during the APK
@@ -71,6 +79,17 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // ── Notification channel ────────────────────────────────────────
+        // Created up-front (idempotent) so the very first push the user
+        // ever receives lands on a properly-configured HIGH-importance
+        // channel with sound + vibration + lock-screen visibility.
+        FcmMessagingService.ensureChannel(this);
+
+        // Forward any deep-link extras the launcher Intent carried into
+        // the WebView — happens when the user taps a notification while
+        // the app's process is dead.
+        handleNotificationIntent(getIntent());
 
         // ── Edge-to-edge (status bar + nav bar transparentes) ───────────
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
@@ -385,6 +404,80 @@ public class MainActivity extends BridgeActivity {
                 }, 2500L);
             }
         }
+    }
+
+    @Override
+    public void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        // Activity launch mode is singleTask so a notification tap
+        // while the app is already in memory comes through here, not
+        // through onCreate. We forward the same deep-link payload to JS.
+        handleNotificationIntent(intent);
+    }
+
+    /**
+     * Translates the FCM notification's intent extras into a JS-side
+     * navigation by injecting a `?conv=…&msg=…` URL into the WebView.
+     * This is the single bridge between native notification taps and
+     * the React router (home.tsx parses these URL params on mount AND
+     * we re-fire a CustomEvent for already-mounted instances).
+     */
+    private void handleNotificationIntent(Intent intent) {
+        if (intent == null) return;
+        Bundle extras = intent.getExtras();
+        if (extras == null) return;
+        if (!extras.containsKey(FcmMessagingService.EXTRA_CONVERSATION_ID)) return;
+
+        int conversationId = extras.getInt(FcmMessagingService.EXTRA_CONVERSATION_ID, -1);
+        if (conversationId <= 0) return;
+        boolean isGroup = extras.getBoolean(FcmMessagingService.EXTRA_IS_GROUP, false);
+        String messageId = extras.getString(FcmMessagingService.EXTRA_MESSAGE_ID, null);
+        String type = extras.getString(FcmMessagingService.EXTRA_TYPE, null);
+
+        // Clear the corresponding tray notification — the user has
+        // engaged with it; leaving the bubble around is just noise.
+        try {
+            androidx.core.app.NotificationManagerCompat.from(this).cancel(conversationId);
+        } catch (Exception ignored) {}
+        FcmMessagingService.clearThread(getApplicationContext(), conversationId);
+
+        StringBuilder script = new StringBuilder();
+        script.append("(function(){try{")
+              .append("var p=new URLSearchParams();")
+              .append("p.set('conv','").append(conversationId).append("');")
+              .append("p.set('type','").append(isGroup ? "group" : "direct").append("');");
+        if (messageId != null && !messageId.isEmpty()) {
+            // messageId is a numeric string from the server; basic
+            // sanitisation so a malformed payload can't inject JS.
+            String safeMsgId = messageId.replaceAll("[^0-9]", "");
+            if (!safeMsgId.isEmpty()) {
+                script.append("p.set('msg','").append(safeMsgId).append("');");
+            }
+        }
+        if ("incoming_call".equals(type)) {
+            script.append("p.set('call','1');");
+        }
+        script.append("var ev=new CustomEvent('native:open-conversation',{detail:{")
+              .append("conversationId:").append(conversationId).append(",")
+              .append("isGroup:").append(isGroup).append(",")
+              .append("messageId:").append(messageId == null ? "null" : ("'" + messageId.replaceAll("[^0-9]", "") + "'")).append(",")
+              .append("call:").append("incoming_call".equals(type) ? "true" : "false")
+              .append("}});")
+              .append("window.dispatchEvent(ev);")
+              .append("if(window.location && window.location.search.indexOf('conv=')===-1){")
+              .append("var base=(window.__BASE_URL__||'/').replace(/\\/$/,'');")
+              .append("window.history.replaceState({},'',base+'/?'+p.toString());")
+              .append("}")
+              .append("}catch(e){console.error('native deep-link failed',e);}})();");
+
+        // Defer the JS injection slightly so the WebView is alive even
+        // on a cold start — Capacitor mounts the bridge in onCreate but
+        // the JS runtime needs a tick before window is usable.
+        bridge.getWebView().postDelayed(() -> {
+            try {
+                bridge.getWebView().evaluateJavascript(script.toString(), null);
+            } catch (Exception ignored) {}
+        }, 250L);
     }
 
     @Override

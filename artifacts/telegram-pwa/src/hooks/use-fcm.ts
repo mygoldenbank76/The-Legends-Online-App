@@ -91,7 +91,16 @@ export function useFcm(opts: { userId: number | null }): void {
         const recvHandle = await PushNotifications.addListener(
           'pushNotificationReceived',
           (n: PushNotificationSchema) => {
-            console.log('[fcm] foreground notification:', n.title);
+            // Re-broadcast as a window event so any open page (notably the
+            // conversation list and the active chat area) can react —
+            // socket.io is the primary channel for in-app updates, but
+            // when a notification race-arrives BEFORE the socket frame we
+            // still surface the toast / badge update from this listener.
+            try {
+              window.dispatchEvent(new CustomEvent('fcm:foreground', {
+                detail: { title: n.title, body: n.body, data: n.data ?? {} },
+              }));
+            } catch { /* CustomEvent unavailable — extremely old WebView */ }
           }
         );
         cleanup.push(() => { void recvHandle.remove(); });
@@ -101,9 +110,22 @@ export function useFcm(opts: { userId: number | null }): void {
           (action: ActionPerformed) => {
             const data = action.notification.data ?? {};
             const conversationId = data.conversationId;
+            // CRITICAL: home.tsx reads `?conv=`, NOT `?conversation=`.
+            // Using the wrong key here was making notification taps land
+            // on an empty conversation list instead of the chat. We also
+            // forward `msg` (deep link to a specific message) and `type`
+            // (group vs direct) so the in-app router can scroll to and
+            // highlight the exact message that triggered the notification.
             if (conversationId) {
               const base = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
-              window.location.href = `${base}/?conversation=${conversationId}`;
+              const isGroup = data.isGroup === '1' || data.isGroup === true;
+              const params = new URLSearchParams({
+                conv: String(conversationId),
+                type: isGroup ? 'group' : 'direct',
+              });
+              if (data.messageId) params.set('msg', String(data.messageId));
+              if (data.type === 'incoming_call') params.set('call', '1');
+              window.location.href = `${base}/?${params.toString()}`;
             }
           }
         );

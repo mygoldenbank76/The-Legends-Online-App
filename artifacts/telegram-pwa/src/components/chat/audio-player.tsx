@@ -152,6 +152,10 @@ export function AudioPlayer({ url, duration, isMine, senderAvatar, senderInitial
   const onMove = (e: React.MouseEvent | React.TouchEvent) => { if (dragging) seekTo(ratioFrom(e)); };
   const onUp   = (e: React.MouseEvent | React.TouchEvent) => { if (dragging) { seekTo(ratioFrom(e)); setDragging(false); } };
 
+  // While the message metadata is still loading AND the user hasn't started
+  // playback yet, the duration is 0 — show an em-dash placeholder instead
+  // of "0:00" so it doesn't read as "this voice note is empty / broken".
+  const hasKnownDuration = totalDuration > 0 && isFinite(totalDuration);
   const displayed = playing || currentTime > 0 ? currentTime : totalDuration;
 
   // Color tokens
@@ -220,7 +224,7 @@ export function AudioPlayer({ url, duration, isMine, senderAvatar, senderInitial
         {/* Time + speed */}
         <div className="flex items-center justify-between px-0.5">
           <span className={`text-[10px] font-mono tabular-nums leading-none ${timeColor}`}>
-            {formatTime(displayed)}
+            {hasKnownDuration ? formatTime(displayed) : '—:—'}
           </span>
           <div className="flex items-center gap-1.5">
             <button onClick={cycleSpeed} className={`text-[10px] font-bold leading-none ${speedColor} transition-colors`}>
