@@ -232,16 +232,45 @@ public class MainActivity extends BridgeActivity {
                                     Toast.LENGTH_LONG).show();
                             return;
                         }
-                        String localUri = uriIdx >= 0 ? c.getString(uriIdx) : null;
-                        if (localUri == null) return;
-                        Uri parsed = Uri.parse(localUri);
-                        File apkFile;
-                        if ("file".equals(parsed.getScheme())) {
-                            apkFile = new File(parsed.getPath());
-                        } else {
+
+                        // Resolve the local file the OEM/Android-version-portable
+                        // way: prefer DownloadManager.getUriForDownloadedFile(id),
+                        // which is documented to return either a file:// or a
+                        // content:// URI depending on the device. Fall back to
+                        // COLUMN_LOCAL_URI for older devices where the helper
+                        // returns null. Either way we end up with a File pointing
+                        // at the APK on disk so we can wrap it in our own
+                        // FileProvider URI for the installer Intent (the system
+                        // PackageInstaller refuses raw file:// URIs on Android 7+).
+                        File apkFile = null;
+                        Uri dmUri = dm.getUriForDownloadedFile(id);
+                        if (dmUri != null && "file".equals(dmUri.getScheme())) {
+                            apkFile = new File(dmUri.getPath());
+                        }
+                        if (apkFile == null || !apkFile.exists()) {
+                            String localUri = uriIdx >= 0 ? c.getString(uriIdx) : null;
+                            if (localUri != null) {
+                                Uri parsed = Uri.parse(localUri);
+                                if ("file".equals(parsed.getScheme())) {
+                                    apkFile = new File(parsed.getPath());
+                                }
+                            }
+                        }
+                        if (apkFile == null || !apkFile.exists()) {
+                            // Last-resort fallback: hand the DownloadManager URI
+                            // straight to the installer. Works on devices that
+                            // already return a content:// URI from
+                            // getUriForDownloadedFile().
+                            if (dmUri != null) {
+                                Intent fallback = new Intent(Intent.ACTION_VIEW);
+                                fallback.setDataAndType(dmUri,
+                                        "application/vnd.android.package-archive");
+                                fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                                        | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                                startActivity(fallback);
+                            }
                             return;
                         }
-                        if (!apkFile.exists()) return;
 
                         Uri contentUri = FileProvider.getUriForFile(
                                 MainActivity.this,

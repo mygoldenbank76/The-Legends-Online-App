@@ -2530,15 +2530,18 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       // retry.
       const listKey = getListMessagesQueryKey(conversationId);
       const prevListData = queryClient.getQueryData<Msg[]>(listKey);
-      let prevOlder: Msg[] | null = null;
+      // Snapshot the current olderMessages *synchronously* (we hold a
+      // closure over the local state) so the rollback path can restore
+      // the exact pre-delete contents. Using the functional setState
+      // for capture would defer the read past the catch block.
+      const prevOlder: Msg[] = olderMessages;
+      const prevOlderHadMsg = prevOlder.some((m) => m.id === msgId);
       queryClient.setQueryData<Msg[] | undefined>(listKey, (old) =>
         Array.isArray(old) ? old.filter((m) => m.id !== msgId) : old,
       );
-      setOlderMessages((prev) => {
-        if (!prev.some((m) => m.id === msgId)) return prev;
-        prevOlder = prev;
-        return prev.filter((m) => m.id !== msgId);
-      });
+      if (prevOlderHadMsg) {
+        setOlderMessages((prev) => prev.filter((m) => m.id !== msgId));
+      }
 
       try {
         await deleteMsg.mutateAsync({ messageId: msgId });
@@ -2546,11 +2549,26 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       } catch (e) {
         console.error(e);
         // Restore everything we touched optimistically so the user
-        // sees the message again and can retry.
+        // sees the message again and can retry — UNLESS the socket
+        // race already removed the message via a concurrent
+        // `message_deleted` invalidation. Resurrecting a row the
+        // server has confirmed gone would lock the chat into a
+        // permanently-stale view until the next refetch. So we only
+        // roll back if the message is still genuinely present-or-
+        // expected somewhere; if the latest cache no longer has it,
+        // the delete effectively succeeded server-side and we keep
+        // the optimistic removal.
         if (prevListData !== undefined) {
-          queryClient.setQueryData(listKey, prevListData);
+          const latest = queryClient.getQueryData<Msg[]>(listKey);
+          const latestIsArray = Array.isArray(latest);
+          const latestHasMsg = latestIsArray && latest!.some((m) => m.id === msgId);
+          const prevHadMsg = prevListData.some((m) => m.id === msgId);
+          const stillExpected = latestIsArray && !latestHasMsg && prevHadMsg;
+          if (stillExpected) {
+            queryClient.setQueryData(listKey, prevListData);
+          }
         }
-        if (prevOlder !== null) {
+        if (prevOlderHadMsg) {
           setOlderMessages(prevOlder);
         }
         setDustingIds(prev => {
