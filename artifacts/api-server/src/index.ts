@@ -4,6 +4,7 @@ import { runSeed } from "./seed";
 import { runMediaDimsBackfill } from "./lib/backfillMediaDims";
 import { runMediaPreviewBackfill } from "./lib/backfillMediaPreview";
 import { runVideoPreviewBackfill } from "./lib/backfillVideoPreview";
+import { runStrippedThumbBackfill } from "./lib/backfillStrippedThumb";
 
 const rawPort = process.env["PORT"];
 
@@ -65,6 +66,16 @@ httpServer.listen(port, (err?: Error) => {
       await runVideoPreviewBackfill();
     } catch (e) {
       logger.warn({ err: e }, "Video preview backfill warning");
+    }
+    //   4) Stripped thumb backfill — fills the new column with a
+    //      ~150-300 byte Telegram-format thumbnail for legacy single-
+    //      image messages. Runs LAST so a fresh deploy first restores
+    //      dims + LQIP (perceptible improvements on every photo) and
+    //      only then chases the 600-byte-per-message wire savings.
+    try {
+      await runStrippedThumbBackfill();
+    } catch (e) {
+      logger.warn({ err: e }, "Stripped thumb backfill warning");
     }
   })();
 });

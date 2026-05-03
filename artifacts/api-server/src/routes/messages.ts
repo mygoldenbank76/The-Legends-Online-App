@@ -10,6 +10,7 @@ import { formatUser } from "./users";
 import { extractFirstUrl, fetchLinkPreview } from "../lib/linkPreview";
 import { probeImageDimensions } from "../lib/mediaProbe";
 import { probeVideo, isProbableVideo } from "../lib/videoProbe";
+import { generateStrippedThumb } from "../lib/strippedThumb";
 import { io, userSockets, getRoomMembers } from "../app";
 import { buildPoll } from "./polls";
 import { notifyNewMessage } from "../lib/pushNotifications";
@@ -119,6 +120,10 @@ async function buildMessage(messageId: number, requestingUserId?: number): Promi
         mediaHeight: replyMsg.isDeleted ? null : replyMsg.mediaHeight,
         thumbnailUrl: replyMsg.isDeleted ? null : replyMsg.thumbnailUrl,
         mediaPreview: replyMsg.isDeleted ? null : replyMsg.mediaPreview,
+        // Stripped thumbnail (Telegram-style ~150-300 byte preview) for the
+        // reply preview tile. Coexists with mediaPreview — the client
+        // prefers stripped when present.
+        mediaStrippedThumb: replyMsg.isDeleted ? null : replyMsg.mediaStrippedThumb,
         audioUrl: replyMsg.isDeleted ? null : replyMsg.audioUrl,
         isDeleted: replyMsg.isDeleted,
         reactions: [],
@@ -143,6 +148,7 @@ async function buildMessage(messageId: number, requestingUserId?: number): Promi
     mediaHeight: msg.isDeleted ? null : msg.mediaHeight,
     thumbnailUrl: msg.isDeleted ? null : msg.thumbnailUrl,
     mediaPreview: msg.isDeleted ? null : msg.mediaPreview,
+    mediaStrippedThumb: msg.isDeleted ? null : msg.mediaStrippedThumb,
     mediaAlbum: msg.isDeleted ? null : (msg.mediaAlbum as SanitisedAlbumItem[] | null),
     audioUrl: msg.isDeleted ? null : msg.audioUrl,
     audioDuration: msg.isDeleted ? null : msg.audioDuration,
@@ -174,6 +180,7 @@ type FormattedMessage = {
   mediaHeight?: number | null;
   thumbnailUrl?: string | null;
   mediaPreview?: string | null;
+  mediaStrippedThumb?: string | null;
   mediaAlbum?: SanitisedAlbumItem[] | null;
   audioUrl?: string | null;
   audioDuration?: number | null;
@@ -301,6 +308,7 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
       mediaHeight: replyMsg.isDeleted ? null : replyMsg.mediaHeight,
       thumbnailUrl: replyMsg.isDeleted ? null : replyMsg.thumbnailUrl,
       mediaPreview: replyMsg.isDeleted ? null : replyMsg.mediaPreview,
+      mediaStrippedThumb: replyMsg.isDeleted ? null : replyMsg.mediaStrippedThumb,
       audioUrl: replyMsg.isDeleted ? null : replyMsg.audioUrl,
       isDeleted: replyMsg.isDeleted,
       reactions: [],
@@ -318,6 +326,7 @@ router.get("/conversations/:conversationId/messages", requireAuth, async (req, r
       mediaHeight: m.isDeleted ? null : m.mediaHeight,
       thumbnailUrl: m.isDeleted ? null : m.thumbnailUrl,
       mediaPreview: m.isDeleted ? null : m.mediaPreview,
+      mediaStrippedThumb: m.isDeleted ? null : m.mediaStrippedThumb,
       mediaAlbum: m.isDeleted ? null : (m.mediaAlbum as SanitisedAlbumItem[] | null),
       audioUrl: m.isDeleted ? null : m.audioUrl,
       audioDuration: m.isDeleted ? null : m.audioDuration,
@@ -479,6 +488,39 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
     safeMediaPreview = probedVideoLqip;
   }
 
+  // Generate a Telegram-style stripped thumbnail for single-image
+  // messages. Best-effort, fire-on-the-send-path because it adds
+  // ~10-30 ms to the request (sharp resize + JPEG encode of a small
+  // GCS download). If anything fails (non-image, oversized, GCS
+  // glitch, sharp decode error) we ship without — the bubble still
+  // paints fine via the legacy mediaPreview LQIP. Skipped entirely
+  // for non-imageUrl messages, video messages, and album entries
+  // (the latter two get LQIPs through other paths today).
+  let safeStrippedThumb: string | null = null;
+  if (imageUrl && !isProbableVideo(imageUrl)) {
+    try {
+      const objectId = (() => {
+        const m = imageUrl.match(/\/api\/uploads\/gcs\/([^/?#]+)/);
+        return m ? (m[1] ?? null) : null;
+      })();
+      const bucketId = process.env["DEFAULT_OBJECT_STORAGE_BUCKET_ID"];
+      if (objectId && bucketId) {
+        const { objectStorageClient } = await import("../lib/objectStorage");
+        const file = objectStorageClient.bucket(bucketId).file(`telechat-uploads/${objectId}`);
+        const [meta] = await file.getMetadata();
+        const sz = typeof meta.size === "string" ? Number(meta.size) : meta.size;
+        if (typeof sz !== "number" || sz <= 12 * 1024 * 1024) {
+          const [buf] = await file.download();
+          if (buf && buf.length > 0 && buf.length <= 12 * 1024 * 1024) {
+            safeStrippedThumb = await generateStrippedThumb(buf);
+          }
+        }
+      }
+    } catch {
+      // best-effort; never fail the send
+    }
+  }
+
   if (content == null && imageUrl == null && mediaAlbum == null && audioUrl == null && poll == null) {
     res.status(400).json({ error: "Message must have content, imageUrl, mediaAlbum, audioUrl, or poll" });
     return;
@@ -522,6 +564,10 @@ router.post("/conversations/:conversationId/messages", requireAuth, async (req, 
     // LQIP only applies to single-image messages (album entries each
     // need their own preview, handled separately in a future change).
     mediaPreview: imageUrl ? safeMediaPreview : null,
+    // Telegram-style stripped thumb. Same single-image scope as the
+    // LQIP. Coexists with it on the wire — newer clients prefer this
+    // tinier payload, older ones keep painting the LQIP.
+    mediaStrippedThumb: imageUrl ? safeStrippedThumb : null,
     mediaAlbum: sanitizeAlbum(mediaAlbum),
     audioUrl: audioUrl ?? null,
     audioDuration: audioDuration ?? null,

@@ -29,6 +29,21 @@ export const messagesTable = pgTable("messages", {
   // placeholder" the user complained about on slow networks. Nullable:
   // pre-existing rows and non-image messages don't have one.
   mediaPreview: text("media_preview"),
+  // Telegram-style "stripped thumbnail" — even smaller than mediaPreview
+  // (~150-300 raw bytes vs the LQIP's 300-700) by removing the standard
+  // JPEG header (quantization + Huffman + SOF0 tables) and reconstructing
+  // it client-side from a hardcoded canonical prefix. Stored as base64 of
+  // the Telegram wire format: [0x01, width_byte, height_byte, ...entropy
+  // data from SOS through EOI]. See artifacts/api-server/src/lib/
+  // strippedThumb.ts for the encoder and artifacts/telegram-pwa/src/lib/
+  // stripped-thumb.ts for the decoder. Both sides agree on a fixed sharp
+  // encoding profile (40x40 max, q50, no mozjpeg, no scan/code optim,
+  // 4:2:0 chroma) so the prefix bytes are byte-identical across all
+  // images. Nullable: pre-existing rows and non-image messages don't
+  // have one. Coexists with mediaPreview — the client prefers stripped
+  // when present and falls back to mediaPreview, then to the bare
+  // aspect placeholder.
+  mediaStrippedThumb: text("media_stripped_thumb"),
   audioUrl: text("audio_url"),
   audioDuration: integer("audio_duration"),
   pollId: integer("poll_id"),

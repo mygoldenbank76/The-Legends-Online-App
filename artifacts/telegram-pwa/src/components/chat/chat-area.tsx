@@ -38,6 +38,7 @@ import type { FormatType } from './rich-text';
 import { GifPicker } from './gif-picker';
 import { getMediaDimensions, captureVideoFirstFrame } from '@/lib/media-dimensions';
 import { generateLqip } from '@/lib/lqip';
+import { preferStrippedThumb } from '@/lib/stripped-thumb';
 import { saveScrollPosition, readScrollPosition } from '@/lib/scroll-memory';
 import { type AlbumItem, albumUrl, albumMeta, albumUrls } from '@/lib/album-item';
 import { NativeComposer, isNativeComposerAvailable } from '@/lib/native-composer';
@@ -109,6 +110,12 @@ type Msg = {
   // on the very first frame instead of an empty placeholder while the
   // multi-MB original streams from object storage.
   mediaPreview?: string | null;
+  // Even tinier Telegram-style stripped thumbnail (~150-300 raw bytes,
+  // ~200-400 base64). Wire format: base64 of [0x01, w, h, ...JPEG
+  // entropy data]. Decoded to a blob URL on demand by `lib/stripped-
+  // thumb.ts`. When present, the client prefers this over `mediaPreview`
+  // for placeholder rendering — same UX, smaller payload.
+  mediaStrippedThumb?: string | null;
   audioUrl?: string | null;
   audioDuration?: number | null;
   poll?: Poll | null;
@@ -4178,13 +4185,14 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
                             src={msg.replyTo.imageUrl}
                             alt="reply"
                             className="w-14 h-14 object-cover flex-shrink-0"
-                            // Same Telegram-style stripped_thumb trick as
-                            // the main bubble: paint the inline base64
-                            // LQIP behind the thumbnail so the reply
-                            // preview shows a recognisable blurred shape
-                            // on the very first frame, no grey square
-                            // while the full image streams.
-                            placeholder={msg.replyTo.mediaPreview ?? undefined}
+                            // Prefer the new Telegram-format stripped
+                            // thumb (~200 bytes on the wire, decoded
+                            // client-side via the canonical JPEG header)
+                            // over the legacy LQIP data URL (~700 bytes).
+                            // Falls back to the LQIP when stripped is
+                            // missing (older messages, non-imageUrl
+                            // payloads, encoder failures).
+                            placeholder={preferStrippedThumb(msg.replyTo.mediaStrippedThumb, msg.replyTo.mediaPreview)}
                           />
                         )}
                         {msg.replyTo.imageUrl && msg.replyTo.imageUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i) && (
@@ -4309,6 +4317,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
                               src={msg.imageUrl}
                               thumbnailUrl={msg.thumbnailUrl ?? null}
                               mediaPreview={msg.mediaPreview}
+                              mediaStrippedThumb={msg.mediaStrippedThumb ?? null}
                               className="w-full rounded-[10px]"
                               intrinsicWidth={msg.mediaWidth ?? undefined}
                               intrinsicHeight={msg.mediaHeight ?? undefined}
@@ -4330,7 +4339,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
                             <CachedImg
                               src={msg.imageUrl}
                               alt="attached"
-                              placeholder={msg.mediaPreview}
+                              placeholder={preferStrippedThumb(msg.mediaStrippedThumb, msg.mediaPreview)}
                               className="block w-full object-cover rounded-[10px] cursor-pointer active:opacity-80 transition-opacity"
                               style={{
                                 minWidth: 240,

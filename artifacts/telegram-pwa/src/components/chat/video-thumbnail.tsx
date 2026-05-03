@@ -36,6 +36,7 @@
  */
 import { useState, useEffect } from 'react';
 import { Play, Loader2 } from 'lucide-react';
+import { preferStrippedThumb } from '@/lib/stripped-thumb';
 
 interface Props {
   src: string;
@@ -49,6 +50,13 @@ interface Props {
    * absent we fall back to the matte + spinner.
    */
   mediaPreview?: string | null;
+  /**
+   * Telegram-style stripped thumbnail (base64 wire payload). When set,
+   * preferred over `mediaPreview` for the blurred poster behind the
+   * play button — same visual, smaller payload (~200 bytes vs ~700).
+   * Decoded on demand via `lib/stripped-thumb.ts`.
+   */
+  mediaStrippedThumb?: string | null;
   className?: string;
   intrinsicWidth?: number;
   intrinsicHeight?: number;
@@ -198,8 +206,12 @@ const DEFAULT_FALLBACK_ASPECT = 9 / 16;
 const MIN_TILE_WIDTH_PX = 240;
 
 export function VideoThumbnail({
-  src, thumbnailUrl, mediaPreview, className = '', intrinsicWidth, intrinsicHeight, onClick,
+  src, thumbnailUrl, mediaPreview, mediaStrippedThumb, className = '', intrinsicWidth, intrinsicHeight, onClick,
 }: Props) {
+  // Prefer the new ~200-byte Telegram-format stripped thumb when the
+  // server shipped one; fall back to the legacy LQIP data URL. Same
+  // visual (blurred poster behind play button), smaller wire payload.
+  const placeholderSrc = preferStrippedThumb(mediaStrippedThumb, mediaPreview);
   const intrinsicRatio = (intrinsicWidth && intrinsicHeight && intrinsicHeight > 0)
     ? intrinsicWidth / intrinsicHeight
     : null;
@@ -334,9 +346,9 @@ export function VideoThumbnail({
           video. Hidden ONLY when the sharp poster has actually loaded
           AND not failed — this way a slow/404 thumbnailUrl never leaves
           the user staring at a blank tile. */}
-      {mediaPreview && (
+      {placeholderSrc && (
         <img
-          src={mediaPreview}
+          src={placeholderSrc}
           alt=""
           aria-hidden
           decoding="sync"
