@@ -1469,7 +1469,14 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // Android, synchronously toggling style.height = 'auto' then back inside
   // the same input-event tick triggers a layout pass that resets the IME
   // composition span, which manifests as cursor-jumps to end of text.
+  //
+  // Skipped when the native EditText is mounted: the EditText emits
+  // `heightChanged` with its REAL rendered height (see effect below),
+  // and we resize the textarea from that signal instead — eliminates
+  // the case where HTML's scrollHeight wraps before the visible
+  // EditText text reaches the right edge of the pill.
   useEffect(() => {
+    if (useNativeComposer) return;
     const ta = textareaRef.current;
     if (!ta) return;
     if (autoGrowRaf.current != null) cancelAnimationFrame(autoGrowRaf.current);
@@ -1496,7 +1503,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         autoGrowRaf.current = null;
       }
     };
-  }, [content]);
+  }, [content, useNativeComposer]);
 
   // ─────────────────────────────────────────────────────────────────
   // NATIVE EDITTEXT BRIDGE (Android APK only — web is a no-op)
@@ -1581,6 +1588,38 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
     // not updating live until a chat re-mount (avoiding a second show()
     // call here is what closed the mount-race the architect flagged).
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useNativeComposer]);
+
+  // Native-driven height: the EditText posts its real rendered height
+  // (in device px) after every text or width change, and we mirror it
+  // onto the (visually hidden) HTML textarea. This keeps the pill
+  // sized to the EditText's actual wrap point — i.e. the pill only
+  // grows once the visible text really reaches the right edge — and
+  // sidesteps the long-standing font-glyph mismatch between Roboto /
+  // One UI Sans and the WebView's CSS metrics.
+  useEffect(() => {
+    if (!useNativeComposer) return;
+    let handle: PluginListenerHandle | null = null;
+    let cancelled = false;
+    (async () => {
+      const h = await NativeComposer.addListener(
+        'heightChanged',
+        ({ heightDevicePx }) => {
+          const ta = textareaRef.current;
+          if (!ta) return;
+          const dpr = window.devicePixelRatio || 1;
+          const cssHeight = heightDevicePx / dpr;
+          const next = `${cssHeight}px`;
+          if (ta.style.height !== next) ta.style.height = next;
+        },
+      );
+      if (cancelled) { h.remove(); return; }
+      handle = h;
+    })();
+    return () => {
+      cancelled = true;
+      if (handle) handle.remove();
+    };
   }, [useNativeComposer]);
 
   // Hide the native EditText overlay while a fullscreen React modal

@@ -97,6 +97,22 @@ export interface NativeComposerPlugin {
   ): Promise<PluginListenerHandle>;
 
   /**
+   * Fired by the native EditText after every text or width change with
+   * its actual measured rendered height in DEVICE pixels (line count
+   * × line height + vertical padding, capped to 4 lines). JS divides
+   * by window.devicePixelRatio to get CSS pixels and writes the
+   * result to `textarea.style.height`, so the pill grows to match the
+   * EditText's REAL wrap point — no more "pill grows before the
+   * visible text reaches the right edge", because the EditText drives
+   * the height directly instead of the (necessarily approximate)
+   * HTML scrollHeight.
+   */
+  addListener(
+    eventName: 'heightChanged',
+    listener: (data: { heightDevicePx: number; lineCount: number }) => void,
+  ): Promise<PluginListenerHandle>;
+
+  /**
    * Push a selection (cursor or range) into the native EditText.
    * React's FormattingToolbar calls this after every format-apply or
    * paste so the native caret follows the post-mutation position

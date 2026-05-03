@@ -7,9 +7,12 @@ import android.os.Build;
 import android.os.LocaleList;
 import android.text.Editable;
 import android.text.InputType;
+import android.text.Layout;
 import android.text.TextWatcher;
 import android.util.TypedValue;
 import android.view.ActionMode;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
@@ -86,36 +89,6 @@ public class NativeComposerPlugin extends Plugin {
     private class BridgedEditText extends EditText {
         BridgedEditText(Context c) { super(c); }
 
-        /**
-         * Suppress the floating system selection toolbar ("Traduire /
-         * Couper / Copier / Coller") by returning null when Android
-         * tries to start a TYPE_FLOATING action mode. The selection
-         * itself + drag handles are managed independently by
-         * `Editor.SelectionModifierCursorController` on Pie+, so they
-         * stay fully functional — the user can long-press, then drag
-         * the start/end handles to extend the selection just like any
-         * native field. Our React FormattingToolbar takes the place of
-         * the suppressed bar via the `selectionChanged` event below.
-         *
-         * NOTE: this is the canonical Telegram / Conversations pattern.
-         * The earlier `setCustomSelectionActionModeCallback` approach
-         * either returned false (which on some Samsung builds
-         * collateral-killed the drag handles) or returned true with
-         * menu.clear() (which left an empty floating bar AND still
-         * dropped the handles on One UI). Overriding startActionMode
-         * directly side-steps both issues.
-         */
-        @Override
-        public ActionMode startActionMode(ActionMode.Callback callback, int type) {
-            if (type == ActionMode.TYPE_FLOATING) return null;
-            return super.startActionMode(callback, type);
-        }
-
-        @Override
-        public ActionMode startActionMode(ActionMode.Callback callback) {
-            return null;
-        }
-
         @Override
         protected void onSelectionChanged(int selStart, int selEnd) {
             super.onSelectionChanged(selStart, selEnd);
@@ -133,14 +106,32 @@ public class NativeComposerPlugin extends Plugin {
         }
     }
 
+    /**
+     * Suppress the system floating selection toolbar without killing
+     * the selection itself. Returning false from onCreateActionMode
+     * is the canonical WhatsApp / Telegram pattern: Android skips the
+     * floating bar but keeps the selection alive AND keeps the drag
+     * handles visible (they're managed by Editor's
+     * SelectionModifierCursorController on Pie+, independently of
+     * action-mode lifecycle). Our React FormattingToolbar replaces
+     * the suppressed bar via the selectionChanged event.
+     */
+    private static final ActionMode.Callback NO_MENU = new ActionMode.Callback() {
+        @Override public boolean onCreateActionMode(ActionMode m, Menu menu) { return false; }
+        @Override public boolean onPrepareActionMode(ActionMode m, Menu menu) { return false; }
+        @Override public boolean onActionItemClicked(ActionMode m, MenuItem i) { return false; }
+        @Override public void onDestroyActionMode(ActionMode m) {}
+    };
+
     private void ensureOverlay() {
         if (editText != null) return;
         Context ctx = getActivity();
 
         editText = new BridgedEditText(ctx);
-        // System floating selection bar is suppressed inside
-        // BridgedEditText.startActionMode — see the override above for
-        // why we don't use setCustomSelectionActionModeCallback here.
+        editText.setCustomSelectionActionModeCallback(NO_MENU);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            editText.setCustomInsertionActionModeCallback(NO_MENU);
+        }
 
         // Mirrors DrKLO/Telegram ChatActivityEnterView lines 5583-5590.
         // CRITICAL: this is a real, native EditText (not a WebView
@@ -192,10 +183,17 @@ public class NativeComposerPlugin extends Plugin {
         // applyFontSize().
         editText.setTextSize(TypedValue.COMPLEX_UNIT_PX,
                 14f * ctx.getResources().getDisplayMetrics().density);
-        // Also force the system sans-serif typeface so different OEM
-        // default fonts (Samsung One UI Sans vs Roboto) don't shift the
-        // wrap point either.
-        editText.setTypeface(Typeface.SANS_SERIF);
+        // Use the SYSTEM default typeface (Typeface.DEFAULT), not
+        // Typeface.SANS_SERIF. SANS_SERIF on Android always resolves
+        // to Roboto, but the WebView resolves Tailwind's
+        // `system-ui, -apple-system, sans-serif` stack to whatever the
+        // OEM has set as the system default — which on Samsung One UI
+        // is "One UI Sans", not Roboto. Different glyph metrics → text
+        // widths differ → wrap column differs → user sees the
+        // EditText text wrap on a different word than the (hidden)
+        // HTML textarea. Typeface.DEFAULT picks up the OEM default
+        // and brings the two into alignment.
+        editText.setTypeface(Typeface.DEFAULT);
         // Drop the EditText's default underline + min height insets so
         // it really hugs the textarea rect.
         editText.setIncludeFontPadding(false);
@@ -205,6 +203,10 @@ public class NativeComposerPlugin extends Plugin {
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
             @Override
             public void afterTextChanged(Editable s) {
+                // Always re-measure & push height, even on JS-driven
+                // updates — show()/setValue() also need to size the
+                // textarea correctly.
+                notifyHeightChanged();
                 if (syncingFromJs) return;
                 JSObject ret = new JSObject();
                 ret.put("value", s.toString());
@@ -220,6 +222,43 @@ public class NativeComposerPlugin extends Plugin {
         overlay.addView(editText, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
+    }
+
+    /**
+     * Measures the EditText's actual rendered height — line count ×
+     * line height + vertical padding — and pushes it to JS in DEVICE
+     * pixels. JS divides by window.devicePixelRatio to get CSS pixels
+     * and applies the result as `textarea.style.height`, so the pill
+     * grows to match the EditText's REAL wrap point exactly. This
+     * removes the long-standing "pill grows before the visible text
+     * reaches the right edge" bug, which was caused by trying (and
+     * failing) to keep the EditText's wrap column identical to the
+     * HTML textarea's — instead, we let the EditText drive the
+     * height directly.
+     *
+     * Capped at 4 lines to mirror the existing 100px / 4-line
+     * Telegram-style cap on the HTML side.
+     */
+    private void notifyHeightChanged() {
+        if (editText == null) return;
+        editText.post(() -> {
+            if (editText == null) return;
+            Layout layout = editText.getLayout();
+            if (layout == null) return;
+            int rawLineCount = Math.max(1, layout.getLineCount());
+            int cappedLines = Math.min(rawLineCount, 4);
+            // First-line height includes any leading; use a stable
+            // single-line metric and multiply.
+            int oneLineHeight = layout.getLineBottom(0) - layout.getLineTop(0);
+            int contentHeight = cappedLines * oneLineHeight;
+            int totalDevicePx = contentHeight
+                    + editText.getPaddingTop()
+                    + editText.getPaddingBottom();
+            JSObject ret = new JSObject();
+            ret.put("heightDevicePx", totalDevicePx);
+            ret.put("lineCount", rawLineCount);
+            notifyListeners("heightChanged", ret);
+        });
     }
 
     /**
@@ -286,6 +325,10 @@ public class NativeComposerPlugin extends Plugin {
             lastW = Math.max(1, dpToPx((float) wCss));
             lastH = Math.max(1, dpToPx((float) hCss));
             applyBounds();
+            // Width may have changed — re-measure & re-emit height so
+            // JS resizes the pill if the new width changed the wrap
+            // column.
+            notifyHeightChanged();
             call.resolve();
         });
     }
