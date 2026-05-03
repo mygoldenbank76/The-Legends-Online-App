@@ -1121,7 +1121,61 @@ function SettingsPage({
           <span className="font-medium">{t.settings.logout}</span>
         </button>
       </div>
+
+      {/* Version footer (Telegram-style: "Telegram pour Android v12.6.4 (6666)") */}
+      <VersionFooter isCapacitor={isCapacitor} isStandalone={isStandalone} isIos={isIos} />
     </div>
+    </div>
+  );
+}
+
+// Compile-time constants injected by vite.config.ts (define).
+declare const __APP_VERSION__: string;
+declare const __APP_BUILD__: string;
+
+function VersionFooter({ isCapacitor, isStandalone, isIos }: {
+  isCapacitor: boolean; isStandalone: boolean; isIos: boolean;
+}) {
+  // For the APK we ask Capacitor at runtime so we always show the EXACT
+  // versionName + versionCode that Android registered for the installed
+  // package — that's what the user really has on disk, regardless of what
+  // the bundled JS thinks. Falls back to compile-time constants on web.
+  const [native, setNative] = useState<{ versionName: string; build: string } | null>(null);
+  useEffect(() => {
+    if (!isCapacitor) return;
+    (async () => {
+      try {
+        const App = (window as any).Capacitor?.Plugins?.App;
+        if (!App?.getInfo) return;
+        const info = await App.getInfo();
+        setNative({
+          versionName: String(info.version || __APP_VERSION__),
+          build: String(info.build || ''),
+        });
+      } catch { /* ignore */ }
+    })();
+  }, [isCapacitor]);
+
+  // Decide the platform label exactly like Telegram does:
+  // - Android APK  → "Android"
+  // - iOS APK      → "iOS"
+  // - Installed PWA → "PWA"
+  // - Browser       → "Web"
+  let platform = 'Web';
+  if (isCapacitor) {
+    const cp = (window as any).Capacitor?.getPlatform?.() || 'android';
+    platform = cp === 'ios' ? 'iOS' : 'Android';
+  } else if (isStandalone) {
+    platform = isIos ? 'PWA iOS' : 'PWA';
+  }
+
+  const version = native?.versionName || __APP_VERSION__;
+  const build = native?.build || __APP_BUILD__;
+
+  return (
+    <div className="text-center text-xs text-muted-foreground/70 pt-4 pb-2 select-none leading-relaxed">
+      <p>The Legends Online pour {platform} v{version} ({build})</p>
+      <p className="mt-0.5 opacity-70">thelegendsonline.social</p>
     </div>
   );
 }

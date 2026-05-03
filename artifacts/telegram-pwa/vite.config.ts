@@ -43,8 +43,21 @@ const port = rawPort && !Number.isNaN(Number(rawPort)) && Number(rawPort) > 0
 
 const basePath = process.env.BASE_PATH ?? '/';
 
+// Inject a stable, human-readable version + build identifier into the bundle
+// so the Settings footer can display "The Legends Online · PWA v1.0.0 (build
+// 28ddfb4)" the same way Telegram shows "Telegram pour Android v12.6.4 (6666)".
+// On the APK we override these at runtime with App.getInfo() (versionName +
+// versionCode), but on web/PWA these compile-time constants are the source
+// of truth.
+const APP_VERSION = '1.0.0';
+const APP_BUILD = (process.env.GITHUB_SHA || process.env.REPL_DEPLOYMENT_ID || `dev-${Date.now().toString(36)}`).slice(0, 7);
+
 export default defineConfig({
   base: basePath,
+  define: {
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
+    __APP_BUILD__: JSON.stringify(APP_BUILD),
+  },
   plugins: [
     react(),
     tailwindcss(),
