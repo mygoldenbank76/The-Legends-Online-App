@@ -2657,8 +2657,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
       <div
         className="flex-none glass border-b border-border/50 flex items-center px-3 z-10 gap-3"
         style={{
-          paddingTop: 'env(safe-area-inset-top, 0px)',
-          minHeight: 'calc(3.5rem + env(safe-area-inset-top, 0px))',
+          // Pareil que MobileHeader : safe-area uniquement, pas d'extra
+          // padding qui doublerait la hauteur sur Samsung punch-hole.
+          paddingTop: `max(env(safe-area-inset-top, 0px), 4px)`,
+          minHeight: 'calc(2.75rem + env(safe-area-inset-top, 0px))',
         }}
       >
 

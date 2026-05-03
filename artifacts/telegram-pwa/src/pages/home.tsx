@@ -410,9 +410,12 @@ function MobileHeader(_props: { user: { displayName: string } }) {
     <div
       className="flex-shrink-0 flex items-center justify-between px-4 gradient-hairline-bottom relative surface-header"
       style={{
-        paddingTop: `calc(env(safe-area-inset-top, 0px) + 12px)`,
-        paddingBottom: 12,
-        minHeight: '3.5rem',
+        // En natif (status bar ~70-90 px) on n'ajoute AUCUN padding
+        // supplémentaire — la safe-area suffit. En web (safe-area = 0)
+        // on garde 8 px pour que le header ne colle pas au bord.
+        paddingTop: `max(env(safe-area-inset-top, 0px), 8px)`,
+        paddingBottom: 8,
+        minHeight: `calc(2.75rem + env(safe-area-inset-top, 0px))`,
       }}
     >
       <div className="flex items-center gap-2.5 relative z-10">
