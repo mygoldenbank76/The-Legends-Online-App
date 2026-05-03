@@ -1,8 +1,10 @@
 package social.thelegendsonline.app;
 
 import android.content.Context;
+import android.content.res.Resources;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.LocaleList;
 import android.text.Editable;
@@ -162,6 +164,51 @@ public class NativeComposerPlugin extends Plugin {
         editText.setCustomSelectionActionModeCallback(NO_MENU);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             editText.setCustomInsertionActionModeCallback(NO_MENU);
+        }
+
+        // Force the system's Material selection-handle drawables onto
+        // the EditText. User-reported on Samsung S22 (One UI 6): the
+        // selection highlight + custom React FormattingToolbar appear
+        // correctly, but the two teardrop drag handles ("gouttes
+        // bleues" — see Telegram screenshot for reference) that let
+        // you extend/shrink the selection are completely missing.
+        //
+        // Root cause: when an EditText is created programmatically
+        // (without an XML inflation that resolves theme attributes),
+        // Samsung's One UI Editor sometimes fails to resolve the
+        // android:textSelectHandle{Left,Right} drawables from the host
+        // theme — the handles default to null and never paint. The
+        // selection still works internally (which is why Copier /
+        // Italique etc. fire from selectionChanged), but the user
+        // can't grab anything to resize the range.
+        //
+        // Canonical Telegram/WhatsApp workaround: explicitly fetch
+        // the system Material handle drawables and set them via the
+        // public API (added in API 29 — well below S22's API 33).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try {
+                Resources sys = Resources.getSystem();
+                int leftId = sys.getIdentifier("text_select_handle_left_material", "drawable", "android");
+                int rightId = sys.getIdentifier("text_select_handle_right_material", "drawable", "android");
+                int midId = sys.getIdentifier("text_select_handle_middle_material", "drawable", "android");
+                if (leftId != 0) {
+                    Drawable d = ctx.getDrawable(leftId);
+                    if (d != null) editText.setTextSelectHandleLeft(d);
+                }
+                if (rightId != 0) {
+                    Drawable d = ctx.getDrawable(rightId);
+                    if (d != null) editText.setTextSelectHandleRight(d);
+                }
+                if (midId != 0) {
+                    Drawable d = ctx.getDrawable(midId);
+                    if (d != null) editText.setTextSelectHandle(d);
+                }
+            } catch (Throwable ignored) {
+                // OEM ROMs occasionally rename or drop these drawables.
+                // We silently fall back to whatever the theme provides
+                // (which on most devices still works); worst case the
+                // handles stay missing, which matches the prior behaviour.
+            }
         }
 
         // Mirrors DrKLO/Telegram ChatActivityEnterView lines 5583-5590.
