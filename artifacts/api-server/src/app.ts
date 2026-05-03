@@ -6,7 +6,7 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import { createServer } from "http";
 import { Server as SocketIOServer } from "socket.io";
-import { verifyToken } from "./lib/auth";
+import { verifyToken, isConversationMember } from "./lib/auth";
 import { db, messagesTable, conversationParticipantsTable, usersTable } from "@workspace/db";
 import { eq, and, ne, gt } from "drizzle-orm";
 import { notifyIncomingCall } from "./lib/pushNotifications";
@@ -150,6 +150,23 @@ io.on("connection", async (socket) => {
   // ── WebRTC signaling relay ────────────────────────────────────────────────
   socket.on("call_offer", async ({ targetUserId, offer, fromName, fromAvatar, conversationId, isVideo }: { targetUserId: number; offer: RTCSessionDescriptionInit; fromName: string; fromAvatar?: string; conversationId: number; isVideo: boolean }) => {
     if (!userId) return;
+    // SECURITY: both caller and callee must be participants of the
+    // conversation. Without this, an authenticated attacker could spam
+    // call offers (with a fake conversationId or arbitrary targetUserId)
+    // at any other user, including users they have no relationship with.
+    try {
+      const [callerOk, calleeOk] = await Promise.all([
+        isConversationMember(userId, conversationId),
+        isConversationMember(targetUserId, conversationId),
+      ]);
+      if (!callerOk || !calleeOk) {
+        logger.warn({ userId, targetUserId, conversationId }, "Rejected call_offer — not both participants");
+        return;
+      }
+    } catch (err) {
+      logger.error({ err }, "call_offer membership check failed");
+      return;
+    }
     const targetSockets = userSockets.get(targetUserId);
     if (targetSockets) {
       for (const sid of targetSockets) {
@@ -185,6 +202,10 @@ io.on("connection", async (socket) => {
 
   socket.on("call_answer", ({ targetUserId, answer }: { targetUserId: number; answer: RTCSessionDescriptionInit }) => {
     if (!userId) return;
+    // SECURITY: only forward signaling that corresponds to an active
+    // call set up via call_offer (which is membership-checked). This
+    // prevents injecting fake answers/ICE into unrelated peers.
+    if (!activeCalls.has(callKey(userId, targetUserId))) return;
     const targetSockets = userSockets.get(targetUserId);
     if (targetSockets) {
       for (const sid of targetSockets) {
@@ -202,6 +223,8 @@ io.on("connection", async (socket) => {
 
   socket.on("call_ice_candidate", ({ targetUserId, candidate }: { targetUserId: number; candidate: RTCIceCandidateInit }) => {
     if (!userId) return;
+    // SECURITY: see call_answer.
+    if (!activeCalls.has(callKey(userId, targetUserId))) return;
     const targetSockets = userSockets.get(targetUserId);
     if (targetSockets) {
       for (const sid of targetSockets) {
@@ -212,6 +235,8 @@ io.on("connection", async (socket) => {
 
   socket.on("call_end", ({ targetUserId }: { targetUserId: number }) => {
     if (!userId) return;
+    // SECURITY: see call_answer.
+    if (!activeCalls.has(callKey(userId, targetUserId))) return;
     const targetSockets = userSockets.get(targetUserId);
     if (targetSockets) {
       for (const sid of targetSockets) {
@@ -243,6 +268,8 @@ io.on("connection", async (socket) => {
 
   socket.on("call_reject", ({ targetUserId }: { targetUserId: number }) => {
     if (!userId) return;
+    // SECURITY: see call_answer.
+    if (!activeCalls.has(callKey(userId, targetUserId))) return;
     const targetSockets = userSockets.get(targetUserId);
     if (targetSockets) {
       for (const sid of targetSockets) {
@@ -358,6 +385,10 @@ io.on("connection", async (socket) => {
   // Typing indicator — emit directly to all member sockets (bypasses room state issues)
   socket.on("typing", async ({ conversationId, isTyping }: { conversationId: number; isTyping: boolean }) => {
     if (!userId) return;
+    // SECURITY: only members of the conversation may broadcast typing.
+    // Without this, any authenticated user could spam typing indicators
+    // into any conversation by passing an arbitrary conversationId.
+    if (!(await isConversationMember(userId, conversationId))) return;
     const payload = {
       userId,
       displayName: socket.data.displayName ?? "...",
