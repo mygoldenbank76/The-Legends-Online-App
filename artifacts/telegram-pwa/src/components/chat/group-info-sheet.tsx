@@ -355,7 +355,10 @@ function MainView(p: MainViewProps) {
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       {/* Top bar with back arrow and (group only) 3-dot menu */}
-      <div className="sticky top-0 z-10 flex items-center justify-between px-3 pt-3 pb-2 bg-background/80 backdrop-blur-md gradient-hairline-bottom">
+      <div
+        className="sticky top-0 z-10 flex items-center justify-between px-3 pb-2 bg-background/80 backdrop-blur-md gradient-hairline-bottom"
+        style={{ paddingTop: `max(env(safe-area-inset-top, 0px), 12px)` }}
+      >
         <button
           onClick={() => { p.setMenuOpen(false); p.onBack(); }}
           className="w-10 h-10 rounded-full glass flex items-center justify-center text-foreground hover:text-primary transition-colors"
@@ -634,7 +637,10 @@ function SearchMembersView({
   return (
     <div className="flex flex-col h-full">
       {/* Header with back + search input */}
-      <div className="sticky top-0 z-10 flex items-center gap-2 px-3 pt-3 pb-3 bg-background/80 backdrop-blur-md gradient-hairline-bottom">
+      <div
+        className="sticky top-0 z-10 flex items-center gap-2 px-3 pb-3 bg-background/80 backdrop-blur-md gradient-hairline-bottom"
+        style={{ paddingTop: `max(env(safe-area-inset-top, 0px), 12px)` }}
+      >
         <button
           onClick={onBack}
           className="w-10 h-10 rounded-full glass flex items-center justify-center text-foreground hover:text-primary transition-colors flex-shrink-0"
@@ -770,7 +776,10 @@ function AddMembersView({
   return (
     <div className="flex flex-col h-full">
       {/* Header: back + title + Add button */}
-      <div className="sticky top-0 z-10 flex items-center gap-3 px-3 pt-3 pb-2 bg-background/80 backdrop-blur-md gradient-hairline-bottom">
+      <div
+        className="sticky top-0 z-10 flex items-center gap-3 px-3 pb-2 bg-background/80 backdrop-blur-md gradient-hairline-bottom"
+        style={{ paddingTop: `max(env(safe-area-inset-top, 0px), 12px)` }}
+      >
         <button
           onClick={onBack}
           className="w-10 h-10 rounded-full glass flex items-center justify-center text-foreground hover:text-primary transition-colors flex-shrink-0"

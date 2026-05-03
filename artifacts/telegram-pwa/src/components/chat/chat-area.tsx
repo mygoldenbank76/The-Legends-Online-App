@@ -4241,7 +4241,13 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
         {ctxMenu && ctxMsg && (
           <motion.div
             key="ctx-overlay"
-            className="fixed inset-0 z-[500] flex items-end sm:items-center justify-center pb-4 sm:pb-0 px-4"
+            className="fixed inset-0 z-[500] flex items-end sm:items-center justify-center px-4"
+            style={{
+              // Pousse "Supprimer" au-dessus de la barre de navigation
+              // Android (gestes ou 3 boutons) sur le bord inférieur.
+              paddingBottom: `calc(1rem + env(safe-area-inset-bottom, 0px))`,
+              paddingTop: `calc(1rem + env(safe-area-inset-top, 0px))`,
+            }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
