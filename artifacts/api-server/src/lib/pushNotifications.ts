@@ -2,6 +2,7 @@ import webpush from "web-push";
 import { db, pushSubscriptionsTable, usersTable, conversationParticipantsTable } from "@workspace/db";
 import { eq, and, ne, inArray } from "drizzle-orm";
 import { logger } from "./logger";
+import { sendFcmToUsers } from "./fcm";
 
 // Initialise web-push with VAPID keys
 const VAPID_PUBLIC = process.env["VAPID_PUBLIC_KEY"]!;
@@ -55,17 +56,28 @@ export async function notifyIncomingCall(opts: {
   conversationId: number;
   isVideo: boolean;
 }): Promise<void> {
-  if (!VAPID_PUBLIC || !VAPID_PRIVATE) return;
   const { targetUserId, callerName, conversationId, isVideo } = opts;
-  const payload = {
-    title: isVideo ? '📹 Appel vidéo entrant' : '📞 Appel entrant',
-    body: `${callerName} vous appelle — Touchez pour répondre`,
-    icon: '/icon-notification.png',
-    badge: '/icon-badge.png',
+  const title = isVideo ? '📹 Appel vidéo entrant' : '📞 Appel entrant';
+  const body = `${callerName} vous appelle — Touchez pour répondre`;
+  if (VAPID_PUBLIC && VAPID_PRIVATE) {
+    await pushToUser(targetUserId, {
+      title, body,
+      icon: '/icon-notification.png',
+      badge: '/icon-badge.png',
+      tag: `call-incoming-${targetUserId}`,
+      data: { type: 'incoming_call', conversationId, callerName, isVideo },
+    });
+  }
+  await sendFcmToUsers([targetUserId], {
+    title, body,
     tag: `call-incoming-${targetUserId}`,
-    data: { type: 'incoming_call', conversationId, callerName, isVideo },
-  };
-  await pushToUser(targetUserId, payload);
+    data: {
+      type: 'incoming_call',
+      conversationId: String(conversationId),
+      callerName,
+      isVideo: isVideo ? '1' : '0',
+    },
+  });
 }
 
 /**
@@ -80,8 +92,6 @@ export async function notifyNewMessage(opts: {
   content: string | null;
   imageUrl: string | null;
 }): Promise<void> {
-  if (!VAPID_PUBLIC || !VAPID_PRIVATE) return;
-
   const { conversationId, senderId, senderName, conversationTitle, isGroup, content, imageUrl } = opts;
 
   // Get all participants except sender who have NOT muted this conversation
@@ -115,5 +125,22 @@ export async function notifyNewMessage(opts: {
     data: { conversationId, isGroup },
   };
 
-  await Promise.all(participants.map((p) => pushToUser(p.userId, payload)));
+  // Web Push (browser PWA) — only when VAPID is configured.
+  if (VAPID_PUBLIC && VAPID_PRIVATE) {
+    await Promise.all(participants.map((p) => pushToUser(p.userId, payload)));
+  }
+
+  // FCM (native APK) — wakes the device even when the app is fully closed.
+  await sendFcmToUsers(
+    participants.map((p) => p.userId),
+    {
+      title,
+      body,
+      tag: `conversation-${conversationId}`,
+      data: {
+        conversationId: String(conversationId),
+        isGroup: isGroup ? "1" : "0",
+      },
+    }
+  );
 }

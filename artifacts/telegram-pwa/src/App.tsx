@@ -19,6 +19,7 @@ import { ShieldOff, LogOut } from "lucide-react";
 import { createIDBPersister } from "@/lib/idb-persister";
 import { BackgroundLoader } from "@/components/background-loader";
 import { RestoringProvider, useRestoringState } from "@/lib/restoring-context";
+import { useFcm } from "@/hooks/use-fcm";
 
 // ── Query client ──────────────────────────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -84,6 +85,9 @@ function BannedScreen() {
 
 function BanGuard({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
+  // Once the user is authenticated, register the device for native FCM push
+  // so messages reach the APK even when it's fully closed. No-op on the web.
+  useFcm({ isAuthenticated: !!user && !isLoading });
   if (!isLoading && user && (user as any).isBanned) {
     return <BannedScreen />;
   }
@@ -97,6 +101,7 @@ function AppRouter() {
         <Route path="/login" component={Login} />
         <Route path="/register" component={Register} />
         <Route path="/join/:id" component={JoinGroup} />
+        <Route path="/install-app" component={InstallApk} />
         <Route path="/install-apk" component={InstallApk} />
         <Route path="/install" component={InstallApk} />
         <Route path="/" component={Home} />

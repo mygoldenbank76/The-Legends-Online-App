@@ -21,6 +21,7 @@
     "drizzle-orm": "catalog:",
     "express": "^5",
     "express-session": "^1.19.0",
+    "firebase-admin": "^13.8.0",
     "google-auth-library": "^10.6.2",
     "image-size": "^2.0.2",
     "jsonwebtoken": "^9.0.3",
