@@ -1190,10 +1190,18 @@ function VersionFooter({ isCapacitor, isStandalone, isIos }: {
 
   const version = native?.versionName || __APP_VERSION__;
   const build = native?.build || __APP_BUILD__;
+  // __APP_BUILD__ is always the 7-char git SHA injected at Vite build time.
+  // On the APK, native.build is the Android versionCode (e.g. "21"), so we
+  // show BOTH side by side so we can always tell which commit is shipped.
+  const commitSha = __APP_BUILD__;
+  const showCommit = isCapacitor && commitSha && commitSha !== build;
 
   return (
     <div className="text-center text-xs text-muted-foreground/70 pt-4 pb-2 select-none leading-relaxed">
-      <p>The Legends Online pour {platform} v{version} ({build})</p>
+      <p>
+        The Legends Online pour {platform} v{version} ({build}
+        {showCommit ? ` · ${commitSha}` : ''})
+      </p>
       <p className="mt-0.5 opacity-70">thelegendsonline.social</p>
     </div>
   );
