@@ -117,18 +117,39 @@ public class NativeComposerPlugin extends Plugin {
     }
 
     /**
-     * Suppress the system floating selection toolbar without killing
-     * the selection itself. Returning false from onCreateActionMode
-     * is the canonical WhatsApp / Telegram pattern: Android skips the
-     * floating bar but keeps the selection alive AND keeps the drag
-     * handles visible (they're managed by Editor's
-     * SelectionModifierCursorController on Pie+, independently of
-     * action-mode lifecycle). Our React FormattingToolbar replaces
+     * Suppress the system floating selection toolbar WITHOUT killing
+     * the selection. The previous version returned false from
+     * onCreateActionMode, which works on stock AOSP but on Samsung
+     * One UI causes the selection to collapse the instant the user
+     * lifts their finger and prevents the drag handles ("magnifier
+     * drops") from ever appearing — Samsung's Editor only keeps the
+     * SelectionModifierCursorController handles alive while an
+     * ActionMode is live. User-reported: "le surlignement disparaît
+     * dès que j'enlève le doigt, il n'y a pas les deux trucs à
+     * gauche et à droite pour défiler".
+     *
+     * Canonical WhatsApp / Telegram fix: return TRUE from
+     * onCreate/onPrepareActionMode so the ActionMode stays alive
+     * (selection + handles survive touch-up), but call
+     * ActionMode.hide(Long.MAX_VALUE) to keep its floating toolbar
+     * permanently invisible. Our React FormattingToolbar replaces
      * the suppressed bar via the selectionChanged event.
      */
     private static final ActionMode.Callback NO_MENU = new ActionMode.Callback() {
-        @Override public boolean onCreateActionMode(ActionMode m, Menu menu) { return false; }
-        @Override public boolean onPrepareActionMode(ActionMode m, Menu menu) { return false; }
+        @Override public boolean onCreateActionMode(ActionMode m, Menu menu) {
+            menu.clear();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                try { m.hide(Long.MAX_VALUE); } catch (Throwable ignored) {}
+            }
+            return true;
+        }
+        @Override public boolean onPrepareActionMode(ActionMode m, Menu menu) {
+            menu.clear();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                try { m.hide(Long.MAX_VALUE); } catch (Throwable ignored) {}
+            }
+            return true;
+        }
         @Override public boolean onActionItemClicked(ActionMode m, MenuItem i) { return false; }
         @Override public void onDestroyActionMode(ActionMode m) {}
     };
