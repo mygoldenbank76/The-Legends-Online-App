@@ -726,7 +726,8 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
   // Mute: derived from server conversation data + local optimistic override
   const [mutedOverride, setMutedOverride] = useState<boolean | null>(null);
-  const isMuted = mutedOverride !== null ? mutedOverride : (conversation?.isMuted ?? false);
+  const conversationWithMute = conversation as (typeof conversation & { isMuted?: boolean }) | undefined;
+  const isMuted = mutedOverride !== null ? mutedOverride : (conversationWithMute?.isMuted ?? false);
 
   // Reset state when conversation changes
   useEffect(() => {
@@ -788,14 +789,14 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
   // Focus search input when opened (without autoFocus to avoid keyboard layout shift)
   useEffect(() => {
-    if (searchOpen) {
-      // Small delay so the header transition is done before keyboard opens
-      const t = setTimeout(() => searchInputRef.current?.focus(), 80);
-      return () => clearTimeout(t);
-    } else {
+    if (!searchOpen) {
       setSearchQuery('');
       setSearchMatchIdx(0);
+      return;
     }
+    // Small delay so the header transition is done before keyboard opens
+    const t = setTimeout(() => searchInputRef.current?.focus(), 80);
+    return () => clearTimeout(t);
   }, [searchOpen]);
 
   // Toggle mute via API
@@ -1079,9 +1080,18 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
   // Reset unread counter when switching conversation
   useEffect(() => { setUnreadCount(0); setIsAtBottom(true); }, [conversationId]);
 
-  // When the keyboard opens (viewport shrinks), scroll to bottom if we were there before
-  // Must capture wasAtBottom BEFORE the resize (that's why the ref approach is needed —
-  // after resize, clientHeight has changed and the naive distance check breaks)
+  // Keep the chat pinned to the bottom across BOTH keyboard transitions
+  // (open AND close). Previously we only re-pinned on open: when the
+  // keyboard closed the viewport grew back, the composer reclaimed its
+  // safe-area padding, the scroll container's clientHeight shrank by a
+  // few dozen px and the scrollTop was no longer at the bottom — so the
+  // user landed several messages above the latest one. Mirroring the
+  // logic for the close transition fixes that.
+  //
+  // We use a 60-px threshold to ignore tiny intermediate resizes that
+  // Android fires during the keyboard show/hide animation (and the
+  // browser URL bar collapsing) — only real keyboard transitions
+  // trigger the re-pin.
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
@@ -1089,15 +1099,27 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
     const onViewportResize = () => {
       const newHeight = vv.height;
-      const keyboardOpened = newHeight < prevHeight;
+      const delta = newHeight - prevHeight;
+      const keyboardOpened = delta < -60;
+      const keyboardClosed = delta > 60;
       prevHeight = newHeight;
 
-      if (keyboardOpened && wasAtBottomRef.current) {
-        // Wait for the layout to reflow (App.tsx sets #root height on same event)
-        // then scroll to bottom
+      if ((keyboardOpened || keyboardClosed) && wasAtBottomRef.current) {
+        // Wait for the layout to reflow (App.tsx sets #root height on the
+        // same resize event) then snap to the bottom of the scroll container.
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            const el = scrollRef.current;
+            if (!el) return;
+            el.scrollTop = el.scrollHeight;
+            // Belt-and-suspenders: a third frame in case the composer's
+            // safe-area padding only settles after the first reflow on
+            // some Android WebViews (Samsung, MIUI).
+            requestAnimationFrame(() => {
+              if (scrollRef.current) {
+                scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+              }
+            });
           });
         });
       }
@@ -2369,10 +2391,15 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
 
   const handleReply = (msg: Msg) => { setReplyTo(msg); setEditState(null); setContent(''); closeCtx(); };
   const handleEdit = (msg: Msg) => {
-    const mediaLabel = msg.mediaAlbum?.length
-      ? `📸 Album (${msg.mediaAlbum.length} médias)`
-      : msg.videoUrl ? '🎬 Vidéo'
-      : msg.mediaUrl ? '📷 Photo'
+    const m = msg as Msg & {
+      mediaAlbum?: unknown[] | null;
+      videoUrl?: string | null;
+      mediaUrl?: string | null;
+    };
+    const mediaLabel = m.mediaAlbum?.length
+      ? `📸 Album (${m.mediaAlbum.length} médias)`
+      : m.videoUrl ? '🎬 Vidéo'
+      : m.mediaUrl ? '📷 Photo'
       : undefined;
     setEditState({ id: msg.id, orig: msg.content || '', mediaLabel });
     setContent(msg.content || '');
@@ -2750,14 +2777,14 @@ export function ChatArea({ conversationId, onBack, onOpenConversation }: ChatAre
             {!isGroup && otherUser && (
               <>
                 <button
-                  onClick={() => initiateCall({ peerId: otherUser.id, peerName: title, peerAvatar: avatarUrl, conversationId: conversationId!, isVideo: false })}
+                  onClick={() => initiateCall({ peerId: otherUser.id, peerName: title, peerAvatar: avatarUrl ?? undefined, conversationId: conversationId!, isVideo: false })}
                   className="text-muted-foreground hover:text-foreground transition-colors p-1 flex-shrink-0"
                   title="Appel audio"
                 >
                   <Phone className="w-5 h-5" />
                 </button>
                 <button
-                  onClick={() => initiateCall({ peerId: otherUser.id, peerName: title, peerAvatar: avatarUrl, conversationId: conversationId!, isVideo: true })}
+                  onClick={() => initiateCall({ peerId: otherUser.id, peerName: title, peerAvatar: avatarUrl ?? undefined, conversationId: conversationId!, isVideo: true })}
                   className="text-muted-foreground hover:text-foreground transition-colors p-1 flex-shrink-0"
                   title="Appel vidéo"
                 >
