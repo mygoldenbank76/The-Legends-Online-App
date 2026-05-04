@@ -122,9 +122,9 @@ export async function notifyNewMessage(opts: {
     ? `${senderName} : ${content ? content.slice(0, 80) : imageUrl ? "📷 Photo" : "📎 Pièce jointe"}`
     : content ? content.slice(0, 100) : imageUrl ? "📷 Photo" : "📎 Pièce jointe";
 
-  const payload = {
-    title,
-    body,
+  const webPushPayload = {
+    title: title.slice(0, 60),
+    body: body.slice(0, 120),
     icon: "/icon-notification.png",
     badge: "/icon-badge.png",
     tag: `conversation-${conversationId}`,
@@ -133,36 +133,34 @@ export async function notifyNewMessage(opts: {
       isGroup,
       messageId,
       senderId,
-      senderName,
-      ...(senderAvatar ? { senderAvatar } : {}),
+      senderName: senderName.slice(0, 40),
     },
   };
 
-  // Web Push (browser PWA) — only when VAPID is configured.
   if (VAPID_PUBLIC && VAPID_PRIVATE) {
-    await Promise.all(participants.map((p) => pushToUser(p.userId, payload)));
+    await Promise.all(participants.map((p) => pushToUser(p.userId, webPushPayload)));
   }
 
-  // FCM (native APK) — wakes the device even when the app is fully closed.
-  // The data fields below are read by FcmMessagingService.java to build
-  // the MessagingStyle notification (sender name + avatar + body) and
-  // the inline RemoteInput "Reply" action (needs conversationId).
+  const fcmData: Record<string, string> = {
+    type: "new_message",
+    conversationId: String(conversationId),
+    conversationTitle: (conversationTitle ?? "").slice(0, 60),
+    isGroup: isGroup ? "1" : "0",
+    messageId: String(messageId),
+    senderId: String(senderId),
+    senderName: senderName.slice(0, 40),
+  };
+  if (senderAvatar && senderAvatar.length < 300) {
+    fcmData.senderAvatar = senderAvatar;
+  }
+
   await sendFcmToUsers(
     participants.map((p) => p.userId),
     {
-      title,
-      body,
+      title: title.slice(0, 60),
+      body: body.slice(0, 120),
       tag: `conversation-${conversationId}`,
-      data: {
-        type: "new_message",
-        conversationId: String(conversationId),
-        conversationTitle: conversationTitle ?? "",
-        isGroup: isGroup ? "1" : "0",
-        messageId: String(messageId),
-        senderId: String(senderId),
-        senderName,
-        ...(senderAvatar ? { senderAvatar } : {}),
-      },
+      data: fcmData,
     }
   );
 }

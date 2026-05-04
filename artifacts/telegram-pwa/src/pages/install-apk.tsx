@@ -66,7 +66,7 @@ export default function InstallApk() {
         </div>
 
         {/* === 1. Android APK === */}
-        <section className="w-full rounded-2xl border border-primary/30 bg-background/60 backdrop-blur-sm p-5 mb-4 shadow-lg shadow-primary/5">
+        <section className="w-full rounded-2xl border border-white/30 bg-background/60 backdrop-blur-sm p-5 mb-4 shadow-lg shadow-primary/5">
           <div className="flex items-start gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center flex-shrink-0">
               <Smartphone className="w-5 h-5 text-emerald-400" />
@@ -111,7 +111,7 @@ export default function InstallApk() {
         </section>
 
         {/* === 2. iOS App (coming soon) === */}
-        <section className="w-full rounded-2xl border border-border bg-background/40 backdrop-blur-sm p-5 mb-4 opacity-70">
+        <section className="w-full rounded-2xl border border-white/30 bg-background/40 backdrop-blur-sm p-5 mb-4 opacity-70">
           <div className="flex items-start gap-3 mb-3">
             <div className="w-10 h-10 rounded-xl bg-muted/40 border border-border flex items-center justify-center flex-shrink-0">
               <Apple className="w-5 h-5 text-muted-foreground" />
@@ -134,7 +134,7 @@ export default function InstallApk() {
         </section>
 
         {/* === 3. Web access === */}
-        <section className="w-full rounded-2xl border border-border bg-background/40 backdrop-blur-sm p-5 mb-4">
+        <section className="w-full rounded-2xl border border-white/30 bg-background/40 backdrop-blur-sm p-5 mb-4">
           <div className="flex items-start gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center flex-shrink-0">
               <Globe className="w-5 h-5 text-blue-400" />
@@ -144,7 +144,7 @@ export default function InstallApk() {
               <p className="text-[11px] text-muted-foreground">Tous appareils · Aucune installation</p>
             </div>
           </div>
-          <Button asChild variant="outline" size="lg" className="w-full text-base font-semibold gap-2 h-14">
+          <Button asChild variant="outline" size="lg" className="w-full text-base font-semibold gap-2 h-14 !border-white/30">
             <a href={WEB_URL} target="_blank" rel="noopener noreferrer">
               <Globe className="w-5 h-5" />
               Ouvrir dans le navigateur
@@ -156,7 +156,7 @@ export default function InstallApk() {
         </section>
 
         {/* === 4. PWA install === */}
-        <section className="w-full rounded-2xl border border-border bg-background/40 backdrop-blur-sm p-5 mb-4">
+        <section className="w-full rounded-2xl border border-white/30 bg-background/40 backdrop-blur-sm p-5 mb-4">
           <div className="flex items-start gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center flex-shrink-0">
               <Plus className="w-5 h-5 text-purple-400" />

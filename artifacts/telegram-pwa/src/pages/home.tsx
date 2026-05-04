@@ -118,21 +118,37 @@ export default function Home() {
   }, [openConversation]);
 
   // Handle URL params (app was closed — opened fresh via notification link)
+  // Also checks sessionStorage for a pending FCM navigation (cold-start
+  // fallback: the pushNotificationActionPerformed handler persists the
+  // nav target before redirecting via window.location.href — if the URL
+  // params get lost during reload, sessionStorage survives).
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const convId = params.get('conv');
-    const type = params.get('type');
-    const msgId = params.get('msg');
-    const callFlag = params.get('call');
+    let convId = params.get('conv');
+    let type = params.get('type');
+    let msgId = params.get('msg');
+    let callFlag = params.get('call');
+
+    if (!convId) {
+      try {
+        const raw = sessionStorage.getItem('fcm:pending-nav');
+        if (raw) {
+          sessionStorage.removeItem('fcm:pending-nav');
+          const pending = JSON.parse(raw);
+          if (pending.conv && Date.now() - (pending.ts ?? 0) < 30_000) {
+            convId = pending.conv;
+            type = pending.type ?? null;
+            msgId = pending.msg ?? null;
+            callFlag = pending.call ?? null;
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
     if (convId) {
-      // Clean the URL immediately so a refresh doesn't re-trigger this
       window.history.replaceState({}, '', window.location.pathname);
       openConversation(Number(convId), type !== 'direct');
       if (msgId) {
-        // Defer the scroll/highlight until the chat area has had a
-        // chance to mount and load its messages — the chat-area effect
-        // listening for `chat:scroll-to-message` handles the actual
-        // jump + flash highlight.
         const targetMsg = Number(msgId);
         setTimeout(() => {
           window.dispatchEvent(new CustomEvent('chat:scroll-to-message', {
@@ -141,8 +157,6 @@ export default function Home() {
         }, 350);
       }
       if (callFlag === '1') {
-        // Ask the call provider to surface the incoming-call modal for
-        // this conversation if a call is still ringing on the wire.
         setTimeout(() => {
           window.dispatchEvent(new CustomEvent('call:open-incoming', {
             detail: { conversationId: Number(convId) },

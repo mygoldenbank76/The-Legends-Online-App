@@ -732,7 +732,19 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
   const conversationOpenedAt = useRef<number>(Date.now());
   const typingStopTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [content, setContent] = useState('');
+  const [content, setContentRaw] = useState('');
+  const contentRef = useRef(content);
+  contentRef.current = content;
+  const setContent = useCallback((valOrFn: string | ((prev: string) => string)) => {
+    const next = typeof valOrFn === 'function' ? valOrFn(contentRef.current) : valOrFn;
+    setContentRaw(next);
+    contentRef.current = next;
+    const ta = textareaRef.current;
+    if (ta && ta.value !== next) {
+      ta.value = next;
+    }
+  }, []);
+  const typingActiveRef = useRef(false);
   const [sending, setSending] = useState(false);
   const [uploadingImg, setUploadingImg] = useState(false);
   // Messages currently playing the Telegram-style "dust" delete animation.
@@ -1463,8 +1475,8 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
     setLinkPreview(null);
     setLinkPreviewLoading(false);
     setSending(true);
-    // Stop typing indicator immediately on send
     if (typingStopTimeout.current) clearTimeout(typingStopTimeout.current);
+    typingActiveRef.current = false;
     emitTyping(conversationId, false);
     try {
       forceScrollRef.current = true;
@@ -1838,24 +1850,37 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
     if (!ta) return;
     if (isComposingRef.current) return;
     const value = ta.value;
-    if (value !== content) setContent(value);
+    if (value !== contentRef.current) {
+      contentRef.current = value;
+      setContentRaw(value);
+    }
     if (value.trim()) setGifOpen(false);
     const cursor = ta.selectionStart ?? value.length;
-    const textBeforeCursor = value.slice(0, cursor);
-    const match = textBeforeCursor.match(/@(\w*)$/);
-    if (match) {
-      setMentionQuery(match[1]);
-      setMentionStartIdx(cursor - match[0].length);
-    } else {
+    if (value.includes('@')) {
+      const textBeforeCursor = value.slice(0, cursor);
+      const match = textBeforeCursor.match(/@(\w*)$/);
+      if (match) {
+        setMentionQuery(match[1]);
+        setMentionStartIdx(cursor - match[0].length);
+      } else {
+        setMentionQuery(null);
+        setMentionStartIdx(-1);
+      }
+    } else if (mentionQuery !== null) {
       setMentionQuery(null);
       setMentionStartIdx(-1);
     }
-    // Typing indicator — emit start, debounce stop
     if (!isActive) return;
-    emitTyping(conversationId, true);
+    if (!typingActiveRef.current) {
+      typingActiveRef.current = true;
+      emitTyping(conversationId, true);
+    }
     if (typingStopTimeout.current) clearTimeout(typingStopTimeout.current);
-    typingStopTimeout.current = setTimeout(() => { emitTyping(conversationId, false); }, 2500);
-  }, [content, conversationId, emitTyping]);
+    typingStopTimeout.current = setTimeout(() => {
+      typingActiveRef.current = false;
+      emitTyping(conversationId, false);
+    }, 2500);
+  }, [conversationId, emitTyping, isActive, mentionQuery]);
 
   const handleContentChange = (_e: React.ChangeEvent<HTMLTextAreaElement>) => {
     syncContentFromDom();
@@ -1899,21 +1924,17 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
   };
 
   const handleCompositionEnd = () => {
-    // Defer one tick so the textarea's `value` reflects the final
-    // committed composition before we read it (some IMEs fire 'end'
-    // BEFORE the underlying value has settled).
-    isComposingRef.current = false;
-    requestAnimationFrame(() => {
-      // Guard against a new composition starting in the same frame.
-      if (isComposingRef.current) return;
+    setTimeout(() => {
+      isComposingRef.current = false;
       syncContentFromDom();
-    });
+    }, 0);
   };
 
   const handleMentionSelect = (p: { id: number; displayName: string; username?: string }) => {
     const name = p.username || p.displayName;
-    const before = content.slice(0, mentionStartIdx);
-    const after = content.slice(mentionStartIdx + 1 + (mentionQuery?.length ?? 0));
+    const domValue = textareaRef.current?.value ?? contentRef.current;
+    const before = domValue.slice(0, mentionStartIdx);
+    const after = domValue.slice(mentionStartIdx + 1 + (mentionQuery?.length ?? 0));
     const newContent = `${before}@${name} ${after}`;
     setContent(newContent);
     setMentionQuery(null);
@@ -2013,7 +2034,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
     const start = selectionRange?.start ?? ta.selectionStart ?? 0;
     const end = selectionRange?.end ?? ta.selectionEnd ?? 0;
     if (start === end) return;
-    const { newText, newEnd } = applyFormat(content, start, end, fmt);
+    const { newText, newEnd } = applyFormat(ta.value, start, end, fmt);
     setContent(newText);
     setSelectionRange(null);
     setTimeout(() => {
@@ -2045,7 +2066,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
       ? (linkUrl.startsWith('http') ? linkUrl : `https://${linkUrl}`)
       : '';
     if (start !== end && url) {
-      const { newText, newEnd } = applyFormat(content, start, end, 'link', url);
+      const { newText, newEnd } = applyFormat(ta.value, start, end, 'link', url);
       setContent(newText);
       setTimeout(() => {
         ta.setSelectionRange(newEnd, newEnd);
@@ -2074,9 +2095,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
     const start = selectionRange?.start ?? ta.selectionStart ?? 0;
     const end = selectionRange?.end ?? ta.selectionEnd ?? 0;
     if (start === end) return;
-    const selected = content.slice(start, end);
+    const domValue = ta.value;
+    const selected = domValue.slice(start, end);
     try { await navigator.clipboard.writeText(selected); } catch { /* ignore */ }
-  }, [content, selectionRange]);
+  }, [selectionRange]);
 
   const handlePaste = useCallback(async () => {
     const ta = textareaRef.current;
@@ -2084,9 +2106,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
     try {
       const text = await navigator.clipboard.readText();
       if (!text) return;
-      const start = ta.selectionStart ?? content.length;
-      const end = ta.selectionEnd ?? content.length;
-      const newText = content.slice(0, start) + text + content.slice(end);
+      const domValue = ta.value;
+      const start = ta.selectionStart ?? domValue.length;
+      const end = ta.selectionEnd ?? domValue.length;
+      const newText = domValue.slice(0, start) + text + domValue.slice(end);
       setContent(newText);
       const newCursor = start + text.length;
       setTimeout(() => {
@@ -2099,21 +2122,10 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
         }
       }, 0);
     } catch { /* permission denied or no clipboard */ }
-  }, [content]);
+  }, [setContent]);
 
-  // Intercept long-press on the input to block native Android selection toolbar
-  const handleInputTouchStart = useCallback((e: React.TouchEvent) => {
-    if (longPressInputTimer.current) clearTimeout(longPressInputTimer.current);
-    longPressInputTimer.current = setTimeout(() => {
-      // Block the contextmenu event that follows a long-press on Android
-      const block = (ce: Event) => { ce.preventDefault(); ce.stopPropagation(); };
-      document.addEventListener('contextmenu', block, { once: true, capture: true });
-    }, 280);
-  }, []);
-
-  const handleInputTouchEnd = useCallback(() => {
-    if (longPressInputTimer.current) { clearTimeout(longPressInputTimer.current); longPressInputTimer.current = null; }
-  }, []);
+  const handleInputTouchStart = undefined;
+  const handleInputTouchEnd = undefined;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (mentionQuery !== null && mentionSuggestions.length > 0) {
@@ -4959,67 +4971,13 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
                     every word by hand. */}
                 <Textarea
                   ref={textareaRef}
-                  value={content}
                   onChange={handleContentChange}
-                  // Mirrors the raw DOM 'input' event for IMEs that don't
-                  // fire React's synthetic onChange (Samsung emoji panel,
-                  // GBoard glide-typing). Composition-aware — see
-                  // syncContentFromDom + handleCompositionStart/End.
                   onInput={handleContentInput}
-                  // Composition handlers are CRITICAL for Android IMEs.
-                  // Without them, every onChange while the keyboard is
-                  // mid-word forces React to re-set textarea.value, which
-                  // resets the IME composition span and the cursor jumps
-                  // to the end — making it impossible to edit mid-text,
-                  // insert emojis between characters, or backspace an
-                  // emoji from the keyboard panel.
                   onCompositionStart={handleCompositionStart}
                   onCompositionEnd={handleCompositionEnd}
                   onKeyDown={handleKeyDown}
-                  // Explicit paste handler. On Android, when the user
-                  // taps the keyboard's clipboard icon and then a
-                  // clipped item, the WebView dispatches a `paste`
-                  // event but the resulting `input` event sometimes
-                  // arrives with the OLD value (race between Samsung's
-                  // clipboard panel and the WebView's text-insertion
-                  // pipeline). We grab the clipboard text from the
-                  // event itself, splice it into the controlled value
-                  // at the current cursor position and restore the
-                  // cursor — this matches what every native messaging
-                  // app does and works whether the paste came from the
-                  // keyboard's clipboard, a long-press menu, or
-                  // Ctrl+V on a hardware keyboard.
-                  onPaste={(e) => {
-                    const ta = textareaRef.current;
-                    if (!ta) return;
-                    const pasted = e.clipboardData?.getData('text/plain') ?? '';
-                    if (!pasted) return; // let the browser handle non-text payloads (images, etc.)
-                    e.preventDefault();
-                    const start = ta.selectionStart ?? content.length;
-                    const end = ta.selectionEnd ?? content.length;
-                    const next = content.slice(0, start) + pasted + content.slice(end);
-                    setContent(next);
-                    const newCursor = start + pasted.length;
-                    requestAnimationFrame(() => {
-                      const t = textareaRef.current;
-                      if (!t) return;
-                      t.focus();
-                      try { t.setSelectionRange(newCursor, newCursor); } catch { /* ignore */ }
-                    });
-                  }}
                   onSelect={handleTextSelect}
                   onBlur={() => { if (!linkMode) setTimeout(() => setSelectionRange(null), 150); }}
-                  // Suppress the native Android floating action mode
-                  // ("Couper / Copier / Coller") that pops up on text
-                  // selection. We render our own FormattingToolbar
-                  // (Copier / Coller / Gras / Italique / Souligner /
-                  // Barrer / Spoiler / Lien) right above the composer
-                  // and want it to be the ONLY menu the user sees on
-                  // selection. Note: this only blocks the contextmenu
-                  // event — keyboard suggestions, autocorrect and
-                  // auto-capitalize are independent of contextmenu and
-                  // remain fully functional.
-                  onContextMenu={(e) => e.preventDefault()}
                   // On Android (native EditText overlay), the native side
                   // owns the placeholder — we must clear the HTML one or
                   // both render simultaneously and the user sees doubled

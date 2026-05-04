@@ -99,34 +99,38 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
       // ── Directly update the conversation list cache (instant, no refetch) ──
       const listKey = getListConversationsQueryKey();
-      const listData = queryClient.getQueryData<any[]>(listKey);
-      if (Array.isArray(listData)) {
-        queryClient.setQueryData(listKey, (old: any[]) => {
-          if (!Array.isArray(old)) return old;
-          const updated = old.map(conv => {
-            if (conv.id !== convId) return conv;
-            return {
-              ...conv,
-              lastMessage: msg,
-              updatedAt: msg.createdAt,
-              // Increment unread only if: message is from someone else AND
-              // this conversation is not currently open by the user
-              unreadCount: msg.senderId !== user?.id && activeConversationIdRef.current !== convId
-                ? (conv.unreadCount ?? 0) + 1
-                : conv.unreadCount,
-            };
+      const updateConvList = () => {
+        const listData = queryClient.getQueryData<any[]>(listKey);
+        if (Array.isArray(listData)) {
+          const found = listData.some(c => c.id === convId);
+          if (!found) {
+            queryClient.invalidateQueries({ queryKey: listKey });
+            return;
+          }
+          queryClient.setQueryData(listKey, (old: any[]) => {
+            if (!Array.isArray(old)) return old;
+            const updated = old.map(conv => {
+              if (conv.id !== convId) return conv;
+              return {
+                ...conv,
+                lastMessage: { ...msg },
+                updatedAt: msg.createdAt,
+                unreadCount: msg.senderId !== user?.id && activeConversationIdRef.current !== convId
+                  ? (conv.unreadCount ?? 0) + 1
+                  : conv.unreadCount,
+              };
+            });
+            return [...updated].sort((a, b) => {
+              const aT = a.lastMessage?.createdAt ?? a.updatedAt ?? '';
+              const bT = b.lastMessage?.createdAt ?? b.updatedAt ?? '';
+              return bT.localeCompare(aT);
+            });
           });
-          // Re-sort by most recent message
-          return [...updated].sort((a, b) => {
-            const aT = a.lastMessage?.createdAt ?? a.updatedAt ?? '';
-            const bT = b.lastMessage?.createdAt ?? b.updatedAt ?? '';
-            return bT.localeCompare(aT);
-          });
-        });
-      } else {
-        // List not in cache yet — fall back to invalidation
-        queryClient.invalidateQueries({ queryKey: listKey });
-      }
+        } else {
+          queryClient.invalidateQueries({ queryKey: listKey });
+        }
+      };
+      updateConvList();
     };
 
     // ── Invalidate helper (for events where we don't have the full payload) ──
@@ -143,34 +147,95 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       injectMessage(msg);
     });
 
-    // For reactions/edits/deletes we still refetch (smaller payloads, less frequent)
-    newSocket.on('message_reaction', (msg: { conversationId: number }) => {
-      invalidateMessages(msg.conversationId);
+    const patchMessage = (conversationId: number, messageId: number, updater: (m: SocketMsg) => SocketMsg) => {
+      const key = getListMessagesQueryKey(conversationId);
+      const existing = queryClient.getQueryData(key);
+      if (Array.isArray(existing)) {
+        queryClient.setQueryData(key, (old: SocketMsg[]) => {
+          if (!Array.isArray(old)) return old;
+          return old.map(m => m.id === messageId ? updater(m) : m);
+        });
+      } else {
+        queryClient.invalidateQueries({ queryKey: key });
+      }
+    };
+
+    newSocket.on('message_reaction', (msg: SocketMsg) => {
+      patchMessage(msg.conversationId, msg.id, (old) => ({ ...old, ...msg }));
     });
-    newSocket.on('message_edited', (msg: { conversationId: number }) => {
-      invalidateMessages(msg.conversationId);
+    newSocket.on('message_edited', (msg: SocketMsg) => {
+      patchMessage(msg.conversationId, msg.id, (old) => ({ ...old, ...msg }));
+      const listKey = getListConversationsQueryKey();
+      const listData = queryClient.getQueryData<any[]>(listKey);
+      if (Array.isArray(listData)) {
+        queryClient.setQueryData(listKey, (old: any[]) => {
+          if (!Array.isArray(old)) return old;
+          return old.map(conv =>
+            conv.id === msg.conversationId && conv.lastMessage?.id === msg.id
+              ? { ...conv, lastMessage: msg }
+              : conv
+          );
+        });
+      }
     });
-    newSocket.on('message_deleted', (msg: { conversationId: number }) => {
-      invalidateMessages(msg.conversationId);
-    });
-    newSocket.on('message_pinned', (data: { conversationId: number }) => {
-      queryClient.invalidateQueries({ queryKey: getGetConversationQueryKey(data.conversationId) });
+    newSocket.on('message_deleted', (data: { messageId: number; conversationId: number }) => {
+      const key = getListMessagesQueryKey(data.conversationId);
+      const existing = queryClient.getQueryData(key);
+      if (Array.isArray(existing)) {
+        queryClient.setQueryData(key, (old: SocketMsg[]) => {
+          if (!Array.isArray(old)) return old;
+          return old.filter(m => m.id !== data.messageId);
+        });
+      }
       queryClient.invalidateQueries({ queryKey: getListConversationsQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getListMessagesQueryKey(data.conversationId) });
+    });
+    newSocket.on('message_pinned', (data: { conversationId: number; pinnedMessageIds: number[] }) => {
+      queryClient.invalidateQueries({ queryKey: getGetConversationQueryKey(data.conversationId) });
+      const key = getListMessagesQueryKey(data.conversationId);
+      const existing = queryClient.getQueryData(key);
+      if (Array.isArray(existing)) {
+        queryClient.setQueryData(key, (old: SocketMsg[]) => {
+          if (!Array.isArray(old)) return old;
+          return old.map(m => ({
+            ...m,
+            isPinned: data.pinnedMessageIds.includes(m.id),
+          }));
+        });
+      }
     });
     newSocket.on('user_status', () => {
-      queryClient.invalidateQueries({ queryKey: getListConversationsQueryKey() });
+      // No refetch needed — presence is tracked in-memory via presenceMap
     });
-    newSocket.on('poll_updated', (data: { messageId: number; conversationId: number }) => {
-      invalidateMessages(data.conversationId);
+    newSocket.on('poll_updated', (data: { messageId: number; conversationId: number; poll: any }) => {
+      patchMessage(data.conversationId, data.messageId, (m) => ({ ...m, poll: data.poll }));
     });
 
     // ── Read receipts ────────────────────────────────────────────────────────
-    newSocket.on('messages_read', (data: { conversationId: number }) => {
-      invalidateMessages(data.conversationId);
+    newSocket.on('messages_read', (data: { conversationId: number; readBy: number }) => {
+      const key = getListMessagesQueryKey(data.conversationId);
+      const existing = queryClient.getQueryData(key);
+      if (Array.isArray(existing)) {
+        queryClient.setQueryData(key, (old: SocketMsg[]) => {
+          if (!Array.isArray(old)) return old;
+          return old.map(m => m.senderId === user?.id ? { ...m, status: 'read' } : m);
+        });
+      } else {
+        queryClient.invalidateQueries({ queryKey: key });
+      }
     });
-    newSocket.on('messages_delivered', (data: { conversationId: number }) => {
-      invalidateMessages(data.conversationId);
+    newSocket.on('messages_delivered', (data: { conversationId: number; deliveredTo: number }) => {
+      const key = getListMessagesQueryKey(data.conversationId);
+      const existing = queryClient.getQueryData(key);
+      if (Array.isArray(existing)) {
+        queryClient.setQueryData(key, (old: SocketMsg[]) => {
+          if (!Array.isArray(old)) return old;
+          return old.map(m =>
+            m.senderId === user?.id && m.status !== 'read' ? { ...m, status: 'delivered' } : m
+          );
+        });
+      } else {
+        queryClient.invalidateQueries({ queryKey: key });
+      }
     });
 
     // ── Typing indicator ─────────────────────────────────────────────────────

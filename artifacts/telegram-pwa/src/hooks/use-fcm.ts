@@ -105,28 +105,33 @@ export function useFcm(opts: { userId: number | null }): void {
         );
         cleanup.push(() => { void recvHandle.remove(); });
 
+        const navigateToConversation = (data: Record<string, any>) => {
+          const conversationId = data.conversationId;
+          if (!conversationId) return;
+          const isGroup = data.isGroup === '1' || data.isGroup === true;
+          const params = new URLSearchParams({
+            conv: String(conversationId),
+            type: isGroup ? 'group' : 'direct',
+          });
+          if (data.messageId) params.set('msg', String(data.messageId));
+          if (data.type === 'incoming_call') params.set('call', '1');
+          try {
+            sessionStorage.setItem('fcm:pending-nav', JSON.stringify({
+              conv: String(conversationId),
+              type: isGroup ? 'group' : 'direct',
+              msg: data.messageId ? String(data.messageId) : undefined,
+              call: data.type === 'incoming_call' ? '1' : undefined,
+              ts: Date.now(),
+            }));
+          } catch { /* sessionStorage unavailable */ }
+          const base = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
+          window.location.href = `${base}/?${params.toString()}`;
+        };
+
         const tapHandle = await PushNotifications.addListener(
           'pushNotificationActionPerformed',
           (action: ActionPerformed) => {
-            const data = action.notification.data ?? {};
-            const conversationId = data.conversationId;
-            // CRITICAL: home.tsx reads `?conv=`, NOT `?conversation=`.
-            // Using the wrong key here was making notification taps land
-            // on an empty conversation list instead of the chat. We also
-            // forward `msg` (deep link to a specific message) and `type`
-            // (group vs direct) so the in-app router can scroll to and
-            // highlight the exact message that triggered the notification.
-            if (conversationId) {
-              const base = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
-              const isGroup = data.isGroup === '1' || data.isGroup === true;
-              const params = new URLSearchParams({
-                conv: String(conversationId),
-                type: isGroup ? 'group' : 'direct',
-              });
-              if (data.messageId) params.set('msg', String(data.messageId));
-              if (data.type === 'incoming_call') params.set('call', '1');
-              window.location.href = `${base}/?${params.toString()}`;
-            }
+            navigateToConversation(action.notification.data ?? {});
           }
         );
         cleanup.push(() => { void tapHandle.remove(); });
