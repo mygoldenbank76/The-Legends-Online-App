@@ -21,6 +21,21 @@ import { isNativeAvailable, nativeCacheGet, nativeCachePut } from './native-cach
 
 const MAX_ENTRIES = 1500;
 
+/**
+ * Strip signed-URL query params (`?e=…&s=…`) from
+ * `/api/uploads/gcs/…` URLs so the cache key is stable across token
+ * rotations. Without this, every API response mints a fresh signature
+ * → different full URL → cache miss → re-download → visible flash.
+ *
+ * Non-GCS URLs and blob:/data: URLs pass through unchanged.
+ */
+const GCS_PREFIX = '/api/uploads/gcs/';
+function cacheKey(src: string): string {
+  if (!src.startsWith(GCS_PREFIX)) return src;
+  const qIdx = src.indexOf('?');
+  return qIdx >= 0 ? src.slice(0, qIdx) : src;
+}
+
 // src URL → blob objectURL. Map insertion order doubles as our LRU
 // recency order: every access moves the entry to the back via a
 // delete+set pair, so the FRONT of the iterator is the LRU end.
@@ -41,8 +56,9 @@ const listeners = new Map<string, Set<(objectUrl: string) => void>>();
 const GIF_RE = /\.gif(\?|$)|tenor\.com|giphy\.com/i;
 
 function notify(src: string, objectUrl: string) {
-  listeners.get(src)?.forEach(fn => fn(objectUrl));
-  listeners.delete(src);
+  const key = cacheKey(src);
+  listeners.get(key)?.forEach(fn => fn(objectUrl));
+  listeners.delete(key);
 }
 
 function evictIfNeeded() {
@@ -63,15 +79,17 @@ function evictIfNeeded() {
  * No-op if the key is not in the cache. Cheap: one delete + one set.
  */
 function touch(src: string): void {
-  const v = cache.get(src);
+  const key = cacheKey(src);
+  const v = cache.get(key);
   if (v === undefined) return;
-  cache.delete(src);
-  cache.set(src, v);
+  cache.delete(key);
+  cache.set(key, v);
 }
 
 /** Returns the cached objectURL if available, otherwise the original src */
 export function getCachedSrc(src: string): string {
-  const v = cache.get(src);
+  const key = cacheKey(src);
+  const v = cache.get(key);
   if (v !== undefined) {
     touch(src);
     return v;
@@ -81,7 +99,7 @@ export function getCachedSrc(src: string): string {
 
 /** Returns true if the src is already cached */
 export function isCached(src: string): boolean {
-  return cache.has(src);
+  return cache.has(cacheKey(src));
 }
 
 /**
@@ -95,9 +113,10 @@ export function preloadMedia(src: string): void {
   // same on second view; the only thing skipped is the blob wrapping
   // that can break animation in some Android WebView builds.
   if (GIF_RE.test(src)) return;
-  if (cache.has(src) || pending.has(src)) return;
+  const key = cacheKey(src);
+  if (cache.has(key) || pending.has(key)) return;
 
-  pending.add(src);
+  pending.add(key);
 
   // On the APK, consult the native filesystem cache FIRST. This
   // bypasses both the WebView quota AND any SW eviction that may have
@@ -105,18 +124,18 @@ export function preloadMedia(src: string): void {
   // already there" persistence. On web/PWA isNativeAvailable() is
   // false and this resolves to null instantly — the fetch below runs
   // unchanged and the SW handles disk caching as before.
-  const tryNative = isNativeAvailable() ? nativeCacheGet(src) : Promise.resolve(null);
+  const tryNative = isNativeAvailable() ? nativeCacheGet(key) : Promise.resolve(null);
 
   tryNative
     .then(nativeBlob => {
       if (nativeBlob) return nativeBlob;
+      // Fetch with the FULL signed URL (including ?e=&s=) — the
+      // server requires it. Cache under the bare key so future
+      // requests with a rotated signature still hit RAM.
       return fetch(src).then(r => {
         if (!r.ok) throw new Error('bad response');
         return r.blob().then(blob => {
-          // Persist to the native FS for next session. Fire-and-
-          // forget — failures (disk full, permission) shouldn't
-          // affect the in-memory hit path.
-          if (isNativeAvailable()) void nativeCachePut(src, blob);
+          if (isNativeAvailable()) void nativeCachePut(key, blob);
           return blob;
         });
       });
@@ -124,7 +143,7 @@ export function preloadMedia(src: string): void {
     .then(blob => {
       evictIfNeeded();
       const objectUrl = URL.createObjectURL(blob);
-      cache.set(src, objectUrl);
+      cache.set(key, objectUrl);
       notify(src, objectUrl);
     })
     .catch(() => {
@@ -132,7 +151,7 @@ export function preloadMedia(src: string): void {
       notify(src, src);
     })
     .finally(() => {
-      pending.delete(src);
+      pending.delete(key);
     });
 }
 
@@ -150,10 +169,11 @@ export function preloadMedia(src: string): void {
  */
 export function registerBlob(src: string, blob: Blob): void {
   if (!src || src.startsWith('blob:') || src.startsWith('data:')) return;
-  if (cache.has(src)) return;
+  const key = cacheKey(src);
+  if (cache.has(key)) return;
   evictIfNeeded();
   const objectUrl = URL.createObjectURL(blob);
-  cache.set(src, objectUrl);
+  cache.set(key, objectUrl);
   notify(src, objectUrl);
 }
 
@@ -162,14 +182,15 @@ export function registerBlob(src: string, blob: Blob): void {
  * Returns an unsubscribe function.
  */
 export function onCached(src: string, cb: (objectUrl: string) => void): () => void {
-  if (cache.has(src)) {
-    cb(cache.get(src)!);
+  const key = cacheKey(src);
+  if (cache.has(key)) {
+    cb(cache.get(key)!);
     return () => {};
   }
-  if (!listeners.has(src)) listeners.set(src, new Set());
-  listeners.get(src)!.add(cb);
+  if (!listeners.has(key)) listeners.set(key, new Set());
+  listeners.get(key)!.add(cb);
   preloadMedia(src);
-  return () => listeners.get(src)?.delete(cb);
+  return () => listeners.get(key)?.delete(cb);
 }
 
 // Video extensions: skipped because <video> streams progressively and

@@ -63,7 +63,18 @@ export function signMediaUrl<T extends string | null | undefined>(
   const base = qIdx >= 0 ? url.slice(0, qIdx) : url;
   const objectId = base.slice(PREFIX.length);
   if (!objectId) return url;
-  const exp = Math.floor(Date.now() / 1000) + ttlSec;
+  // Round the expiration to the START of the next UTC day boundary,
+  // then add the TTL from there. This produces the SAME signed URL
+  // for every call within the same UTC day, which is critical for
+  // caching: the browser HTTP cache and the client's in-memory blob
+  // cache both key on the full URL string. Without this, every API
+  // response mints a fresh timestamp → new URL → cache miss →
+  // re-download → visible flash on every conversation open.
+  //
+  // Effective validity: TTL + remaining-hours-today (7d + 0-24h).
+  const nowSec = Math.floor(Date.now() / 1000);
+  const startOfTodayUtc = nowSec - (nowSec % 86400);
+  const exp = startOfTodayUtc + ttlSec;
   const sig = hmac(objectId, exp);
   return `${base}?e=${exp}&s=${sig}` as T;
 }
