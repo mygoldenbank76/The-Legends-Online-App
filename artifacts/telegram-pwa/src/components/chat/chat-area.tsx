@@ -1046,19 +1046,13 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
     scrollReadyConvRef.current = null;
   }, [conversationId]);
 
-  // Initial scroll — synchronous (before paint) to avoid flash.
-  // Gate on `composerHeight !== null` so we don't snap with a
-  // placeholder paddingBottom that's about to change one frame
-  // later (which would visibly slide the last message downward
-  // when the real, smaller composer height got measured by the
-  // ResizeObserver). The composer's own useLayoutEffect always
-  // runs first within the same render commit and writes the
-  // real height synchronously, so this gate adds no perceptible
-  // delay — it just guarantees correctness.
   useLayoutEffect(() => {
     if (!messages || messages.length === 0 || isLoading) return;
-    if (composerHeight === null) return;
     if (scrollReadyConvRef.current === conversationId) return;
+    if (composerHeight === null && composerRef.current) {
+      const h = Math.round(composerRef.current.getBoundingClientRect().height);
+      if (h > 0) setComposerHeight(h);
+    }
     scrollReadyConvRef.current = conversationId;
     if (scrollRef.current) {
       const el = scrollRef.current;
@@ -1095,33 +1089,6 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
     setScrollReady(true);
   });
 
-  // Settle-window re-pinning — kept in a SEPARATE effect, keyed
-  // on stable scalars `[scrollReady, conversationId]`, so the
-  // timers can't be cancelled by incidental re-renders. The
-  // snap effect above derives a fresh `messages` array every
-  // render (the parent does `.filter(...)` on each pass), so
-  // adding `messages` to a deps array still flagged the effect
-  // as "changed" every render and the cleanup would clear all
-  // timers before any could fire — silently turning the fix
-  // into a no-op. Keying purely on `scrollReady` (which flips
-  // false→true exactly once per conversation, see the reset
-  // effect above) and `conversationId` avoids that whole class
-  // of bugs.
-  //
-  // Why we need this at all: chats with media (images / videos
-  // / link previews / GIFs) paint their bubbles at a reserved
-  // aspect-ratio height first, then grow once the asset
-  // decodes. Native `overflow-anchor` keeps the visible
-  // content stable while that happens, which is the WRONG
-  // behaviour right after entering a chat — it would leave
-  // the user looking at older media in the middle of the
-  // viewport instead of the latest message at the bottom
-  // (the user's report: "j'ouvre la conversation et ça me
-  // monte vers les média alors que je devrais être en bas").
-  // We re-pin to the bottom a handful of times over ~1.5 s
-  // to stay glued there as media bubbles finish growing.
-  // Each re-pin guards on `wasAtBottomRef` so a user who
-  // has already scrolled up to read history is never yanked.
   useEffect(() => {
     if (!scrollReady) return;
     const targetConv = conversationId;
@@ -1133,14 +1100,9 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
       el.scrollTop = el.scrollHeight;
     };
     const t1 = window.setTimeout(repin, 50);
-    const t2 = window.setTimeout(repin, 200);
-    const t3 = window.setTimeout(repin, 500);
-    const t4 = window.setTimeout(repin, 1000);
-    const t5 = window.setTimeout(repin, 1500);
+    const t2 = window.setTimeout(repin, 150);
     return () => {
       window.clearTimeout(t1); window.clearTimeout(t2);
-      window.clearTimeout(t3); window.clearTimeout(t4);
-      window.clearTimeout(t5);
     };
   }, [scrollReady, conversationId]);
 
