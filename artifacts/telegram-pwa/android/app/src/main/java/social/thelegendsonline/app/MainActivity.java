@@ -235,7 +235,7 @@ public class MainActivity extends BridgeActivity {
                             // process is killed mid-download.
                             setPendingApkDownloadId(id);
                             Toast.makeText(getApplicationContext(),
-                                    "Téléchargement de la mise à jour en cours… L'installation démarrera automatiquement.",
+                                    "Téléchargement de la mise à jour en cours, veuillez ne pas fermer cette page...",
                                     Toast.LENGTH_LONG).show();
                         } else {
                             Toast.makeText(getApplicationContext(),
