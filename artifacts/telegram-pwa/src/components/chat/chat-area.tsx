@@ -32,7 +32,6 @@ import { VoiceRecorder } from './voice-recorder';
 import { GroupInfoSheet } from './group-info-sheet';
 import { UserProfileSheet } from './user-profile-sheet';
 import { LinkPreviewCard } from './link-preview';
-import { FormattingToolbar } from './formatting-toolbar';
 import { RichText, applyFormat } from './rich-text';
 import type { FormatType } from './rich-text';
 import { GifPicker } from './gif-picker';
@@ -721,7 +720,6 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
   // gates without re-querying Capacitor on every render.
   const useNativeComposer = isNativeComposerAvailable();
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressInputTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didTriggerMenu = useRef(false);
   const didJustSwipe = useRef(false);
   const swipeStartX = useRef(0);
@@ -809,6 +807,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
   const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
   const [linkMode, setLinkMode] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
+  const [showFormatBar, setShowFormatBar] = useState(false);
 
   // New UI states
   const [attachmentSheetOpen, setAttachmentSheetOpen] = useState(false);
@@ -1451,6 +1450,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
       const trimmed = liveValue.trim();
       if (!trimmed) return;
       setContent('');
+      setShowFormatBar(false);
       const id = editState.id;
       setEditState(null);
       try { await editMsg.mutateAsync({ messageId: id, data: { content: trimmed } }); invalidate(); }
@@ -1471,6 +1471,7 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
     if (outUrl) outUrl = outUrl.replace(/[)\].,!?;:'"]+$/, '');
     const disableLinkPreview = !!(outUrl && dismissedUrlsRef.current.has(outUrl));
     setContent('');
+    setShowFormatBar(false);
     setReplyTo(null);
     setLinkPreview(null);
     setLinkPreviewLoading(false);
@@ -2089,43 +2090,6 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
     setTimeout(() => textareaRef.current?.focus(), 0);
   };
 
-  const handleCopy = useCallback(async () => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    const start = selectionRange?.start ?? ta.selectionStart ?? 0;
-    const end = selectionRange?.end ?? ta.selectionEnd ?? 0;
-    if (start === end) return;
-    const domValue = ta.value;
-    const selected = domValue.slice(start, end);
-    try { await navigator.clipboard.writeText(selected); } catch { /* ignore */ }
-  }, [selectionRange]);
-
-  const handlePaste = useCallback(async () => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    try {
-      const text = await navigator.clipboard.readText();
-      if (!text) return;
-      const domValue = ta.value;
-      const start = ta.selectionStart ?? domValue.length;
-      const end = ta.selectionEnd ?? domValue.length;
-      const newText = domValue.slice(0, start) + text + domValue.slice(end);
-      setContent(newText);
-      const newCursor = start + text.length;
-      setTimeout(() => {
-        ta.setSelectionRange(newCursor, newCursor);
-        if (isNativeComposerAvailable()) {
-          void NativeComposer.setSelection({ start: newCursor, end: newCursor });
-          void NativeComposer.focus();
-        } else {
-          ta.focus();
-        }
-      }, 0);
-    } catch { /* permission denied or no clipboard */ }
-  }, [setContent]);
-
-  const handleInputTouchStart = undefined;
-  const handleInputTouchEnd = undefined;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (mentionQuery !== null && mentionSuggestions.length > 0) {
@@ -4894,20 +4858,98 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
                 )}
                 </AnimatePresence>
 
-                {/* ── Formatting toolbar INSIDE the pill (matches reply/edit/link previews) ── */}
-                <FormattingToolbar
-                  visible={!voiceActive}
-                  hasSelection={!!selectionRange}
-                  linkMode={linkMode}
-                  linkUrl={linkUrl}
-                  onLinkUrlChange={setLinkUrl}
-                  onLinkConfirm={handleLinkConfirm}
-                  onLinkCancel={handleLinkCancel}
-                  onFormat={handleFormat}
-                  onLinkRequest={handleLinkRequest}
-                  onCopy={handleCopy}
-                  onPaste={handlePaste}
-                />
+                {/* ── Inline format bar toggled by Aa button ── */}
+                <AnimatePresence initial={false}>
+                  {!voiceActive && (showFormatBar || linkMode) && (
+                    <motion.div
+                      key="format-bar"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+                      style={{ overflow: 'hidden' }}
+                    >
+                      <AnimatePresence mode="wait">
+                        {linkMode ? (
+                          <motion.div
+                            key="link"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.1 }}
+                            className="flex items-center gap-2.5 pl-3 pr-2 pt-2 pb-1.5"
+                          >
+                            <Link2 className="w-4 h-4 text-primary flex-shrink-0" />
+                            <div className="flex-1 min-w-0 border-l-2 border-primary pl-2 flex items-center gap-2">
+                              <input
+                                value={linkUrl}
+                                onChange={e => setLinkUrl(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') { e.preventDefault(); handleLinkConfirm(); }
+                                  if (e.key === 'Escape') { handleLinkCancel(); }
+                                }}
+                                placeholder="https://..."
+                                type="url"
+                                inputMode="url"
+                                className="flex-1 bg-background/30 border border-foreground/15 rounded-md px-2 py-1 text-[12px] text-primary font-semibold leading-tight outline-none focus:border-primary/50 placeholder:text-muted-foreground/50 placeholder:font-normal min-w-0 transition-colors"
+                              />
+                              <button
+                                onMouseDown={e => { e.preventDefault(); handleLinkConfirm(); }}
+                                onTouchEnd={e => { e.preventDefault(); handleLinkConfirm(); }}
+                                className="text-[11px] px-2.5 py-0.5 rounded-full gradient-primary glow-primary text-white font-semibold hover:opacity-95 active:scale-95 transition-all flex-shrink-0"
+                              >
+                                OK
+                              </button>
+                            </div>
+                            <button
+                              onMouseDown={e => { e.preventDefault(); handleLinkCancel(); }}
+                              onTouchEnd={e => { e.preventDefault(); handleLinkCancel(); }}
+                              className="text-muted-foreground hover:text-foreground p-1 flex-shrink-0 rounded-full hover:bg-foreground/5 transition-colors"
+                              aria-label="Annuler le lien"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </motion.div>
+                        ) : (
+                          <motion.div
+                            key="tools"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.1 }}
+                            className="flex items-stretch gap-0.5 px-2 pt-1.5 pb-1"
+                          >
+                            {[
+                              { fmt: 'bold' as FormatType, label: 'B', cls: 'font-bold' },
+                              { fmt: 'italic' as FormatType, label: 'I', cls: 'italic' },
+                              { fmt: 'underline' as FormatType, label: 'U', cls: 'underline' },
+                              { fmt: 'strike' as FormatType, label: 'S', cls: 'line-through' },
+                              { fmt: 'spoiler' as FormatType, label: '👁', cls: '' },
+                            ].map(({ fmt, label, cls }) => (
+                              <button
+                                key={fmt}
+                                onMouseDown={e => { e.preventDefault(); handleFormat(fmt); }}
+                                onTouchEnd={e => { e.preventDefault(); handleFormat(fmt); }}
+                                className={`flex-1 min-w-0 px-1 py-1.5 rounded-lg text-[13px] transition-all duration-150
+                                  text-foreground/80 hover:bg-primary/15 hover:text-primary active:bg-primary/25 active:scale-95 ${cls}`}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                            <button
+                              onMouseDown={e => { e.preventDefault(); handleLinkRequest(); }}
+                              onTouchEnd={e => { e.preventDefault(); handleLinkRequest(); }}
+                              className="flex-1 min-w-0 px-1 py-1.5 rounded-lg text-[13px] transition-all duration-150
+                                text-foreground/80 hover:bg-primary/15 hover:text-primary active:bg-primary/25 active:scale-95"
+                            >
+                              <Link2 className="w-4 h-4 mx-auto" />
+                            </button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Input row (GIF/Emoji + Textarea + attachment + Mic/Send) */}
                 <div className="flex items-end">
@@ -4960,6 +5002,21 @@ export function ChatArea({ conversationId, onBack, onOpenConversation, isActive 
                     </motion.button>
                   )}
                 </AnimatePresence>
+
+                {/* Aa format toggle */}
+                {(content.trim() || editState) && (
+                  <button
+                    onClick={() => setShowFormatBar(v => !v)}
+                    className={`flex-shrink-0 self-end mb-2 w-6 h-6 flex items-center justify-center rounded text-[11px] font-bold transition-all
+                      ${showFormatBar
+                        ? 'text-primary'
+                        : 'text-foreground/40 hover:text-foreground/70'
+                      }`}
+                    aria-label="Formatage"
+                  >
+                    Aa
+                  </button>
+                )}
 
                 {/* Textarea
                     Keyboard hints: explicit attributes so Android's
