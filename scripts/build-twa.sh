@@ -26,23 +26,27 @@ echo "  platform-tools:"
 ls -la "$ANDROID_HOME/platform-tools" 2>/dev/null || echo "  (none)"
 
 echo ""
-echo "▶ Ensure cmdline-tools/latest symlink exists (Bubblewrap requires it)"
-if [ ! -d "$ANDROID_HOME/cmdline-tools/latest" ]; then
-  CT_VER=$(ls "$ANDROID_HOME/cmdline-tools" 2>/dev/null | grep -v latest | head -1 || true)
-  if [ -n "$CT_VER" ]; then
-    echo "  Symlinking cmdline-tools/latest -> $CT_VER"
-    ln -sfn "$CT_VER" "$ANDROID_HOME/cmdline-tools/latest"
-  else
-    echo "  Downloading cmdline-tools fresh"
-    cd /tmp
-    wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
-    unzip -q cmdline-tools.zip
-    mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
-    mv cmdline-tools/* "$ANDROID_HOME/cmdline-tools/latest/"
-    yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+echo "▶ Bubblewrap validates: \$ANDROID_HOME/tools OR \$ANDROID_HOME/bin must exist"
+echo "  (it expects the legacy SDK layout). The runner uses cmdline-tools/,"
+echo "  so we symlink tools -> the real cmdline-tools install dir that has bin/sdkmanager."
+if [ ! -e "$ANDROID_HOME/tools" ] && [ ! -e "$ANDROID_HOME/bin" ]; then
+  # Find a cmdline-tools subdir that actually contains bin/sdkmanager.
+  CT_REAL=""
+  for d in "$ANDROID_HOME/cmdline-tools/"*/; do
+    if [ -x "$d/bin/sdkmanager" ]; then
+      CT_REAL="$d"
+      break
+    fi
+  done
+  if [ -z "$CT_REAL" ]; then
+    echo "::error::No cmdline-tools subdir with bin/sdkmanager found under $ANDROID_HOME/cmdline-tools/"
+    ls -la "$ANDROID_HOME/cmdline-tools/" || true
+    exit 1
   fi
+  ln -sfn "${CT_REAL%/}" "$ANDROID_HOME/tools"
+  echo "  ✓ Symlinked $ANDROID_HOME/tools -> $CT_REAL"
 fi
-ls -la "$ANDROID_HOME/cmdline-tools/latest/bin/" 2>/dev/null | head -5 || true
+ls -la "$ANDROID_HOME/tools/bin/" 2>/dev/null | head -3 || true
 
 echo ""
 echo "▶ Setting up local node_modules with @bubblewrap/core"
