@@ -2,25 +2,40 @@
 # ─────────────────────────────────────────────────────────────────────
 # Bubblewrap TWA build — orchestrator.
 #
-# Installs @bubblewrap/core globally, then defers all build logic to
-# scripts/build-twa.mjs which calls the Bubblewrap API directly (no
-# interactive prompts — see that file for why).
+# All build logic lives in scripts/build-twa.mjs which calls the
+# Bubblewrap API directly (no interactive prompts — see that file).
+# We install @bubblewrap/core locally in the build directory because
+# Node ESM ignores NODE_PATH and won't resolve global packages.
 # ─────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
 WORK="${RUNNER_TEMP:-/tmp}/twa-build"
 export TWA_PROJECT_DIR="$WORK"
+mkdir -p "$WORK"
 
-echo "▶ Installing @bubblewrap/core (used programmatically, bypasses CLI prompts)"
-npm install -g @bubblewrap/core@latest
+echo "▶ Setting up local node_modules with @bubblewrap/core"
+cd "$WORK"
+cat > package.json <<EOF
+{
+  "name": "twa-build-runner",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module"
+}
+EOF
+npm install --no-audit --no-fund @bubblewrap/core@latest
 
-echo "▶ Running scripts/build-twa.mjs"
-NODE_PATH="$(npm root -g)" node "$GITHUB_WORKSPACE/scripts/build-twa.mjs"
+echo "▶ Copying build script into work dir (so ESM resolution sees the local node_modules)"
+cp "$GITHUB_WORKSPACE/scripts/build-twa.mjs" "$WORK/build-twa.mjs"
 
-APK="$TWA_PROJECT_DIR/app-release-signed.apk"
+echo "▶ Running build script"
+cd "$WORK"
+node build-twa.mjs
+
+APK="$WORK/app-release-signed.apk"
 if [ ! -f "$APK" ]; then
   echo "::error::Signed APK missing at $APK"
-  find "$TWA_PROJECT_DIR" -maxdepth 6 -name "*.apk" -ls || true
+  find "$WORK" -maxdepth 6 -name "*.apk" -ls || true
   exit 1
 fi
 
