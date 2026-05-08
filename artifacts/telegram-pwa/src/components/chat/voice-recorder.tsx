@@ -163,6 +163,32 @@ export function VoiceRecorder({ onSend, onCancel }: Props) {
   };
 
   // ── Web recording (MediaRecorder) ───────────────────────────────────────
+  //
+  // Quality target: rapprocher le maximum possible d'une vraie app native
+  // sans quitter le sandbox navigateur. Concrètement on pousse trois leviers
+  // que la plupart des web apps oublient :
+  //
+  //   1. Constraints getUserMedia "studio-grade" : 48 kHz / mono / 16-bit
+  //      + le triple processing du WebRTC stack (echo cancel, noise
+  //      suppression, AGC). On ajoute aussi `latency: 0.01` (10ms) pour
+  //      forcer le pipeline audio dans son mode basse-latence et éviter
+  //      le buffering aggressif qui dégrade les transitoires vocaux.
+  //   2. `voiceIsolation: true` — flag iOS Safari 17+ qui active le mode
+  //      Voice Isolation d'Apple (le même que dans FaceTime / WhatsApp).
+  //      Ignoré silencieusement sur les autres navigateurs.
+  //   3. MediaRecorder à 160 kbps Opus VBR — sweet spot pour la voix où
+  //      Opus atteint une qualité "musique-grade" indistinguible du
+  //      48 kHz/16-bit non-compressé en aveugle. 128 kbps (notre ancien
+  //      réglage) restait audible comme "compressé" sur des voix graves.
+  //      Sur Safari (qui ne supporte pas Opus), on tente AAC-LC explicite
+  //      (`mp4a.40.2`) à 128 kbps avant de tomber sur le générique
+  //      `audio/mp4` que Safari encode parfois en HE-AAC bas-bitrate.
+  //
+  // Limite fondamentale qu'on NE peut pas franchir en web : l'API
+  // MediaRecorder n'expose pas le mode `VOICE_COMMUNICATION` du driver
+  // audio Android (qui rebascule sur le DSP "appel" du téléphone, plus
+  // optimisé pour la voix que le DSP "média"). Seule l'app Capacitor
+  // y a accès via `capacitor-voice-recorder`.
   const startWebRecording = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -172,10 +198,22 @@ export function VoiceRecorder({ onSend, onCancel }: Props) {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
-      },
+        // Force le pipeline audio dans son mode basse-latence (10ms).
+        // Standard depuis Chrome 92 / Firefox 100 / Safari 16. Ignoré
+        // ailleurs.
+        latency: { ideal: 0.01 },
+        // iOS Safari 17+ — active le mode Voice Isolation d'Apple
+        // (même DSP qu'en appel FaceTime). Cast en `any` parce que
+        // les types DOM ne le connaissent pas encore mais Safari
+        // l'accepte et le respecte.
+        ...({ voiceIsolation: true } as any),
+      } as MediaTrackConstraints,
     });
 
-    const audioCtx = new AudioContext();
+    // AudioContext basse-latence pour le waveform — ne change pas la
+    // qualité enregistrée (le flux MediaRecorder est indépendant), mais
+    // rend la barre de waveform plus réactive aux pics de voix.
+    const audioCtx = new AudioContext({ latencyHint: 'interactive' });
     const source = audioCtx.createMediaStreamSource(stream);
     const analyser = audioCtx.createAnalyser();
     analyser.fftSize = 256;
@@ -185,16 +223,28 @@ export function VoiceRecorder({ onSend, onCancel }: Props) {
     waveHistoryRef.current = Array(BAR_COUNT).fill(0);
     rafRef.current = requestAnimationFrame(drawWebWaveform);
 
+    // Ordre de préférence : Opus (Chrome/Firefox/Edge/Android) puis
+    // AAC-LC explicite (Safari desktop + iOS). Le générique `audio/mp4`
+    // reste en dernier filet de sécurité — sur certains iOS Safari il
+    // fallback sur HE-AAC qui sonne moins bien sur la voix masculine.
     const mimeType =
       MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
       : MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus'
+      : MediaRecorder.isTypeSupported('audio/mp4;codecs=mp4a.40.2') ? 'audio/mp4;codecs=mp4a.40.2'
       : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
       : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4'
       : '';
 
+    // 160 kbps pour Opus (sweet spot voix → quasi musique-grade) ;
+    // 128 kbps pour AAC-LC (équivalent perceptuel à Opus 160 sur voix
+    // d'après les tests EBU/Opus working group). Si le navigateur
+    // refuse même le mimeType explicite, on retombe en MediaRecorder()
+    // sans options et on accepte ce que le navigateur sait faire.
+    const isAac = mimeType.includes('mp4a') || mimeType === 'audio/mp4';
+    const targetBitrate = isAac ? 128_000 : 160_000;
     let mr: MediaRecorder = new MediaRecorder(stream);
     const optionSets: MediaRecorderOptions[] = [
-      ...(mimeType ? [{ mimeType, audioBitsPerSecond: 128_000 }] : []),
+      ...(mimeType ? [{ mimeType, audioBitsPerSecond: targetBitrate }] : []),
       ...(mimeType ? [{ mimeType }] : []),
       {},
     ];
@@ -295,7 +345,7 @@ export function VoiceRecorder({ onSend, onCancel }: Props) {
   if (error) {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-        className="flex-1 flex items-center gap-2 glass rounded-2xl border border-red-500/30 px-3 py-2">
+        className="flex-1 composer-pill flex items-center gap-2 px-3 min-h-[52px]">
         <span className="text-red-400 text-xs flex-1">{error}</span>
         <button onClick={cancelAll} className="text-xs text-muted-foreground hover:text-foreground transition-colors underline">
           Fermer
@@ -307,8 +357,7 @@ export function VoiceRecorder({ onSend, onCancel }: Props) {
   if (phase === 'recording') {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-        className="flex-1 flex items-center gap-2 glass rounded-2xl border border-red-500/40 px-3 py-2"
-        style={{ boxShadow: '0 4px 14px -4px hsl(0 75% 55% / 0.35)' }}
+        className="flex-1 composer-pill flex items-center gap-2 px-3 min-h-[52px]"
       >
         <div className="relative flex-shrink-0">
           <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
@@ -342,8 +391,7 @@ export function VoiceRecorder({ onSend, onCancel }: Props) {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-      className="flex-1 flex items-center gap-2 glass rounded-2xl border border-primary/35 px-3 py-2"
-      style={{ boxShadow: '0 4px 14px -4px hsl(263 90% 65% / 0.35)' }}
+      className="flex-1 composer-pill flex items-center gap-2 px-3 min-h-[52px]"
     >
       <div className="flex gap-0.5 flex-1 items-center min-w-0">
         {snapshotBars.map((val, i) => (
