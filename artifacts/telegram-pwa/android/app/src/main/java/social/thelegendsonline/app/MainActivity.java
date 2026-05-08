@@ -1,6 +1,7 @@
 package social.thelegendsonline.app;
 
 import android.Manifest;
+import android.app.AlertDialog;
 import android.app.DownloadManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -88,6 +89,22 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // ── WebView zoom & font scale lockdown ──────────────────────────
+        // Sans ces réglages, le WebView Android applique le facteur de
+        // taille de police défini dans Paramètres → Affichage → Taille de
+        // police PAR-DESSUS notre CSS, ce qui casse complètement la mise
+        // en page (textes qui débordent, bulles tronquées). Le navigateur
+        // Chrome ignore ce paramètre par défaut sur les sites avec un
+        // viewport meta tag — c'est pourquoi le PWA va bien et l'APK pas.
+        // On force aussi setSupportZoom(false) pour que le pinch-to-zoom
+        // ne déforme pas l'app (l'utilisateur ne s'attend pas à zoomer
+        // une UI native). textZoom=100 = "ignore le réglage système".
+        android.webkit.WebSettings ws = bridge.getWebView().getSettings();
+        ws.setTextZoom(100);
+        ws.setSupportZoom(false);
+        ws.setBuiltInZoomControls(false);
+        ws.setDisplayZoomControls(false);
 
         // ── Notification channel ────────────────────────────────────────
         // Created up-front (idempotent) so the very first push the user
@@ -200,16 +217,29 @@ public class MainActivity extends BridgeActivity {
                 // afterwards.
                 if (isApk && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     if (!getPackageManager().canRequestPackageInstalls()) {
-                        Toast.makeText(getApplicationContext(),
-                                "Autorise l'installation depuis cette application puis relance la mise à jour.",
-                                Toast.LENGTH_LONG).show();
-                        try {
-                            Intent grant = new Intent(
-                                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                    Uri.parse("package:" + getPackageName()));
-                            grant.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                            startActivity(grant);
-                        } catch (Exception ignored) { /* fall through */ }
+                        // Show OUR own dialog first to soften the system
+                        // "Allow this app to install unknown apps?" prompt
+                        // (whose wording is hard-coded in Android — we
+                        // can't change it). The pre-prompt frames the
+                        // upcoming system screen as routine update plumbing
+                        // so non-technical users don't bounce.
+                        new AlertDialog.Builder(MainActivity.this)
+                                .setTitle("Mise à jour prête")
+                                .setMessage(
+                                        "Android va vous demander l'autorisation d'installer "
+                                        + "les futures mises à jour.")
+                                .setCancelable(false)
+                                .setPositiveButton("Continuer", (d, w) -> {
+                                    try {
+                                        Intent grant = new Intent(
+                                                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                                Uri.parse("package:" + getPackageName()));
+                                        grant.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                        startActivity(grant);
+                                    } catch (Exception ignored) { /* nothing else we can do */ }
+                                })
+                                .setNegativeButton("Plus tard", (d, w) -> d.dismiss())
+                                .show();
                         return;
                     }
                 }
@@ -396,15 +426,27 @@ public class MainActivity extends BridgeActivity {
                 bridge.getWebView().postDelayed(() -> {
                     try {
                         if (!getPackageManager().canRequestPackageInstalls()) {
+                            // Mark as asked BEFORE showing — even if the
+                            // user dismisses, we never re-ask at cold start
+                            // (the natural retry happens at next update).
                             sp.edit().putBoolean(KEY_ASKED_UNKNOWN_SOURCES, true).apply();
-                            Toast.makeText(getApplicationContext(),
-                                    "Active \"Autoriser cette source\" pour recevoir les mises à jour automatiques de l'application.",
-                                    Toast.LENGTH_LONG).show();
-                            Intent grant = new Intent(
-                                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                    Uri.parse("package:" + getPackageName()));
-                            grant.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                            startActivity(grant);
+                            new AlertDialog.Builder(MainActivity.this)
+                                    .setTitle("Mise à jour prête")
+                                    .setMessage(
+                                            "Android va vous demander l'autorisation d'installer "
+                                            + "les futures mises à jour.")
+                                    .setCancelable(true)
+                                    .setPositiveButton("Continuer", (d, w) -> {
+                                        try {
+                                            Intent grant = new Intent(
+                                                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                                    Uri.parse("package:" + getPackageName()));
+                                            grant.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                            startActivity(grant);
+                                        } catch (Exception ignored) { /* nothing else we can do */ }
+                                    })
+                                    .setNegativeButton("Plus tard", (d, w) -> d.dismiss())
+                                    .show();
                         } else {
                             // Already granted — record so we never re-ask.
                             sp.edit().putBoolean(KEY_ASKED_UNKNOWN_SOURCES, true).apply();
