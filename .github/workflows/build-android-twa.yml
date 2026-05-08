@@ -1,22 +1,10 @@
 name: Build Android TWA APK
 
-# Trusted Web Activity (TWA) build via Bubblewrap.
-# Wraps the live PWA (https://thelegendsonline.social) in a Chrome
-# Custom Tab so the rendering engine is REAL Chrome, not WebView.
-# This eliminates the WebView/Chrome behavioural divergences (text
-# selection magnifier, keyboard handling, viewport quirks) that
-# Capacitor cannot avoid because Capacitor uses Android's WebView
-# component.
-#
-# Coexists with the Capacitor build (different packageId), so the
-# user can install BOTH APKs on the same device and compare.
-#
-# First run extracts the keystore SHA256 fingerprint, writes it into
-# artifacts/telegram-pwa/public/.well-known/assetlinks.json, and
-# auto-commits that file with [skip ci] so neither build re-triggers.
-# Without a valid assetlinks.json on the live domain, the TWA shows
-# a Chrome URL bar at the top — with it, the URL bar is hidden and
-# the app feels truly native.
+# Trusted Web Activity build via Bubblewrap.
+# All the iteration-prone build logic lives in scripts/build-twa.sh
+# so future fixes don't need to modify this workflow file (which would
+# require the OAuth `workflow` scope that the Replit GitHub integration
+# does not grant by default).
 
 on:
   workflow_dispatch:
@@ -24,6 +12,7 @@ on:
     branches: [main]
     paths:
       - 'twa-manifest.json'
+      - 'scripts/build-twa.sh'
       - '.github/workflows/build-android-twa.yml'
 
 permissions:
@@ -84,7 +73,7 @@ jobs:
           echo "SHA256_FINGERPRINT=$SHA256" >> $GITHUB_ENV
           echo "::notice::SHA256 fingerprint = $SHA256"
 
-      - name: Pre-configure Bubblewrap (skip JDK/SDK prompts)
+      - name: Pre-configure Bubblewrap
         run: |
           mkdir -p ~/.bubblewrap
           cat > ~/.bubblewrap/config.json <<EOF
@@ -97,60 +86,14 @@ jobs:
       - name: Install Bubblewrap CLI
         run: npm install -g @bubblewrap/cli@latest
 
-      - name: Patch manifest with build version + signing key
-        env:
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-        run: |
-          jq \
-            --arg vc "${{ github.run_number }}" \
-            --arg vn "1.0.${{ github.run_number }}" \
-            --arg ksPath "$ANDROID_KEYSTORE_FILE" \
-            --arg ksAlias "$ANDROID_KEY_ALIAS" \
-            '.appVersionCode = ($vc|tonumber)
-             | .appVersionName = $vn
-             | .signingKey = { path: $ksPath, alias: $ksAlias }' \
-            twa-manifest.json > /tmp/twa-manifest.patched.json
-          mv /tmp/twa-manifest.patched.json ./twa-manifest.json
-          cat twa-manifest.json
-
-      - name: Generate TWA Android project from manifest
-        working-directory: ${{ runner.temp }}
-        run: |
-          mkdir -p twa-build
-          cd twa-build
-          # Init non-interactively. Empty stdin in case any prompt remains.
-          # --skipPwaValidation avoids network checks against the live PWA.
-          bubblewrap init \
-            --manifest="${{ github.workspace }}/twa-manifest.json" \
-            --skipPwaValidation < /dev/null
-
-      - name: Build signed TWA APK
-        working-directory: ${{ runner.temp }}/twa-build
+      - name: Run TWA build script
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          # bubblewrap build prompts for keystore + key password. Feed via stdin.
-          printf '%s\n%s\n' "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_PASSWORD" \
-            | bubblewrap build --skipPwaValidation
-
-      - name: Locate, verify and rename APK
-        run: |
-          APK=$(find ${{ runner.temp }}/twa-build -maxdepth 2 -name "app-release-signed.apk" | head -1)
-          if [ -z "$APK" ]; then
-            APK=$(find ${{ runner.temp }}/twa-build -maxdepth 2 -name "*.apk" | head -1)
-          fi
-          if [ -z "$APK" ]; then
-            echo "::error::No APK produced by Bubblewrap"
-            ls -laR ${{ runner.temp }}/twa-build
-            exit 1
-          fi
-          echo "Found APK: $APK"
-          BUILD_TOOLS=$(ls $ANDROID_HOME/build-tools/ | tail -1)
-          $ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner verify --print-certs "$APK"
-          mkdir -p _release
-          cp "$APK" "_release/The Legends Online (TWA).apk"
-          ls -la _release/
+          APP_VERSION_CODE: ${{ github.run_number }}
+          APP_VERSION_NAME: 1.0.${{ github.run_number }}
+        run: bash scripts/build-twa.sh
 
       - name: Update assetlinks.json with current SHA256 (auto-commit)
         env:
@@ -177,7 +120,7 @@ jobs:
           else
             git commit -m "chore(twa): sync assetlinks.json with keystore fingerprint [skip ci]"
             git push origin HEAD:main
-            echo "::notice::assetlinks.json updated and committed. Redeploy thelegendsonline.social to serve the new file."
+            echo "::notice::assetlinks.json committed. Redeploy thelegendsonline.social to serve the new file."
           fi
 
       - name: Publish to "twa-latest" release
