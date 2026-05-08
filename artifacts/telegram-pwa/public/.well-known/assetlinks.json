@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "social.thelegendsonline.twa",
+      "sha256_cert_fingerprints": ["7A:8F:D7:C9:CF:AD:1F:12:2E:E6:AC:2D:C6:6B:21:09:1E:B5:5D:8F:E3:3C:0A:67:F1:18:03:E9:A3:5A:C1:B9"]
+    }
+  }
+]
