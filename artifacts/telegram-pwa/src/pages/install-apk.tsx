@@ -14,6 +14,7 @@ const WEB_URL = 'https://thelegendsonline.social/';
 type ApkSource = {
   url: string;
   sizeMb: number | null;
+  commitShort: string | null;
   kind: 'native';
 };
 
@@ -21,9 +22,14 @@ async function resolveNativeApk(): Promise<ApkSource | null> {
   try {
     const r = await fetch(NATIVE_APK_PROXY_INFO, { cache: 'no-store' });
     if (!r.ok) return null;
-    const data: { available: boolean; sizeMb: number | null; url: string } = await r.json();
+    const data: { available: boolean; sizeMb: number | null; url: string; commitShort?: string | null } = await r.json();
     if (!data.available) return null;
-    return { url: data.url || NATIVE_APK_PROXY_DOWNLOAD, sizeMb: data.sizeMb, kind: 'native' };
+    return {
+      url: data.url || NATIVE_APK_PROXY_DOWNLOAD,
+      sizeMb: data.sizeMb,
+      commitShort: data.commitShort ?? null,
+      kind: 'native',
+    };
   } catch {
     return null;
   }
@@ -39,6 +45,7 @@ export default function InstallApk() {
   }, []);
 
   const apkSize = apk && apk !== 'loading' && apk.sizeMb ? `${apk.sizeMb.toFixed(1)} Mo` : null;
+  const apkCommit = apk && apk !== 'loading' ? apk.commitShort : null;
   const apkAvailable = apk === 'loading' ? null : apk !== null;
   const isNative = apk && apk !== 'loading' && apk.kind === 'native';
 
@@ -74,7 +81,7 @@ export default function InstallApk() {
             <div className="flex-1 min-w-0">
               <h2 className="text-base font-bold">Application Android</h2>
               <p className="text-[11px] text-muted-foreground">
-                Application native officielle · Android 7.0+{apkSize ? ` · ${apkSize}` : ''}
+                Application native officielle · Android 7.0+{apkSize ? ` · ${apkSize}` : ''}{apkCommit ? ` · Maj ${apkCommit}` : ''}
               </p>
             </div>
             {isNative && (
@@ -108,6 +115,13 @@ export default function InstallApk() {
               <li><span className="text-primary font-semibold">3.</span> Ouvre le fichier téléchargé puis touche "Installer".</li>
             </ol>
           </details>
+
+          <div className="mt-3 rounded-xl bg-amber-500/10 border border-amber-500/30 p-3">
+            <p className="text-[11px] text-amber-300 font-semibold mb-1">L'installation tourne sans fin ?</p>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Active le <span className="text-foreground font-semibold">mode avion</span> sur ton téléphone, puis retouche "Installer". Réactive Internet une fois l'installation terminée.
+            </p>
+          </div>
         </section>
 
         {/* === 2. iOS App (coming soon) === */}

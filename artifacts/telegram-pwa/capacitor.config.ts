@@ -44,6 +44,19 @@ const config: CapacitorConfig = {
       backgroundColor: '#00000000',
       overlaysWebView: true,
     },
+    // Keyboard handling — without this, the Android WebView does NOT
+    // resize when the soft keyboard opens (because we run in
+    // edge-to-edge mode with windowDrawsSystemBarBackgrounds=true,
+    // which disables the OS auto-resize). `resize: 'native'` makes
+    // Capacitor resize the WebView itself so inputs stay visible
+    // and our Visual Viewport JS in App.tsx tracks the new height.
+    // `resizeOnFullScreen: true` covers the immersive splash → app
+    // transition. `style: 'DARK'` matches our dark Telegram theme.
+    Keyboard: {
+      resize: 'native',
+      resizeOnFullScreen: true,
+      style: 'DARK',
+    },
   },
 };
 
