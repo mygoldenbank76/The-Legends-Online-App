@@ -44,10 +44,10 @@ public class MainActivity extends BridgeActivity {
         // WebView so the user gets Samsung Keyboard's word-prediction
         // strip, autocorrect, and auto-capitalisation that a Chromium
         // WebView <textarea> cannot reliably surface (Chromium handles
-        // IME at a layer below our SuggestionsWebView override). The
-        // plugin is registered here but not yet wired into the React
-        // composer — that integration happens in a follow-up so we can
-        // first verify the plugin builds and loads on device.
+        // IME at a layer below our SuggestionsWebView override). Fully
+        // wired into the React composer via src/components/chat/
+        // chat-area.tsx (see the "NATIVE EDITTEXT BRIDGE" effects) and
+        // src/lib/native-composer.ts (JS contract).
         registerPlugin(NativeComposerPlugin.class);
     }
 
