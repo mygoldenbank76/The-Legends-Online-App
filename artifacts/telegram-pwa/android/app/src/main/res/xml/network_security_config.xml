@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Explicit Network Security Config — passes Play Protect / Play Console
+  pre-launch report cleanly. Without this file Android falls back to
+  defaults, which are also fine, but having it explicit:
+    - documents intent (HTTPS-only, our domain + Agora + Firebase)
+    - allows future cert pinning without further manifest edits
+    - silences automated security audit tooling that flags missing
+      network-security-config as a warning.
+  Cleartext is denied EVERYWHERE. There is no domain in this app that
+  needs HTTP, ever.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Our own domain. Repeated explicitly so a future move to cert
+         pinning only requires adding a <pin-set> here, no other
+         changes elsewhere. -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">thelegendsonline.social</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>

@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+  Cordova legacy config consumed by capacitor-cordova-android-plugins. We
+  scope <access> to our actual domain instead of "*" to keep the network
+  whitelist tight (matches our prod CSP). Capacitor itself ignores this
+  file — it's only relevant if a Cordova plugin makes whitelisted requests.
+-->
+<widget version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+  <access origin="https://thelegendsonline.social" />
+  <access origin="https://*.thelegendsonline.social" />
+</widget>
