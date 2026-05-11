@@ -11,13 +11,13 @@ import adminRouter from "./admin";
 import pushRouter from "./push";
 import gifsRouter from "./gifs";
 import contactsRouter from "./contacts";
-import downloadRouter from "./download";
 import telemetryRouter from "./telemetry";
+import callsRouter from "./calls";
+import realtimeRouter from "./realtime";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
-router.use(downloadRouter);
 router.use(authRouter);
 router.use(usersRouter);
 router.use(conversationsRouter);
@@ -30,5 +30,7 @@ router.use(pushRouter);
 router.use(gifsRouter);
 router.use(contactsRouter);
 router.use(telemetryRouter);
+router.use(callsRouter);
+router.use(realtimeRouter);
 
 export default router;
