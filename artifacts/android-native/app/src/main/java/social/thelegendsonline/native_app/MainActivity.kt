@@ -56,7 +56,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowCompat.setDecorFitsSystemWindows(window, true)
         window.statusBarColor = Color.parseColor("#0c1019")
         window.navigationBarColor = Color.parseColor("#0c1019")
 
@@ -84,8 +84,6 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(root)
 
-        applyEdgeToEdgePadding(root)
-
         setupWebView()
 
         if (savedInstanceState != null) {
@@ -95,15 +93,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         requestNotificationPermission()
-    }
-
-    private fun applyEdgeToEdgePadding(root: View) {
-        root.setOnApplyWindowInsetsListener { view, insets ->
-            val sysInsets = WindowInsetsCompat.toWindowInsetsCompat(insets)
-                .getInsets(WindowInsetsCompat.Type.systemBars())
-            view.setPadding(0, sysInsets.top, 0, 0)
-            insets
-        }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
