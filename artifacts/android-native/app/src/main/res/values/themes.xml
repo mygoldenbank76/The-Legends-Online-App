@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.LegendsNative" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/legends_bg</item>
+        <item name="android:navigationBarColor">@color/legends_bg</item>
+        <item name="android:windowBackground">@color/legends_bg</item>
+    </style>
+</resources>
