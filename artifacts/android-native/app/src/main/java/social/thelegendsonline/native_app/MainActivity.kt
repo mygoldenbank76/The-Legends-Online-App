@@ -21,6 +21,7 @@ import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
+import android.webkit.PermissionRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
@@ -48,8 +49,8 @@ class MainActivity : AppCompatActivity() {
         fileUploadCallback = null
     }
 
-    private val notificationPermLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
+    private val allPermissionsLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
     ) { _ -> }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -92,7 +93,7 @@ class MainActivity : AppCompatActivity() {
             webView.loadUrl(BuildConfig.BACKEND_BASE_URL)
         }
 
-        requestNotificationPermission()
+        requestAllPermissions()
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -109,6 +110,10 @@ class MainActivity : AppCompatActivity() {
         settings.cacheMode = WebSettings.LOAD_DEFAULT
         settings.userAgentString = settings.userAgentString + " TheLegendsOnlineNative/" + BuildConfig.VERSION_NAME
         settings.textZoom = 100
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            webView.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_YES
+        }
 
         if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
             WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, false)
@@ -155,6 +160,10 @@ class MainActivity : AppCompatActivity() {
                     ?: "*/*"
                 fileChooserLauncher.launch(mimeTypes.ifBlank { "*/*" })
                 return true
+            }
+
+            override fun onPermissionRequest(request: PermissionRequest) {
+                request.grant(request.resources)
             }
 
             override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
@@ -239,13 +248,37 @@ class MainActivity : AppCompatActivity() {
         fun getPlatform(): String = "android"
     }
 
-    private fun requestNotificationPermission() {
+    private fun requestAllPermissions() {
+        val needed = mutableListOf<String>()
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+            != PackageManager.PERMISSION_GRANTED
+        ) needed.add(Manifest.permission.CAMERA)
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED
+        ) needed.add(Manifest.permission.RECORD_AUDIO)
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.MODIFY_AUDIO_SETTINGS)
+            != PackageManager.PERMISSION_GRANTED
+        ) needed.add(Manifest.permission.MODIFY_AUDIO_SETTINGS)
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED
-            ) {
-                notificationPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
+            ) needed.add(Manifest.permission.POST_NOTIFICATIONS)
+
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES)
+                != PackageManager.PERMISSION_GRANTED
+            ) needed.add(Manifest.permission.READ_MEDIA_IMAGES)
+
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO)
+                != PackageManager.PERMISSION_GRANTED
+            ) needed.add(Manifest.permission.READ_MEDIA_VIDEO)
+        }
+
+        if (needed.isNotEmpty()) {
+            allPermissionsLauncher.launch(needed.toTypedArray())
         }
     }
 
