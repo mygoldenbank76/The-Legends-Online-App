@@ -287,9 +287,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun ensureAutofillEnabled() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+            if (prefs.getBoolean("autofill_prompted", false)) return
+
             val afm = getSystemService(AutofillManager::class.java) ?: return
             if (!afm.isAutofillSupported) return
             if (!afm.hasEnabledAutofillServices()) {
+                prefs.edit().putBoolean("autofill_prompted", true).apply()
                 runCatching {
                     startActivity(Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE).apply {
                         data = Uri.parse("package:$packageName")
