@@ -3,30 +3,4 @@
     <string name="app_name">The Legends Online</string>
     <string name="default_notification_channel_id">legends_messages</string>
     <string name="default_notification_channel_name">Messages</string>
-
-    <string name="login_title">Connexion</string>
-    <string name="login_username">Nom d\'utilisateur</string>
-    <string name="login_password">Mot de passe</string>
-    <string name="login_submit">Se connecter</string>
-    <string name="login_to_register">Pas de compte ? Créer un compte</string>
-    <string name="login_failed">Identifiants invalides</string>
-
-    <string name="register_title">Créer un compte</string>
-    <string name="register_display_name">Nom affiché</string>
-    <string name="register_submit">Créer le compte</string>
-    <string name="register_to_login">Déjà un compte ? Se connecter</string>
-    <string name="register_failed">Création impossible</string>
-
-    <string name="conversations_title">Discussions</string>
-    <string name="conversations_empty">Aucune conversation pour le moment.</string>
-    <string name="logout">Déconnexion</string>
-
-    <string name="chat_send_placeholder">Écrire un message…</string>
-    <string name="chat_send">Envoyer</string>
-    <string name="chat_back">Retour</string>
-    <string name="chat_loading">Chargement…</string>
-    <string name="chat_unknown_user">Inconnu</string>
-
-    <string name="generic_retry">Réessayer</string>
-    <string name="generic_error">Une erreur est survenue.</string>
 </resources>
