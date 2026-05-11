@@ -9,29 +9,31 @@ import com.google.firebase.messaging.RemoteMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import okhttp3.FormBody
+import okhttp3.Request
+import social.thelegendsonline.native_app.BuildConfig
 import social.thelegendsonline.native_app.LegendsApp
-import social.thelegendsonline.native_app.MainActivity
 import social.thelegendsonline.native_app.R
 
-/**
- * FCM receiver. Wired in the AndroidManifest but only ever instantiated
- * by the OS when Firebase is initialised — i.e. when a matching
- * `app/google-services.json` is provisioned for the native package
- * `social.thelegendsonline.native_app`. Until then, this class compiles
- * and links but is dormant at runtime, and `LegendsApp` skips token
- * registration via the `FirebaseApp.getApps(...).isEmpty()` guard.
- *
- * Server side: registers with `platform: "android"` (the route enum
- * accepts ios/android/web) — no server change needed.
- */
 class LegendsFcmService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        // App may not be initialised yet if FCM fires before any UI is up.
         val app = runCatching { LegendsApp.get() }.getOrNull() ?: return
+        val jwt = app.jwtToken ?: return
         CoroutineScope(Dispatchers.IO).launch {
-            app.authRepo.registerFcmToken(token)
+            runCatching {
+                val body = FormBody.Builder()
+                    .add("token", token)
+                    .add("platform", "android")
+                    .build()
+                val req = Request.Builder()
+                    .url("${BuildConfig.BACKEND_BASE_URL}api/push/fcm-register")
+                    .header("Authorization", "Bearer $jwt")
+                    .post(body)
+                    .build()
+                app.http.newCall(req).execute().close()
+            }
         }
     }
 
