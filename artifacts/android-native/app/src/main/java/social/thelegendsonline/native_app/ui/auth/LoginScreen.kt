@@ -95,7 +95,7 @@ fun LoginScreen(onLoggedIn: () -> Unit, onGoToRegister: () -> Unit) {
                             app.realtime.connect()
                             onLoggedIn()
                         }
-                        .onFailure { error = it.message ?: stringRes(R.string.login_failed) }
+                        .onFailure { error = it.message ?: "Login failed" }
                     loading = false
                 }
             },
