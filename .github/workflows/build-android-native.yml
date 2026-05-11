@@ -1,0 +1,131 @@
+name: Build Android Native APK (Kotlin/Compose)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'artifacts/android-native/**'
+      - '.github/workflows/build-android-native.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Mirror of the Capacitor workflow guard: a parallel run on main would
+# overwrite the same `native-kotlin-latest` release asset, so cancel the
+# older job and let the newer commit win.
+concurrency:
+  group: build-android-native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build & publish native APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+
+      - name: Decode release keystore from secret
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p $HOME/.android-keystore
+          echo "$KEYSTORE_B64" | base64 -d > $HOME/.android-keystore/legends-release.keystore
+          echo "ANDROID_KEYSTORE_FILE=$HOME/.android-keystore/legends-release.keystore" >> $GITHUB_ENV
+
+      # Firebase / FCM is OPTIONAL for the native module. The Capacitor
+      # `google-services.json` is pinned to package
+      # `social.thelegendsonline.app` and would make the gms plugin fail
+      # with "No matching client found for package name
+      # social.thelegendsonline.native_app". We only inject a config
+      # when an opt-in secret `GOOGLE_SERVICES_JSON_BASE64` is provided
+      # — that secret must contain a JSON whose `client[].package_name`
+      # matches `social.thelegendsonline.native_app`. Without it the
+      # build proceeds without push (gms plugin stays unapplied, see
+      # `app/build.gradle.kts`).
+      - name: Inject native google-services.json (optional)
+        env:
+          GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          if [ -z "${GOOGLE_SERVICES_JSON_B64:-}" ]; then
+            echo "GOOGLE_SERVICES_JSON_BASE64 secret not set — building without FCM."
+            exit 0
+          fi
+          mkdir -p artifacts/android-native/app
+          echo "$GOOGLE_SERVICES_JSON_B64" | base64 -d > artifacts/android-native/app/google-services.json
+          # Preflight: refuse to build with a mismatched package_name.
+          if ! grep -q '"social.thelegendsonline.native_app"' artifacts/android-native/app/google-services.json; then
+            echo "::error::google-services.json does not contain client for package social.thelegendsonline.native_app"
+            exit 1
+          fi
+          echo "Native google-services.json injected and validated."
+
+      - name: Generate Gradle wrapper jar + script
+        working-directory: artifacts/android-native
+        run: |
+          # The wrapper jar/script are generated locally by Gradle; rather
+          # than committing a binary jar to git we ask the system Gradle
+          # to bootstrap one matching the version pinned in
+          # gradle/wrapper/gradle-wrapper.properties.
+          curl -sSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
+          unzip -q /tmp/gradle.zip -d /tmp
+          /tmp/gradle-8.10.2/bin/gradle wrapper --gradle-version 8.10.2 --distribution-type bin
+
+      - name: Make gradlew executable
+        working-directory: artifacts/android-native
+        run: chmod +x ./gradlew
+
+      - name: Build signed release APK
+        working-directory: artifacts/android-native
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ env.ANDROID_KEYSTORE_FILE }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          APP_VERSION_CODE: ${{ github.run_number }}
+          APP_VERSION_NAME: 1.0.${{ github.run_number }}
+          BACKEND_BASE_URL: https://thelegendsonline.social/
+        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Verify APK signature
+        run: |
+          BUILD_TOOLS=$(ls $ANDROID_HOME/build-tools/ | tail -1)
+          $ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner verify --print-certs \
+            artifacts/android-native/app/build/outputs/apk/release/app-release.apk
+
+      - name: Rename APK
+        run: |
+          mkdir -p _release
+          cp artifacts/android-native/app/build/outputs/apk/release/app-release.apk "_release/The Legends Online Native.apk"
+          ls -la _release/
+
+      - name: Publish to "native-kotlin-latest" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: native-kotlin-latest
+          name: 'Native Kotlin APK (latest build)'
+          body: |
+            **True native Android build** — Kotlin + Jetpack Compose, zero WebView. Signé en release (Play Protect compatible).
+
+            - Architecture native (pas de WebView Android)
+            - Même backend que Web/PWA — toutes les conversations sont synchronisées en temps réel
+            - Build #${{ github.run_number }} · commit ${{ github.sha }}
+
+            👉 Téléchargez `The Legends Online Native.apk` ci-dessous (Android 8.0+).
+          files: _release/The Legends Online Native.apk
+          make_latest: 'false'
+          prerelease: false
