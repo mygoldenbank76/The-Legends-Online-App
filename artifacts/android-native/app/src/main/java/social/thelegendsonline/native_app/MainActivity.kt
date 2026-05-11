@@ -12,6 +12,8 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.os.Message
+import android.provider.Settings
+import android.view.autofill.AutofillManager
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
@@ -94,6 +96,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         requestAllPermissions()
+        ensureAutofillEnabled()
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -279,6 +282,20 @@ class MainActivity : AppCompatActivity() {
 
         if (needed.isNotEmpty()) {
             allPermissionsLauncher.launch(needed.toTypedArray())
+        }
+    }
+
+    private fun ensureAutofillEnabled() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val afm = getSystemService(AutofillManager::class.java) ?: return
+            if (!afm.isAutofillSupported) return
+            if (!afm.hasEnabledAutofillServices()) {
+                runCatching {
+                    startActivity(Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE).apply {
+                        data = Uri.parse("package:$packageName")
+                    })
+                }
+            }
         }
     }
 
