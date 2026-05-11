@@ -51,7 +51,7 @@ class LegendsFcmService : FirebaseMessagingService() {
         val notif = NotificationCompat.Builder(this, getString(R.string.default_notification_channel_id))
             .setContentTitle(title)
             .setContentText(body)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setAutoCancel(true)
             .setContentIntent(openIntent)
             .build()
