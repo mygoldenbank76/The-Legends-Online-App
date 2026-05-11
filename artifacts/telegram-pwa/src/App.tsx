@@ -1,25 +1,34 @@
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/not-found";
-import Login from "@/pages/login";
-import Register from "@/pages/register";
+// ── Route components ──────────────────────────────────────────────────────────
+// Home et Login sont importés en EAGER : ce sont les deux écrans d'entrée
+// (un visiteur arrive forcément sur l'un ou l'autre selon son état d'auth).
+// Les rendre lazy provoquait un spinner blanc visible 200-800 ms à chaque
+// ouverture de l'app — perçu comme une régression d'interactivité par les
+// utilisateurs. Le chunk Home (~840 KB) est de toute façon nécessaire pour
+// l'usage principal de l'app, donc autant le mettre dans le bundle initial.
+//
+// Les pages secondaires (Register, Join, NotFound) restent en
+// lazy car elles sont rarement visitées.
 import Home from "@/pages/home";
-import JoinGroup from "@/pages/join";
-import InstallApk from "@/pages/install-apk";
+import Login from "@/pages/login";
+const NotFound = lazy(() => import("@/pages/not-found"));
+const Register = lazy(() => import("@/pages/register"));
+const JoinGroup = lazy(() => import("@/pages/join"));
+const ProfilePublic = lazy(() => import("@/pages/profile-public"));
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { SocketProvider } from "@/lib/socket-context";
 import { CallProvider } from "@/lib/call-context";
-import { CallModal, CallBanner } from "@/components/chat/call-modal";
+import { CallModalLazy as CallModal } from "@/components/chat/call-surface-lazy";
 import { PreferencesProvider } from "@/lib/preferences-context";
 import { ShieldOff, LogOut } from "lucide-react";
 import { createIDBPersister } from "@/lib/idb-persister";
 import { BackgroundLoader } from "@/components/background-loader";
 import { RestoringProvider, useRestoringState } from "@/lib/restoring-context";
-import { useFcm } from "@/hooks/use-fcm";
 
 // ── Query client ──────────────────────────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -85,31 +94,38 @@ function BannedScreen() {
 
 function BanGuard({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
-  // Once the user is authenticated, register the device for native FCM push
-  // so messages reach the APK even when it's fully closed. No-op on the web.
-  // Re-runs on user change (logout / switch account on same device) so the
-  // FCM token gets remapped to the active user.
-  const fcmUserId = !isLoading && user ? ((user as { id: number }).id ?? null) : null;
-  useFcm({ userId: fcmUserId });
   if (!isLoading && user && (user as any).isBanned) {
     return <BannedScreen />;
   }
   return <>{children}</>;
 }
 
+// Suspense fallback shown pendant le téléchargement du chunk de route.
+// Volontairement minimaliste (pas de logo, pas de texte) : un spinner
+// centré sur fond transparent qui se fond dans le splash screen du
+// navigateur / la couleur de fond du <body>. Ne reste à l'écran que
+// 50-300 ms sur 4G typique pour un chunk de route < 200 KB.
+function RouteFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="w-8 h-8 rounded-full border-2 border-white/10 border-t-white/60 animate-spin" />
+    </div>
+  );
+}
+
 function AppRouter() {
   return (
     <BanGuard>
-      <Switch>
-        <Route path="/login" component={Login} />
-        <Route path="/register" component={Register} />
-        <Route path="/join/:id" component={JoinGroup} />
-        <Route path="/install-app" component={InstallApk} />
-        <Route path="/install-apk" component={InstallApk} />
-        <Route path="/install" component={InstallApk} />
-        <Route path="/" component={Home} />
-        <Route component={NotFound} />
-      </Switch>
+      <Suspense fallback={<RouteFallback />}>
+        <Switch>
+          <Route path="/login" component={Login} />
+          <Route path="/register" component={Register} />
+          <Route path="/join/:id" component={JoinGroup} />
+          <Route path="/u/:username" component={ProfilePublic} />
+          <Route path="/" component={Home} />
+          <Route component={NotFound} />
+        </Switch>
+      </Suspense>
     </BanGuard>
   );
 }
@@ -137,7 +153,27 @@ function useVisualViewport() {
     const vv = window.visualViewport;
     if (!vv) return;
 
+    // Track keyboard-open state via visual viewport height delta. When the
+    // soft keyboard slides in, `vv.height` shrinks by ~250–400px. We toggle a
+    // `keyboard-open` class on <body> so CSS (e.g. the composer pill glow)
+    // can react to the *actual* keyboard state instead of relying on
+    // `:focus-within`, which stays true after the keyboard is dismissed.
+    const KEYBOARD_THRESHOLD_PX = 150;
+    const updateKeyboardClass = () => {
+      const delta = window.innerHeight - vv.height;
+      const open = delta > KEYBOARD_THRESHOLD_PX;
+      document.body.classList.toggle('keyboard-open', open);
+    };
+
     const update = () => {
+      updateKeyboardClass();
+      // Expose the live visual-viewport height as a CSS variable so
+      // overlays (emoji/GIF picker, etc.) can clamp their max-height
+      // to the actually-visible area when the soft keyboard is open.
+      // `100dvh` is unreliable on Samsung's Android WebView (it
+      // ignores the keyboard's overlay), this CSS var is the only
+      // reading that stays in sync with what the user can see.
+      document.documentElement.style.setProperty('--vvh', `${vv.height}px`);
       const root = document.getElementById('root');
       if (!root) return;
       if (_viewportMode === 'fullscreen') {
@@ -176,6 +212,7 @@ function useVisualViewport() {
       vv.removeEventListener('resize',  update);
       vv.removeEventListener('scroll',  update);
       window.removeEventListener('scroll', blockScroll);
+      document.body.classList.remove('keyboard-open');
     };
   }, []);
 }
@@ -190,7 +227,30 @@ function App() {
     <PersistQueryClientProvider
       client={queryClient}
       persistOptions={persistOptions}
-      onSuccess={() => setIsRestoring(false)}
+      onSuccess={() => {
+        setIsRestoring(false);
+        // Dev-only cold-start telemetry: measure how long the IDB cache
+        // restore took from the first script execution. PersistQuery's
+        // `onSuccess` fires once per provider mount, so we get exactly
+        // one measurement per cold start. Logged as a console table so
+        // it's easy to eyeball during local perf work without polluting
+        // production builds (the whole block is dead-code-eliminated by
+        // Vite when `import.meta.env.DEV === false`).
+        if (import.meta.env.DEV) {
+          try {
+            performance.mark('idb-restore-end');
+            const m = performance.measure(
+              'idb-restore',
+              'app-mount-start',
+              'idb-restore-end',
+            );
+            // eslint-disable-next-line no-console
+            console.info(`[perf] IDB restore complete in ${m.duration.toFixed(1)} ms`);
+          } catch {
+            /* perf marks are best-effort */
+          }
+        }
+      }}
     >
       <RestoringProvider isRestoring={isRestoring} setIsRestoring={setIsRestoring}>
         <TooltipProvider>
