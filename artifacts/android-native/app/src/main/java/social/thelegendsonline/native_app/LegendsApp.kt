@@ -11,79 +11,43 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import social.thelegendsonline.native_app.data.api.ApiClient
-import social.thelegendsonline.native_app.data.repo.AuthRepository
-import social.thelegendsonline.native_app.data.repo.ConversationsRepository
-import social.thelegendsonline.native_app.data.repo.MessagesRepository
-import social.thelegendsonline.native_app.data.repo.TokenStore
-import social.thelegendsonline.native_app.data.socket.RealtimeClient
+import okhttp3.FormBody
+import okhttp3.OkHttpClient
+import okhttp3.Request
 
-/**
- * Hand-rolled service locator. We deliberately avoid Hilt/Koin to keep
- * the bootstrap path minimal — the MVP has 3 repos and 1 socket client.
- * Add a DI framework only when the graph grows beyond ~10 services.
- */
 class LegendsApp : Application() {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    val http = OkHttpClient()
 
-    lateinit var tokenStore: TokenStore
-        private set
-    lateinit var apiClient: ApiClient
-        private set
-    lateinit var authRepo: AuthRepository
-        private set
-    lateinit var conversationsRepo: ConversationsRepository
-        private set
-    lateinit var messagesRepo: MessagesRepository
-        private set
-    lateinit var realtime: RealtimeClient
-        private set
+    var jwtToken: String? = null
 
     override fun onCreate() {
         super.onCreate()
         instance = this
-        tokenStore = TokenStore(applicationContext)
-        apiClient = ApiClient(BuildConfig.BACKEND_BASE_URL, tokenStore)
-        authRepo = AuthRepository(apiClient.authApi, tokenStore)
-        conversationsRepo = ConversationsRepository(apiClient.conversationsApi)
-        messagesRepo = MessagesRepository(apiClient.messagesApi)
-        realtime = RealtimeClient(BuildConfig.BACKEND_BASE_URL, tokenStore)
-
         ensureNotificationChannel()
-        registerFcmIfAuthenticated()
     }
 
-    /**
-     * Push registration on every authenticated cold start. `onNewToken`
-     * only fires when FCM rotates the token (rare); without this hot
-     * path, a user who reinstalls/clears data + signs back in would
-     * never link their device server-side until the next rotation.
-     * Mirror of `use-fcm.ts` web hook (`registerFcmToken` on auth+token).
-     *
-     * No-op if Firebase wasn't auto-initialised (no
-     * `app/google-services.json` provisioned for the native package
-     * yet — see app/build.gradle.kts header note). The app remains
-     * fully functional, just without push.
-     */
-    private fun registerFcmIfAuthenticated() {
-        if (tokenStore.currentToken.isNullOrBlank()) return
+    fun registerFcmIfAuthenticated() {
+        val jwt = jwtToken ?: return
         if (FirebaseApp.getApps(this).isEmpty()) return
         appScope.launch {
             runCatching {
-                val token = FirebaseMessaging.getInstance().token.await()
-                if (!token.isNullOrBlank()) authRepo.registerFcmToken(token)
+                val fcmToken = FirebaseMessaging.getInstance().token.await()
+                if (!fcmToken.isNullOrBlank()) {
+                    val body = FormBody.Builder()
+                        .add("token", fcmToken)
+                        .add("platform", "android")
+                        .build()
+                    val req = Request.Builder()
+                        .url("${BuildConfig.BACKEND_BASE_URL}api/push/fcm-register")
+                        .header("Authorization", "Bearer $jwt")
+                        .post(body)
+                        .build()
+                    http.newCall(req).execute().close()
+                }
             }
         }
-    }
-
-    /**
-     * Public hook for the login/register flow to immediately register
-     * the device once a fresh JWT lands. Avoids the next-cold-start
-     * delay for closed-app push delivery.
-     */
-    fun onAuthenticated() {
-        registerFcmIfAuthenticated()
     }
 
     private fun ensureNotificationChannel() {
