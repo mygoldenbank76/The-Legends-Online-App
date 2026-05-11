@@ -231,6 +231,35 @@ paths:
               schema:
                 $ref: "#/components/schemas/Conversation"
 
+  /conversations/{conversationId}/avatar:
+    patch:
+      operationId: updateConversationAvatar
+      tags: [conversations]
+      summary: Set or clear a group conversation avatar (admin only)
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateConversationAvatarBody"
+      responses:
+        "200":
+          description: Avatar updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  avatar:
+                    type: ["string", "null"]
+                required: [avatar]
+
   /conversations/{conversationId}/messages:
     get:
       operationId: listMessages
@@ -617,15 +646,26 @@ components:
           type: integer
         type:
           type: string
-          enum: [direct, group]
+          enum: [direct, group, channel]
         name:
           type: ["string", "null"]
+        avatar:
+          type: ["string", "null"]
+          description: |
+            Optional group avatar as a data URL (image/jpeg base64),
+            settable only by global admins on group conversations.
         pinnedMessageId:
           type: ["integer", "null"]
         participants:
           type: array
           items:
             $ref: "#/components/schemas/User"
+        messageCount:
+          type: integer
+          description: |
+            Total number of messages in this conversation, including
+            text, media, GIFs, stickers, polls, voice notes, and
+            documents. Telegram WebK-style header counter for groups.
         createdAt:
           type: string
       required:
@@ -641,8 +681,10 @@ components:
           type: integer
         type:
           type: string
-          enum: [direct, group]
+          enum: [direct, group, channel]
         name:
+          type: ["string", "null"]
+        avatar:
           type: ["string", "null"]
         pinnedMessageId:
           type: ["integer", "null"]
@@ -652,6 +694,9 @@ components:
           $ref: "#/components/schemas/Message"
         unreadCount:
           type: integer
+        messageCount:
+          type: integer
+          description: Total messages in the conversation (all kinds).
         updatedAt:
           type: string
       required:
@@ -659,6 +704,17 @@ components:
         - type
         - unreadCount
         - updatedAt
+
+    UpdateConversationAvatarBody:
+      type: object
+      properties:
+        avatar:
+          type: ["string", "null"]
+          description: |
+            data:image/* base64 URL (server enforces ~600KB hard cap),
+            or null to clear the avatar.
+      required:
+        - avatar
 
     CreateConversationBody:
       type: object
@@ -686,6 +742,9 @@ components:
               type: ["integer", "null"]
             lqip:
               type: ["string", "null"]
+            strippedThumb:
+              type: ["string", "null"]
+              description: Telegram-format stripped JPEG thumbnail (~150-300 raw bytes, base64-encoded). When present, clients prefer this over `lqip` for the placeholder paint.
             thumbnailUrl:
               type: ["string", "null"]
           required:
@@ -715,6 +774,9 @@ components:
         mediaPreview:
           type: ["string", "null"]
           description: Tiny base64 LQIP data URL (~700–1500 B JPEG/PNG/WebP).
+        mediaStrippedThumb:
+          type: ["string", "null"]
+          description: Telegram-format stripped JPEG thumbnail (~150-300 raw bytes, base64-encoded). When present, clients prefer this over `mediaPreview` for the placeholder paint.
         mediaAlbum:
           type: ["array", "null"]
           items:
@@ -729,6 +791,20 @@ components:
           $ref: "#/components/schemas/Message"
         replyToId:
           type: ["integer", "null"]
+        forwardedFromName:
+          type: ["string", "null"]
+          description: When set, the message was forwarded from another conversation; the value is the original sender's display name. Rendered as a "Transféré de [Name]" header inside the bubble (Telegram-WebK style).
+        callType:
+          type: ["string", "null"]
+          enum: ["audio", "video", null]
+          description: When set, the message represents a call event (in-app voice/video call). Drives the call bubble + the conversation list preview ("Appel vocal" / "Appel vidéo").
+        callStatus:
+          type: ["string", "null"]
+          enum: ["answered", "missed", "declined", "ongoing", null]
+          description: Call lifecycle state. Combined with callType to render the proper preview ("Appel vocal manqué" etc.).
+        callDuration:
+          type: ["integer", "null"]
+          description: Call duration in seconds. Null for missed/declined.
         editedAt:
           type: ["string", "null"]
         isDeleted:
@@ -762,6 +838,8 @@ components:
           type: ["string", "null"]
         mediaPreview:
           type: ["string", "null"]
+        mediaStrippedThumb:
+          type: ["string", "null"]
         mediaAlbum:
           type: ["array", "null"]
           items:
@@ -772,6 +850,9 @@ components:
           type: ["integer", "null"]
         replyToId:
           type: ["integer", "null"]
+        forwardedFromName:
+          type: ["string", "null"]
+          description: Set by the in-app Forward sheet to attribute the message to its original sender. Persisted as-is on the new message row.
       required: []
 
     EditMessageBody:
@@ -792,6 +873,18 @@ components:
         description:
           type: ["string", "null"]
         image:
+          type: ["string", "null"]
+        platform:
+          type: ["string", "null"]
+        embedUrl:
+          type: ["string", "null"]
+        siteName:
+          type: ["string", "null"]
+        # Telegram-style stripped thumbnail of `image` (base64 wire
+        # payload). Painted by the client as a blurred placeholder
+        # behind the real og:image so YouTube/Spotify/og cards never
+        # flash a grey rectangle while the third-party CDN is contacted.
+        imageStrippedThumb:
           type: ["string", "null"]
       required:
         - url
